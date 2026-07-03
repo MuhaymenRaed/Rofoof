@@ -1,26 +1,235 @@
 @import "tailwindcss";
 
+/* Class-based dark mode toggled on <html class="dark"> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens — warm "bookshop" palette ported from the reference HTML.
+   Values switch under .dark; utilities below read them through @theme inline.
+--------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --brand: #e8321a;
+  --brand-soft: rgba(232, 50, 26, 0.08);
+  --brand-line: rgba(232, 50, 26, 0.2);
+  --brand-strong: #c4291300;
+
+  --bg: #f7f3ee;
+  --surface: #ffffff;
+  --surface-2: #f0ebe4;
+  --surface-3: #e8e2da;
+
+  --ink: #1c1208;
+  --ink-2: #6b5e50;
+  --ink-3: #a8998a;
+
+  --line: rgba(28, 18, 8, 0.1);
+  --line-2: rgba(28, 18, 8, 0.06);
+
+  --shadow: 0 1px 3px rgba(28, 18, 8, 0.06);
+  --shadow-lg: 0 18px 50px -12px rgba(28, 18, 8, 0.22);
+  --ring: rgba(232, 50, 26, 0.35);
+}
+
+.dark {
+  --brand: #ff5a42;
+  --brand-soft: rgba(255, 90, 66, 0.1);
+  --brand-line: rgba(255, 90, 66, 0.22);
+
+  --bg: #0c0b0a;
+  --surface: #161412;
+  --surface-2: #1e1b18;
+  --surface-3: #252018;
+
+  --ink: #f2ede6;
+  --ink-2: #9e9184;
+  --ink-3: #5e554c;
+
+  --line: rgba(242, 237, 230, 0.08);
+  --line-2: rgba(242, 237, 230, 0.05);
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
+  --ring: rgba(255, 90, 66, 0.4);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-line: var(--brand-line);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+
+  --font-sans: var(--font-cairo), system-ui, sans-serif;
+
+  --radius-card: 14px;
+
+  --animate-marquee: marquee 32s linear infinite;
+  --animate-fade-in: fade-in 0.4s ease both;
+  --animate-pop: pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* RTL: ticker content scrolls toward the start edge */
+    transform: translateX(50%);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slide-in-start {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes badge-bounce {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-cairo), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  ::selection {
+    background: var(--brand);
+    color: #fff;
+  }
+
+  /* Subtle, theme-aware scrollbar */
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--surface-3);
+    border: 3px solid var(--bg);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ink-3);
+  }
+
+  input,
+  textarea,
+  button,
+  select {
+    font-family: inherit;
+  }
+
+  /* Interactive elements always show a pointer; disabled → not-allowed */
+  button,
+  [role="button"],
+  [role="switch"],
+  a[href],
+  summary,
+  select,
+  label:has(input[type="checkbox"]),
+  label:has(input[type="radio"]) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  .tap:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .card-shadow {
+    box-shadow: var(--shadow);
+  }
+  .card-shadow-lg {
+    box-shadow: var(--shadow-lg);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .dash-input {
+    width: 100%;
+    height: 2.6rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    padding: 0 0.85rem;
+    font-size: 0.875rem;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s, background 0.3s;
+  }
+  .dash-input:focus {
+    border-color: var(--brand);
+    background: var(--surface);
+  }
+}
+
+@utility tap {
+  -webkit-tap-highlight-color: transparent;
 }
