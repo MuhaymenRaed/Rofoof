@@ -1,0 +1,12 @@
+# Netlify build configuration.
+#
+# Secrets scanning (Netlify's default build step) flags any string in the
+# build output that matches a configured environment variable's value. The
+# NEXT_PUBLIC_* variables below are *intentionally* public by Next.js
+# convention — they get baked into the client bundle on purpose (a WhatsApp
+# number, an Instagram link, the Supabase project URL, and the Supabase
+# *anon* key, which is safe to expose and is protected by Row-Level Security,
+# not a secret). Omitting just these four keeps scanning active for every
+# other variable, including the real secret, SUPABASE_SERVICE_ROLE_KEY.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_WHATSAPP_NUMBER,NEXT_PUBLIC_INSTAGRAM_URL"
