@@ -11,6 +11,8 @@ export type BadgeType = "bestseller" | "new" | "waterproof";
 export type OrderStatusDb = "review" | "accepted" | "shipped" | "delivered";
 export type CouponType = "percent" | "fixed";
 export type UserRole = "customer" | "admin";
+export type ProductKindDb = "standard" | "package" | "tiered";
+export type OfferKindDb = "bundle" | "cart_percent" | "cart_delivery" | "flash";
 
 type Timestamps = { created_at: string; updated_at: string };
 
@@ -99,6 +101,9 @@ export interface Database {
           is_active: boolean;
           stock: number;
           discount_percent: number;
+          kind: ProductKindDb;
+          waterproof_surcharge: number;
+          allow_custom_image: boolean;
           rating: number;
           reviews_count: number;
           sort_order: number;
@@ -124,11 +129,83 @@ export interface Database {
           is_active?: boolean;
           stock?: number;
           discount_percent?: number;
+          kind?: ProductKindDb;
+          waterproof_surcharge?: number;
+          allow_custom_image?: boolean;
           sort_order?: number;
           is_deleted?: boolean;
           deleted_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["products"]["Insert"]>;
+        Relationships: [];
+      };
+      product_items: {
+        Row: {
+          id: string;
+          product_id: string;
+          image_url: string;
+          name_ar: string;
+          name_en: string;
+          price: number | null;
+          sort_order: number;
+          is_active: boolean;
+          is_deleted: boolean;
+          created_at: string;
+        };
+        Insert: {
+          product_id: string;
+          image_url: string;
+          name_ar?: string;
+          name_en?: string;
+          price?: number | null;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["product_items"]["Insert"]>;
+        Relationships: [];
+      };
+      product_price_tiers: {
+        Row: { product_id: string; min_qty: number; unit_price: number };
+        Insert: { product_id: string; min_qty: number; unit_price: number };
+        Update: Partial<{ min_qty: number; unit_price: number }>;
+        Relationships: [];
+      };
+      offers: {
+        Row: {
+          id: string;
+          kind: OfferKindDb;
+          title_ar: string;
+          title_en: string;
+          product_id: string | null;
+          buy_qty: number | null;
+          free_qty: number | null;
+          min_cart_total: number | null;
+          percent: number | null;
+          delivery_fee: number | null;
+          user_id: string | null;
+          starts_at: string | null;
+          ends_at: string | null;
+          active: boolean;
+          is_deleted: boolean;
+          created_at: string;
+        };
+        Insert: {
+          kind: OfferKindDb;
+          title_ar: string;
+          title_en: string;
+          product_id?: string | null;
+          buy_qty?: number | null;
+          free_qty?: number | null;
+          min_cart_total?: number | null;
+          percent?: number | null;
+          delivery_fee?: number | null;
+          user_id?: string | null;
+          starts_at?: string | null;
+          ends_at?: string | null;
+          active?: boolean;
+          is_deleted?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["offers"]["Insert"]>;
         Relationships: [];
       };
       product_categories: {
@@ -160,6 +237,7 @@ export interface Database {
           delivery_fee: number;
           total: number;
           tracking: string | null;
+          offer_note: string | null;
         } & Timestamps;
         Insert: {
           user_id?: string | null;
@@ -181,20 +259,32 @@ export interface Database {
           id: string;
           order_id: string;
           product_id: string | null;
+          item_id: string | null;
           name_ar_snapshot: string;
           name_en_snapshot: string;
+          item_name_ar: string | null;
+          item_name_en: string | null;
           unit_price: number;
           qty: number;
+          free_qty: number;
+          waterproof: boolean;
+          custom_image_url: string | null;
           note: string | null;
           line_total: number;
         };
         Insert: {
           order_id: string;
           product_id?: string | null;
+          item_id?: string | null;
           name_ar_snapshot: string;
           name_en_snapshot: string;
+          item_name_ar?: string | null;
+          item_name_en?: string | null;
           unit_price: number;
           qty: number;
+          free_qty?: number;
+          waterproof?: boolean;
+          custom_image_url?: string | null;
           note?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["order_items"]["Insert"]>;
@@ -278,6 +368,8 @@ export interface Database {
         Args: { p_code: string; p_name_ar: string; p_name_en: string };
         Returns: Json;
       };
+      admin_set_product_items: { Args: { p_id: string; p_items: Json }; Returns: number };
+      admin_set_price_tiers: { Args: { p_id: string; p_tiers: Json }; Returns: number };
       is_admin: { Args: Record<string, never>; Returns: boolean };
     };
     Enums: {

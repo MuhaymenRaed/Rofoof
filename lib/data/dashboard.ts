@@ -95,6 +95,22 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
+/** Orders per status — feeds the distribution pie chart. */
+export async function getStatusCounts(): Promise<Record<OrderStatus, number>> {
+  const supabase = await createSupabaseServerClient();
+  const counts: Record<OrderStatus, number> = { review: 0, accepted: 0, shipped: 0, delivered: 0 };
+  const { data, error } = await supabase.from("orders").select("status").limit(2000);
+  if (error || !data) {
+    console.error("[dashboard] statusCounts:", error);
+    return counts;
+  }
+  for (const row of data) {
+    const s = row.status as OrderStatus;
+    if (s in counts) counts[s] += 1;
+  }
+  return counts;
+}
+
 /** Last 7 days of revenue for the bar chart. */
 export async function getWeeklyRevenue(): Promise<WeeklyRevenuePoint[]> {
   const supabase = await createSupabaseServerClient();
@@ -131,7 +147,11 @@ export async function getInventory(offset = 0, limit = 30): Promise<InventoryPag
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("products")
-    .select("*, product_fandoms(fandom_code), product_categories(category_code)")
+    .select(
+      "*, product_fandoms(fandom_code), product_categories(category_code), " +
+        "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
+        "product_price_tiers(min_qty, unit_price)",
+    )
     .order("sort_order", { ascending: false })
     .range(offset, offset + limit);
 

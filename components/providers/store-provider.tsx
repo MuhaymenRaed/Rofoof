@@ -11,14 +11,32 @@ import {
   type ReactNode,
 } from "react";
 import { translate, type DictKey, type Lang } from "@/lib/i18n";
-import { effectivePrice, type CategoryInfo, type FandomInfo, type Product } from "@/lib/products";
+import type { CategoryInfo, FandomInfo, Offer, Product } from "@/lib/products";
+import { linePricing, type LinePricing } from "@/lib/pricing";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export interface CartLine {
+  /** product id */
   id: string;
+  /** selected package item, when the product is a package */
+  itemId?: string;
   qty: number;
+  waterproof?: boolean;
+  customImageUrl?: string;
   note?: string;
+}
+
+export interface AddToCartOptions {
+  itemId?: string;
+  waterproof?: boolean;
+  customImageUrl?: string;
+  note?: string;
+}
+
+/** Identity of a cart line: same product + item + waterproof merge together. */
+export function cartLineKey(l: Pick<CartLine, "id" | "itemId" | "waterproof">): string {
+  return `${l.id}::${l.itemId ?? ""}::${l.waterproof ? "wp" : ""}`;
 }
 
 export interface AnnouncementSettings {
@@ -37,8 +55,11 @@ interface StoreContextValue {
   products: Product[];
   categories: CategoryInfo[];
   fandoms: FandomInfo[];
+  offers: Offer[];
   getProduct: (id: string) => Product | undefined;
   categoryLabel: (code: string) => string;
+  /** display-only pricing for a cart line (server recomputes at checkout) */
+  pricingFor: (line: CartLine) => LinePricing;
   // announcement bar
   announcement: string | null;
   announcementSettings: AnnouncementSettings;
@@ -47,9 +68,9 @@ interface StoreContextValue {
   cart: CartLine[];
   cartCount: number;
   cartSubtotal: number;
-  addToCart: (id: string, qty?: number, note?: string) => void;
-  setQty: (id: string, qty: number) => void;
-  removeFromCart: (id: string) => void;
+  addToCart: (id: string, qty?: number, opts?: AddToCartOptions) => void;
+  setQty: (lineKey: string, qty: number) => void;
+  removeFromCart: (lineKey: string) => void;
   clearCart: () => void;
   // wishlist
   wishlist: string[];
@@ -74,12 +95,14 @@ export function StoreProvider({
   products,
   categories,
   fandoms,
+  offers,
   initialAnnouncement,
 }: {
   children: ReactNode;
   products: Product[];
   categories: CategoryInfo[];
   fandoms: FandomInfo[];
+  offers: Offer[];
   initialAnnouncement: AnnouncementSettings | null;
 }) {
   const { user } = useAuth();
@@ -207,24 +230,44 @@ export function StoreProvider({
     [categoryMap, lang],
   );
 
-  const addToCart = useCallback((id: string, qty = 1, note?: string) => {
+  const addToCart = useCallback((id: string, qty = 1, opts?: AddToCartOptions) => {
     setCart((prev) => {
-      const existing = prev.find((l) => l.id === id);
+      const next: CartLine = {
+        id,
+        itemId: opts?.itemId,
+        qty,
+        waterproof: opts?.waterproof,
+        customImageUrl: opts?.customImageUrl,
+        note: opts?.note,
+      };
+      const key = cartLineKey(next);
+      const existing = prev.find((l) => cartLineKey(l) === key);
       if (existing) {
-        return prev.map((l) => (l.id === id ? { ...l, qty: l.qty + qty, note: note ?? l.note } : l));
+        return prev.map((l) =>
+          cartLineKey(l) === key
+            ? {
+                ...l,
+                qty: l.qty + qty,
+                note: opts?.note ?? l.note,
+                customImageUrl: opts?.customImageUrl ?? l.customImageUrl,
+              }
+            : l,
+        );
       }
-      return [...prev, { id, qty, note }];
+      return [...prev, next];
     });
   }, []);
 
-  const setQty = useCallback((id: string, qty: number) => {
+  const setQty = useCallback((lineKey: string, qty: number) => {
     setCart((prev) =>
-      qty <= 0 ? prev.filter((l) => l.id !== id) : prev.map((l) => (l.id === id ? { ...l, qty } : l)),
+      qty <= 0
+        ? prev.filter((l) => cartLineKey(l) !== lineKey)
+        : prev.map((l) => (cartLineKey(l) === lineKey ? { ...l, qty } : l)),
     );
   }, []);
 
-  const removeFromCart = useCallback((id: string) => {
-    setCart((prev) => prev.filter((l) => l.id !== id));
+  const removeFromCart = useCallback((lineKey: string) => {
+    setCart((prev) => prev.filter((l) => cartLineKey(l) !== lineKey));
   }, []);
 
   const clearCart = useCallback(() => setCart([]), []);
@@ -255,14 +298,22 @@ export function StoreProvider({
 
   const setAnnouncementSettings = useCallback((next: AnnouncementSettings) => setAnn(next), []);
 
+  // Display-only pricing per line (tiers, item price, flash %, waterproof
+  // surcharge, bundle freebies). The place_order RPC recomputes at checkout.
+  const pricingFor = useCallback(
+    (line: CartLine): LinePricing => {
+      const p = productMap.get(line.id);
+      if (!p) return { unit: 0, free: 0, total: 0 };
+      const item = line.itemId ? p.items.find((i) => i.id === line.itemId) ?? null : null;
+      return linePricing(p, line.qty, { item, waterproof: line.waterproof }, offers);
+    },
+    [productMap, offers],
+  );
+
   const cartCount = useMemo(() => cart.reduce((n, l) => n + l.qty, 0), [cart]);
   const cartSubtotal = useMemo(
-    () =>
-      cart.reduce((sum, l) => {
-        const p = productMap.get(l.id);
-        return sum + (p ? effectivePrice(p) : 0) * l.qty;
-      }, 0),
-    [cart, productMap],
+    () => cart.reduce((sum, l) => sum + pricingFor(l).total, 0),
+    [cart, pricingFor],
   );
   const quickView = quickViewId ? productMap.get(quickViewId) ?? null : null;
 
@@ -280,8 +331,10 @@ export function StoreProvider({
     products,
     categories,
     fandoms,
+    offers,
     getProduct,
     categoryLabel,
+    pricingFor,
     announcement,
     announcementSettings: ann,
     setAnnouncementSettings,

@@ -4,7 +4,13 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { StoreProvider } from "@/components/providers/store-provider";
-import { getProducts, getAnnouncement, getCategories, getFandoms } from "@/lib/data/catalog";
+import {
+  getProducts,
+  getAnnouncement,
+  getCategories,
+  getFandoms,
+  getOffers,
+} from "@/lib/data/catalog";
 import { Ticker } from "@/components/layout/ticker";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -67,11 +73,12 @@ const noFlashScript = `
 `;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [products, announcement, categories, fandoms] = await Promise.all([
+  const [products, announcement, categories, fandoms, offers] = await Promise.all([
     getProducts(),
     getAnnouncement(),
     getCategories(),
     getFandoms(),
+    getOffers(),
   ]);
 
   return (
@@ -86,6 +93,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               products={products}
               categories={categories}
               fandoms={fandoms}
+              offers={offers}
               initialAnnouncement={announcement}
             >
               <div className="flex min-h-screen flex-col">

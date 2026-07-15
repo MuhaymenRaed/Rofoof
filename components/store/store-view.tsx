@@ -6,7 +6,7 @@ import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
 import { FilterPanel } from "@/components/store/filter-panel";
 import { Search, Sliders, X, ChevronEnd } from "@/components/icons";
-import { MAX_PRICE, effectivePrice, type Fandom } from "@/lib/products";
+import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
 import type { DictKey } from "@/lib/i18n";
 
 type CatSel = string;
@@ -50,7 +50,7 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
         return false;
       if (fandom !== "all" && !p.fandoms.includes(fandom)) return false;
       if (waterproof && !p.waterproof) return false;
-      if (effectivePrice(p) > maxPrice) return false;
+      if (lowestPrice(p) > maxPrice) return false;
       if (q) {
         const haystack = `${p.nameAr} ${p.nameEn} ${p.subAr} ${p.subEn} ${p.tags.join(" ")}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -61,9 +61,9 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
     list = [...list].sort((a, b) => {
       switch (sort) {
         case "priceAsc":
-          return effectivePrice(a) - effectivePrice(b);
+          return lowestPrice(a) - lowestPrice(b);
         case "priceDesc":
-          return effectivePrice(b) - effectivePrice(a);
+          return lowestPrice(b) - lowestPrice(a);
         case "newest":
           return b.order - a.order;
         default:

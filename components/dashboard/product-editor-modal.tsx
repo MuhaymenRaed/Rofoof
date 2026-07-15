@@ -6,7 +6,13 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { X, Plus, Trash, Droplet } from "@/components/icons";
-import { canBeWaterproof, type CategoryInfo, type FandomInfo, type Product } from "@/lib/products";
+import {
+  canBeWaterproof,
+  type CategoryInfo,
+  type FandomInfo,
+  type Product,
+  type ProductKind,
+} from "@/lib/products";
 import {
   upsertProductAction,
   deleteProductAction,
@@ -14,9 +20,37 @@ import {
   createFandomAction,
 } from "@/lib/actions/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
-const MAX_IMAGES = 8;
+const MAX_IMAGES = 30;
+
+const KINDS: { id: ProductKind; key: DictKey }[] = [
+  { id: "standard", key: "dash.kind.standard" },
+  { id: "package", key: "dash.kind.package" },
+  { id: "tiered", key: "dash.kind.tiered" },
+];
+
+const DEFAULT_TIERS = [
+  { minQty: "1", unitPrice: "4000" },
+  { minQty: "2", unitPrice: "3500" },
+  { minQty: "3", unitPrice: "3250" },
+  { minQty: "4", unitPrice: "3000" },
+];
+
+/**
+ * One image slot in the editor. For package products each slot IS a
+ * selectable item with its own optional price; for other kinds it's just a
+ * gallery image. Existing slots carry `id` (item) / `url`; new ones carry
+ * `file` + `preview`.
+ */
+interface ImageRow {
+  itemId?: string;
+  url?: string;
+  file?: File;
+  preview?: string;
+  price: string;
+}
 
 function slugify(input: string, seed: number) {
   const base = input
@@ -32,7 +66,7 @@ function slugify(input: string, seed: number) {
 
 /**
  * Admin product editor — create or edit (full CRUD incl. soft delete).
- * Multi-image, multi-category (+ create new categories inline), discount %.
+ * Kind-aware: package (per-item prices), tiered (volume ladder), standard.
  */
 export function ProductEditorModal({
   open,
@@ -53,6 +87,7 @@ export function ProductEditorModal({
 
   const isEdit = !!product;
 
+  const [kind, setKind] = useState<ProductKind>("standard");
   const [nameAr, setNameAr] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [price, setPrice] = useState("");
@@ -65,9 +100,10 @@ export function ProductEditorModal({
   const [selectedFandoms, setSelectedFandoms] = useState<string[]>([]);
   const [extraFandoms, setExtraFandoms] = useState<FandomInfo[]>([]);
   const [waterproof, setWaterproof] = useState(false);
-  const [existing, setExisting] = useState<string[]>([]);
-  const [newFiles, setNewFiles] = useState<File[]>([]);
-  const [newPreviews, setNewPreviews] = useState<string[]>([]);
+  const [surcharge, setSurcharge] = useState("0");
+  const [allowCustom, setAllowCustom] = useState(false);
+  const [rows, setRows] = useState<ImageRow[]>([]);
+  const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [catNameAr, setCatNameAr] = useState("");
   const [catNameEn, setCatNameEn] = useState("");
@@ -85,6 +121,7 @@ export function ProductEditorModal({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
+    setKind(product?.kind ?? "standard");
     setNameAr(product?.nameAr ?? "");
     setNameEn(product?.nameEn ?? "");
     setPrice(product ? String(product.price) : "");
@@ -95,9 +132,26 @@ export function ProductEditorModal({
     setSelectedCats(product?.categories?.length ? product.categories : []);
     setSelectedFandoms(product?.fandoms ?? []);
     setWaterproof(product?.waterproof ?? false);
-    setExisting(product?.images ?? []);
-    setNewFiles([]);
-    setNewPreviews([]);
+    setSurcharge(String(product?.waterproofSurcharge ?? 0));
+    setAllowCustom(product?.allowCustomImage ?? false);
+    // Package products: slots come from their items (each has its own price);
+    // others: from the plain image gallery.
+    if (product?.kind === "package" && product.items.length > 0) {
+      setRows(
+        product.items.map((it) => ({
+          itemId: it.id,
+          url: it.imageUrl,
+          price: it.price === null ? "" : String(it.price),
+        })),
+      );
+    } else {
+      setRows((product?.images ?? []).map((url) => ({ url, price: "" })));
+    }
+    setTiers(
+      product?.tiers?.length
+        ? product.tiers.map((tr) => ({ minQty: String(tr.minQty), unitPrice: String(tr.unitPrice) }))
+        : DEFAULT_TIERS,
+    );
     setExtraCats([]);
     setExtraFandoms([]);
     setCatFormOpen(false);
@@ -115,39 +169,49 @@ export function ProductEditorModal({
   }, [open, onClose]);
 
   // revoke object URLs on unmount
-  const previewsRef = useRef<string[]>([]);
+  const rowsRef = useRef<ImageRow[]>([]);
   useEffect(() => {
-    previewsRef.current = newPreviews;
-  }, [newPreviews]);
-  useEffect(() => () => previewsRef.current.forEach((u) => URL.revokeObjectURL(u)), []);
+    rowsRef.current = rows;
+  }, [rows]);
+  useEffect(
+    () => () =>
+      rowsRef.current.forEach((r) => {
+        if (r.preview) URL.revokeObjectURL(r.preview);
+      }),
+    [],
+  );
 
   if (!open) return null;
 
   const allCats = [...storeCategories, ...extraCats];
   const allFandoms = [...storeFandoms, ...extraFandoms];
-  const totalImages = existing.length + newFiles.length;
   const waterproofEligible = canBeWaterproof(selectedCats);
+  const customEligible = selectedCats.includes("posters");
+  const isPackage = kind === "package";
+  const isTiered = kind === "tiered";
 
   function pickImages(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
     if (picked.length === 0) return;
-    const room = Math.max(0, MAX_IMAGES - totalImages);
+    const room = Math.max(0, MAX_IMAGES - rows.length);
     const accepted = picked.slice(0, room);
-    setNewFiles((prev) => [...prev, ...accepted]);
-    setNewPreviews((prev) => [...prev, ...accepted.map((f) => URL.createObjectURL(f))]);
+    setRows((prev) => [
+      ...prev,
+      ...accepted.map((f) => ({ file: f, preview: URL.createObjectURL(f), price: "" })),
+    ]);
     e.target.value = "";
   }
 
-  function removeExisting(i: number) {
-    setExisting((prev) => prev.filter((_, idx) => idx !== i));
-  }
-  function removeNew(i: number) {
-    setNewPreviews((prev) => {
-      const url = prev[i];
-      if (url) URL.revokeObjectURL(url);
+  function removeRow(i: number) {
+    setRows((prev) => {
+      const r = prev[i];
+      if (r?.preview) URL.revokeObjectURL(r.preview);
       return prev.filter((_, idx) => idx !== i);
     });
-    setNewFiles((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function setRowPrice(i: number, value: string) {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, price: value } : r)));
   }
 
   function toggleCat(code: string) {
@@ -202,6 +266,10 @@ export function ProductEditorModal({
     setCatFormOpen(false);
   }
 
+  function setTier(i: number, field: "minQty" | "unitPrice", value: string) {
+    setTiers((prev) => prev.map((tr, idx) => (idx === i ? { ...tr, [field]: value } : tr)));
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!nameAr.trim() || !price || selectedCats.length === 0) {
@@ -212,26 +280,33 @@ export function ProductEditorModal({
     const id = product?.id ?? slugify(nameEn || nameAr, performance.now() | 0);
 
     startTransition(async () => {
-      const urls = [...existing];
-
-      if (newFiles.length > 0) {
-        setUploading(true);
-        for (let i = 0; i < newFiles.length; i++) {
-          const f = newFiles[i];
-          const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
-          const path = `${id}/${Date.now()}-${i}.${ext}`;
-          const { error: upErr } = await supabase.storage
-            .from("product-images")
-            .upload(path, f, { upsert: true, contentType: f.type });
-          if (upErr) {
-            setUploading(false);
-            setError(upErr.message);
-            return;
-          }
-          urls.push(supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl);
+      // upload new files to product-images/<id>/…
+      const finalRows: { itemId?: string; url: string; price: string }[] = [];
+      const toUpload = rows.filter((r) => r.file);
+      if (toUpload.length > 0) setUploading(true);
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.url) {
+          finalRows.push({ itemId: r.itemId, url: r.url, price: r.price });
+          continue;
         }
-        setUploading(false);
+        if (!r.file) continue;
+        const ext = (r.file.name.split(".").pop() || "jpg").toLowerCase();
+        const path = `${id}/${Date.now()}-${i}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("product-images")
+          .upload(path, r.file, { upsert: true, contentType: r.file.type });
+        if (upErr) {
+          setUploading(false);
+          setError(upErr.message);
+          return;
+        }
+        finalRows.push({
+          url: supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl,
+          price: r.price,
+        });
       }
+      setUploading(false);
 
       const res = await upsertProductAction({
         id,
@@ -242,11 +317,29 @@ export function ProductEditorModal({
         stock: Math.max(0, Number(stock) || 0),
         descAr: descAr.trim(),
         descEn: descEn.trim(),
-        images: urls,
+        images: finalRows.map((r) => r.url),
         color: product?.color ?? PALETTE[Math.abs((nameAr.length + nameEn.length) % PALETTE.length)],
         categories: selectedCats,
         fandoms: selectedFandoms,
-        waterproof: waterproofEligible && waterproof,
+        waterproof: waterproofEligible ? waterproof : false,
+        waterproofSurcharge: waterproofEligible ? Math.max(0, Number(surcharge) || 0) : 0,
+        allowCustomImage: customEligible ? allowCustom : false,
+        kind,
+        items: isPackage
+          ? finalRows.map((r) => ({
+              id: r.itemId,
+              imageUrl: r.url,
+              price: r.price.trim() === "" ? null : Math.max(0, Number(r.price) || 0),
+            }))
+          : [],
+        tiers: isTiered
+          ? tiers
+              .map((tr) => ({
+                minQty: Math.max(1, Number(tr.minQty) || 1),
+                unitPrice: Math.max(0, Number(tr.unitPrice) || 0),
+              }))
+              .filter((tr, idx, arr) => arr.findIndex((x) => x.minQty === tr.minQty) === idx)
+          : [],
         isUpdate: isEdit,
       });
       if (!res.ok) {
@@ -303,11 +396,39 @@ export function ProductEditorModal({
           </button>
         </div>
 
-        {/* Body (scrolls) */}
+        {/* Body */}
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
-          {/* Images */}
+          {/* Kind — drives the rest of the form */}
           <div>
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("dash.image")}</span>
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("dash.kind")}</span>
+            <div className="grid grid-cols-3 gap-2">
+              {KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => setKind(k.id)}
+                  aria-pressed={kind === k.id}
+                  className={`tap rounded-xl border px-2 py-2 text-[11px] font-bold transition ${
+                    kind === k.id
+                      ? "border-brand bg-brand text-white"
+                      : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+                  }`}
+                >
+                  {t(k.key)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Images / package items */}
+          <div>
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">
+              {t("dash.image")}
+              <span className="ms-2 font-semibold text-ink-3">
+                {rows.length}/{MAX_IMAGES}
+              </span>
+            </span>
+            {isPackage && <p className="mb-2 text-[11px] text-ink-3">{t("dash.packageHint")}</p>}
             <input
               ref={fileRef}
               type="file"
@@ -316,27 +437,46 @@ export function ProductEditorModal({
               onChange={pickImages}
               className="hidden"
             />
-            <div className="grid grid-cols-4 gap-2">
-              {existing.map((src, i) => (
-                <ImageTile
-                  key={src}
-                  src={src}
-                  isCover={i === 0}
-                  coverLabel={t("dash.cover")}
-                  onRemove={() => removeExisting(i)}
-                />
+            <div className={`grid gap-2 ${isPackage ? "grid-cols-3" : "grid-cols-4"}`}>
+              {rows.map((r, i) => (
+                <div key={r.itemId ?? r.url ?? r.preview ?? i} className="space-y-1">
+                  <div className="relative aspect-square overflow-hidden rounded-xl border border-line-2">
+                    <Image
+                      src={r.url ?? r.preview ?? ""}
+                      alt=""
+                      fill
+                      sizes="96px"
+                      unoptimized={!!r.preview}
+                      className="object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeRow(i)}
+                      aria-label={t("dash.cancel")}
+                      className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
+                    >
+                      <X size={12} />
+                    </button>
+                    {i === 0 && !isPackage && (
+                      <span className="absolute bottom-1 start-1 rounded bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        {t("dash.cover")}
+                      </span>
+                    )}
+                  </div>
+                  {isPackage && (
+                    <input
+                      type="number"
+                      min={0}
+                      value={r.price}
+                      onChange={(e) => setRowPrice(i, e.target.value)}
+                      placeholder={price || t("dash.itemPrice")}
+                      aria-label={t("dash.itemPrice")}
+                      className="dash-input h-8 px-2 text-center text-xs"
+                    />
+                  )}
+                </div>
               ))}
-              {newPreviews.map((src, i) => (
-                <ImageTile
-                  key={src}
-                  src={src}
-                  unoptimized
-                  isCover={existing.length === 0 && i === 0}
-                  coverLabel={t("dash.cover")}
-                  onRemove={() => removeNew(i)}
-                />
-              ))}
-              {totalImages < MAX_IMAGES && (
+              {rows.length < MAX_IMAGES && (
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
@@ -395,6 +535,60 @@ export function ProductEditorModal({
             </Field>
           </div>
 
+          {/* Tiered: volume price ladder */}
+          {isTiered && (
+            <div>
+              <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("dash.tiers")}</span>
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_2rem] gap-2 text-[10px] font-bold text-ink-3">
+                  <span>{t("dash.tierMinQty")}</span>
+                  <span>{t("dash.tierPrice")}</span>
+                  <span />
+                </div>
+                {tiers.map((tr, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_2rem] items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={tr.minQty}
+                      onChange={(e) => setTier(i, "minQty", e.target.value)}
+                      aria-label={t("dash.tierMinQty")}
+                      className="dash-input h-9"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      value={tr.unitPrice}
+                      onChange={(e) => setTier(i, "unitPrice", e.target.value)}
+                      aria-label={t("dash.tierPrice")}
+                      className="dash-input h-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTiers((prev) => prev.filter((_, idx) => idx !== i))}
+                      aria-label={t("offer.delete")}
+                      className="tap grid h-8 w-8 place-items-center rounded-lg text-ink-3 transition hover:bg-red-500/10 hover:text-red-500"
+                    >
+                      <Trash size={14} />
+                    </button>
+                  </div>
+                ))}
+                {tiers.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTiers((prev) => [...prev, { minQty: String(prev.length + 1), unitPrice: "" }])
+                    }
+                    className="tap inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-3 py-1.5 text-xs font-bold text-ink-3 transition hover:border-brand hover:text-brand"
+                  >
+                    <Plus size={13} />
+                    {t("dash.addTier")}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Descriptions */}
           <Field label={t("dash.fieldDescAr")}>
             <textarea
@@ -448,7 +642,6 @@ export function ProductEditorModal({
                 {t("dash.newCategory")}
               </button>
             </div>
-
             {catFormOpen && (
               <div className="mt-2 flex flex-col gap-2 rounded-xl border border-line-2 bg-surface-2/50 p-3 sm:flex-row">
                 <input
@@ -476,11 +669,9 @@ export function ProductEditorModal({
             )}
           </div>
 
-          {/* Fandoms (optional, multi) */}
+          {/* Fandoms (multi, optional) */}
           <div>
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">
-              {t("dash.fieldFandoms")}
-            </span>
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("fandom.label")}</span>
             <div className="flex flex-wrap gap-2">
               {allFandoms.map((f) => {
                 const on = selectedFandoms.includes(f.code);
@@ -509,7 +700,6 @@ export function ProductEditorModal({
                 {t("dash.newFandom")}
               </button>
             </div>
-
             {fanFormOpen && (
               <div className="mt-2 flex flex-col gap-2 rounded-xl border border-line-2 bg-surface-2/50 p-3 sm:flex-row">
                 <input
@@ -531,36 +721,52 @@ export function ProductEditorModal({
                   disabled={fanPending || !fanNameAr.trim() || !fanNameEn.trim()}
                   className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
                 >
-                  {fanPending ? "…" : t("dash.addFandom")}
+                  {fanPending ? "…" : t("dash.addCategory")}
                 </button>
               </div>
             )}
           </div>
 
-          {/* Waterproof — only offered for stickers / posters */}
+          {/* Waterproof variant (stickers/posters) */}
           {waterproofEligible && (
-            <div className="flex items-center justify-between rounded-xl border border-line-2 bg-surface-2/50 px-4 py-3">
-              <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-                <Droplet size={16} className="text-brand" />
-                {t("dash.waterproofOption")}
-                <span className="text-[10px] font-medium text-ink-3">{t("dash.waterproofHint")}</span>
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={waterproof}
-                onClick={() => setWaterproof((v) => !v)}
-                className={`tap relative h-6 w-11 shrink-0 rounded-full transition ${
-                  waterproof ? "bg-brand" : "bg-surface-3"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                    waterproof ? "start-[22px]" : "start-0.5"
-                  }`}
+            <div className="space-y-2 rounded-xl border border-line-2 bg-surface-2/40 p-3">
+              <label className="flex cursor-pointer items-center justify-between">
+                <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                  <Droplet size={16} className="text-brand" />
+                  {t("badge.waterproof")}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={waterproof}
+                  onChange={(e) => setWaterproof(e.target.checked)}
+                  className="h-4 w-4 accent-brand"
                 />
-              </button>
+              </label>
+              {waterproof && (
+                <Field label={t("dash.surcharge")}>
+                  <input
+                    type="number"
+                    min={0}
+                    value={surcharge}
+                    onChange={(e) => setSurcharge(e.target.value)}
+                    className="dash-input h-9"
+                  />
+                </Field>
+              )}
             </div>
+          )}
+
+          {/* Custom artwork (posters) */}
+          {customEligible && (
+            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-line-2 bg-surface-2/40 p-3">
+              <span className="text-[13px] font-semibold text-ink">🖼️ {t("dash.allowCustom")}</span>
+              <input
+                type="checkbox"
+                checked={allowCustom}
+                onChange={(e) => setAllowCustom(e.target.checked)}
+                className="h-4 w-4 accent-brand"
+              />
+            </label>
           )}
 
           {error && (
@@ -616,39 +822,6 @@ export function ProductEditorModal({
 
   if (typeof document === "undefined") return null;
   return createPortal(content, document.body);
-}
-
-function ImageTile({
-  src,
-  isCover,
-  coverLabel,
-  onRemove,
-  unoptimized,
-}: {
-  src: string;
-  isCover: boolean;
-  coverLabel: string;
-  onRemove: () => void;
-  unoptimized?: boolean;
-}) {
-  return (
-    <div className="relative aspect-square overflow-hidden rounded-xl border border-line-2">
-      <Image src={src} alt="" fill sizes="96px" unoptimized={unoptimized} className="object-cover" />
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label="remove"
-        className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
-      >
-        <X size={12} />
-      </button>
-      {isCover && (
-        <span className="absolute bottom-1 start-1 rounded bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
-          {coverLabel}
-        </span>
-      )}
-    </div>
-  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

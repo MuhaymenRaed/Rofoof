@@ -1,7 +1,6 @@
 import { Hero } from "@/components/home/hero";
 import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
-import { TrackOrder } from "@/components/home/track-order";
 import { SectionTitle } from "@/components/ui/section-title";
 import { getProducts } from "@/lib/data/catalog";
 import type { Product } from "@/lib/products";
@@ -35,10 +34,6 @@ export default async function HomePage() {
         <Grid products={fresh} />
       </section>
 
-      <section id="track" className="mt-10 scroll-mt-24">
-        <SectionTitle titleKey="section.track" />
-        <TrackOrder />
-      </section>
     </div>
   );
 }

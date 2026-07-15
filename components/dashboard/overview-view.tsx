@@ -1,11 +1,24 @@
 "use client";
 
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { UsersIcon, TrendIcon, BarsIcon } from "@/components/dashboard/dash-icons";
 import { Package, Bag, Star } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import type { Order } from "@/lib/products";
+import { statusStyle, type Order, type OrderStatus } from "@/lib/products";
 import type { DashboardStats, WeeklyRevenuePoint } from "@/lib/data/dashboard";
 import type { DictKey } from "@/lib/i18n";
 
@@ -41,15 +54,33 @@ const MINI_META: { key: DictKey; field: keyof DashboardStats; money?: boolean; a
 export function OverviewView({
   stats,
   weekly,
+  statusCounts,
   latest,
 }: {
   stats: DashboardStats;
   weekly: WeeklyRevenuePoint[];
+  statusCounts: Record<OrderStatus, number>;
   latest: Order[];
 }) {
   const { t, lang } = useStore();
-  const maxRevenue = Math.max(1, ...weekly.map((d) => d.value));
   const maxSold = Math.max(1, ...stats.topProducts.map((p) => p.sold));
+
+  const pieData = (Object.keys(statusCounts) as OrderStatus[])
+    .map((s) => ({
+      name: t(statusStyle[s].key),
+      value: statusCounts[s],
+      color: statusStyle[s].color,
+    }))
+    .filter((d) => d.value > 0);
+
+  const tooltipStyle: React.CSSProperties = {
+    background: "var(--surface)",
+    border: "1px solid var(--line)",
+    borderRadius: 12,
+    fontSize: 12,
+    fontFamily: "inherit",
+    color: "var(--ink)",
+  };
 
   return (
     <div className="space-y-6">
@@ -103,7 +134,7 @@ export function OverviewView({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Weekly revenue chart */}
+        {/* Weekly revenue — interactive area chart */}
         <section className="rounded-2xl border border-line-2 bg-surface p-5 card-shadow sm:p-6 lg:col-span-3">
           <h2 className="mb-5 flex items-center gap-2 text-sm font-extrabold text-ink">
             <BarsIcon size={17} className="text-brand" />
@@ -112,65 +143,120 @@ export function OverviewView({
           {weekly.length === 0 ? (
             <p className="py-10 text-center text-sm text-ink-3">{t("dash.empty")}</p>
           ) : (
-            <div className="flex h-52 items-end gap-2 sm:gap-4">
-              {weekly.map((d, i) => (
-                <div key={`${d.day}-${i}`} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex w-full flex-1 items-end">
-                    <div
-                      className="group relative w-full rounded-t-lg bg-brand/85 transition-all hover:bg-brand"
-                      style={{ height: `${(d.value / maxRevenue) * 100}%` }}
-                      title={formatPrice(d.value, lang)}
-                    >
-                      <span className="pointer-events-none absolute -top-6 start-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-0.5 text-[10px] font-bold text-surface opacity-0 transition group-hover:opacity-100">
-                        {d.value.toLocaleString("en-US")}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-semibold text-ink-3">{d.day}</span>
-                </div>
-              ))}
+            <div className="h-56" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={weekly} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#e8321a" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#e8321a" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line-2)" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontSize: 11, fill: "var(--ink-3)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "var(--ink-3)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={44}
+                    tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value) => [formatPrice(Number(value), lang), t("dash.revenue")]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#e8321a"
+                    strokeWidth={2.5}
+                    fill="url(#rev)"
+                    dot={{ r: 3, fill: "#e8321a", strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           )}
         </section>
 
-        {/* Top sellers */}
-        <section className="rounded-2xl border border-line-2 bg-surface card-shadow lg:col-span-2">
-          <h2 className="flex items-center gap-2 border-b border-line-2 p-5 text-sm font-extrabold text-ink">
-            <Star size={16} filled className="text-amber-500" />
-            {t("dash.topProducts")}
-          </h2>
-          {stats.topProducts.length === 0 ? (
-            <p className="p-6 text-center text-sm text-ink-3">{t("dash.empty")}</p>
+        {/* Order status distribution — sales ratio at a glance */}
+        <section className="rounded-2xl border border-line-2 bg-surface p-5 card-shadow sm:p-6 lg:col-span-2">
+          <h2 className="mb-2 text-sm font-extrabold text-ink">{t("dash.statusDist")}</h2>
+          {pieData.length === 0 ? (
+            <p className="py-10 text-center text-sm text-ink-3">{t("dash.empty")}</p>
           ) : (
-            <ul className="divide-y divide-line-2">
-              {stats.topProducts.map((p, i) => (
-                <li key={p.id || i} className="flex items-center gap-3 px-5 py-3">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-xs font-black text-brand">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-bold text-ink">
-                      {lang === "ar" ? p.nameAr : p.nameEn}
-                    </p>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                      <div
-                        className="h-full rounded-full bg-brand/80"
-                        style={{ width: `${(p.sold / maxSold) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-end">
-                    <p className="text-sm font-black text-ink">
-                      {p.sold} <span className="text-[10px] font-semibold text-ink-3">{t("dash.sold")}</span>
-                    </p>
-                    <p className="text-[11px] font-bold text-brand">{formatPrice(p.revenue, lang)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="h-56" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="55%"
+                    outerRadius="80%"
+                    paddingAngle={3}
+                    strokeWidth={0}
+                  >
+                    {pieData.map((d) => (
+                      <Cell key={d.name} fill={d.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: 11, fontFamily: "inherit" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </section>
       </div>
+
+      {/* Top sellers */}
+      <section className="rounded-2xl border border-line-2 bg-surface card-shadow">
+        <h2 className="flex items-center gap-2 border-b border-line-2 p-5 text-sm font-extrabold text-ink">
+          <Star size={16} filled className="text-amber-500" />
+          {t("dash.topProducts")}
+        </h2>
+        {stats.topProducts.length === 0 ? (
+          <p className="p-6 text-center text-sm text-ink-3">{t("dash.empty")}</p>
+        ) : (
+          <ul className="divide-y divide-line-2">
+            {stats.topProducts.map((p, i) => (
+              <li key={p.id || i} className="flex items-center gap-3 px-5 py-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-xs font-black text-brand">
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold text-ink">
+                    {lang === "ar" ? p.nameAr : p.nameEn}
+                  </p>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-brand/80"
+                      style={{ width: `${(p.sold / maxSold) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="shrink-0 text-end">
+                  <p className="text-sm font-black text-ink">
+                    {p.sold} <span className="text-[10px] font-semibold text-ink-3">{t("dash.sold")}</span>
+                  </p>
+                  <p className="text-[11px] font-bold text-brand">{formatPrice(p.revenue, lang)}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Latest orders */}
       <section className="rounded-2xl border border-line-2 bg-surface card-shadow">

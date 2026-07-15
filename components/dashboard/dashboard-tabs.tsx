@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { BarsIcon } from "@/components/dashboard/dash-icons";
-import { Bag, Package, Grid } from "@/components/icons";
+import { Bag, Package, Grid, Sparkles } from "@/components/icons";
 import type { DictKey } from "@/lib/i18n";
 
 const TABS: { href: string; key: DictKey; icon: React.ReactNode }[] = [
   { href: "/dashboard", key: "dash.overview", icon: <BarsIcon size={16} /> },
   { href: "/dashboard/orders", key: "dash.orders", icon: <Bag size={16} /> },
   { href: "/dashboard/inventory", key: "dash.inventory", icon: <Package size={16} /> },
+  { href: "/dashboard/offers", key: "dash.offersTab", icon: <Sparkles size={16} /> },
   { href: "/dashboard/customers", key: "dash.customers", icon: <Grid size={16} /> },
 ];
 

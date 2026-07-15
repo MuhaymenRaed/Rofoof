@@ -1,11 +1,14 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { mapProduct, type ProductRowWithFandoms } from "./mappers";
+import { mapProduct, mapOffer, type ProductRowWithFandoms, type OfferRowLike } from "./mappers";
 import { TAGS } from "./tags";
-import type { CategoryInfo, FandomInfo, Product } from "@/lib/products";
+import type { CategoryInfo, FandomInfo, Offer, Product } from "@/lib/products";
 
-const PRODUCT_SELECT = "*, product_fandoms(fandom_code), product_categories(category_code)";
+const PRODUCT_SELECT =
+  "*, product_fandoms(fandom_code), product_categories(category_code), " +
+  "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
+  "product_price_tiers(min_qty, unit_price)";
 
 /**
  * Public catalog. Cached across requests (tag: products, revalidate 5 min) and
@@ -88,6 +91,37 @@ export async function getFandoms(): Promise<FandomInfo[]> {
     return await cachedFandoms();
   } catch (error) {
     console.error("[catalog] getFandoms failed:", error);
+    return [];
+  }
+}
+
+/**
+ * Live global offers (flash / bundle / cart conditions). Short revalidation so
+ * flash sales start/stop promptly; admin edits also revalidate on demand.
+ * Anon-cached, so user-specific offers are NOT included here — the server
+ * pricing engine still applies them at checkout.
+ */
+const cachedOffers = unstable_cache(
+  async (): Promise<Offer[]> => {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase
+      .from("offers")
+      .select(
+        "id, kind, title_ar, title_en, product_id, buy_qty, free_qty, min_cart_total, percent, delivery_fee, ends_at",
+      )
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data as OfferRowLike[]).map(mapOffer);
+  },
+  ["catalog:offers"],
+  { tags: [TAGS.offers], revalidate: 60 },
+);
+
+export async function getOffers(): Promise<Offer[]> {
+  try {
+    return await cachedOffers();
+  } catch (error) {
+    console.error("[catalog] getOffers failed:", error);
     return [];
   }
 }

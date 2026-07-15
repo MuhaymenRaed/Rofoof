@@ -9,7 +9,7 @@ import { ProductEditorModal } from "@/components/dashboard/product-editor-modal"
 import { Pencil } from "@/components/dashboard/dash-icons";
 import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { effectivePrice, type Product } from "@/lib/products";
+import { hasVariablePrice, lowestPrice, type Product } from "@/lib/products";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -31,13 +31,21 @@ export function ProductCard({
   const wished = isWished(product.id);
   const badge = product.badge ? badgeMeta[product.badge] : null;
   const onSale = product.discountPercent > 0;
-  const price = effectivePrice(product);
+  const price = lowestPrice(product);
+  const showFrom = hasVariablePrice(product);
+  const isPackage = product.kind === "package" && product.items.length > 0;
 
   const style: CSSVars = { "--c": product.color };
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
     if (product.soldOut) return;
+    // Packages need an item choice (and tiered products benefit from the
+    // quantity ladder) — open the quick view instead of blind-adding.
+    if (isPackage || product.kind === "tiered") {
+      openQuickView(product.id);
+      return;
+    }
     addToCart(product.id);
     setJustAdded(true);
     openCart();
@@ -127,6 +135,11 @@ export function ProductCard({
               </span>
             )}
             <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
+              {showFrom && (
+                <span className="me-1 text-[10px] font-semibold text-ink-3">
+                  {t("product.from")}
+                </span>
+              )}
               {formatPrice(price, lang)}
             </span>
           </span>

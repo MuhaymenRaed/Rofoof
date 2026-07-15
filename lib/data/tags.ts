@@ -3,5 +3,6 @@ export const TAGS = {
   products: "products",
   categories: "categories",
   fandoms: "fandoms",
+  offers: "offers",
   settings: "settings",
 } as const;

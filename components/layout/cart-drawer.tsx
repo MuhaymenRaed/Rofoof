@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useStore } from "@/components/providers/store-provider";
+import Image from "next/image";
+import { useStore, cartLineKey } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { X, Bag, Trash, Whatsapp, Check } from "@/components/icons";
+import { X, Bag, Trash, Whatsapp, Check, Droplet } from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
-import { effectivePrice } from "@/lib/products";
+import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { placeOrderAction } from "@/lib/actions/orders";
 import { updateProfileAction } from "@/lib/actions/profile";
@@ -27,6 +28,8 @@ export function CartDrawer() {
     removeFromCart,
     clearCart,
     getProduct,
+    pricingFor,
+    offers,
     lang,
     t,
   } = useStore();
@@ -72,6 +75,12 @@ export function CartDrawer() {
   // An order cannot be placed without a name, phone and province (location).
   const canCheckout = name.trim() !== "" && phone.trim() !== "" && province !== "";
 
+  // Display-only cart-level offers preview (the server recomputes at checkout;
+  // it also picks the BEST single money discount if a coupon beats this one).
+  const cartDiscount = cartDiscountFor(cartSubtotal, offers);
+  const deliveryOffer = deliveryOfferFor(cartSubtotal, offers);
+  const previewTotal = Math.max(cartSubtotal - (cartDiscount?.amount ?? 0), 0);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !phone.trim() || !province) return;
@@ -83,7 +92,14 @@ export function CartDrawer() {
       provinceCode: province,
       addressLine: address || null,
       notes: note || null,
-      items: cart.map((l) => ({ productId: l.id, qty: l.qty, note: l.note ?? null })),
+      items: cart.map((l) => ({
+        productId: l.id,
+        itemId: l.itemId ?? null,
+        qty: l.qty,
+        waterproof: l.waterproof ?? false,
+        customImageUrl: l.customImageUrl ?? null,
+        note: l.note ?? null,
+      })),
     });
     setPending(false);
     if (!res.ok) {
@@ -256,10 +272,16 @@ export function CartDrawer() {
             </div>
 
             <div className="border-t border-line-2 px-5 py-4">
+              {cartDiscount && (
+                <div className="mb-2 flex items-center justify-between text-xs font-bold text-emerald-600">
+                  <span>🎉 {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}</span>
+                  <span>-{formatPrice(cartDiscount.amount, lang)}</span>
+                </div>
+              )}
               <div className="mb-3 flex items-center justify-between">
                 <span className="font-bold text-ink">{t("cart.total")}</span>
                 <span className="text-lg font-black text-brand">
-                  {formatPrice(cartSubtotal, lang)}
+                  {formatPrice(previewTotal, lang)}
                 </span>
               </div>
               {!canCheckout && (
@@ -290,28 +312,56 @@ export function CartDrawer() {
               {cart.map((line) => {
                 const product = getProduct(line.id);
                 if (!product) return null;
+                const key = cartLineKey(line);
+                const item = line.itemId
+                  ? product.items.find((i) => i.id === line.itemId)
+                  : undefined;
                 const name = lang === "ar" ? product.nameAr : product.nameEn;
+                const itemName = item ? (lang === "ar" ? item.nameAr : item.nameEn) : "";
+                const thumb = line.customImageUrl ?? item?.imageUrl ?? product.image;
+                const pricing = pricingFor(line);
                 const style: CSSVars = { "--c": product.color };
                 return (
                   <div
-                    key={line.id}
+                    key={key}
                     style={style}
                     className="flex gap-3 rounded-2xl border border-line-2 bg-surface-2/50 p-3"
                   >
                     <div
-                      className="grid h-16 w-16 shrink-0 place-items-center rounded-xl text-3xl"
+                      className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl text-3xl"
                       style={{ background: "color-mix(in srgb, var(--c) 14%, var(--surface))" }}
                     >
-                      {product.emoji}
+                      {thumb ? (
+                        <Image src={thumb} alt={name} fill sizes="64px" className="object-cover" />
+                      ) : (
+                        product.emoji
+                      )}
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-2 text-[13px] font-bold leading-snug text-ink">
-                          {name}
-                        </h3>
+                        <div className="min-w-0">
+                          <h3 className="line-clamp-1 text-[13px] font-bold leading-snug text-ink">
+                            {name}
+                          </h3>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                            {itemName && (
+                              <span className="text-[10px] font-semibold text-ink-3">{itemName}</span>
+                            )}
+                            {line.waterproof && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-500/12 px-1.5 py-0.5 text-[9px] font-bold text-sky-600">
+                                <Droplet size={9} /> {t("badge.waterproof")}
+                              </span>
+                            )}
+                            {pricing.free > 0 && (
+                              <span className="rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
+                                {pricing.free} {t("cart.free")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => removeFromCart(line.id)}
+                          onClick={() => removeFromCart(key)}
                           aria-label={t("cart.remove")}
                           className="tap shrink-0 text-ink-3 transition hover:text-brand"
                         >
@@ -321,12 +371,12 @@ export function CartDrawer() {
                       <div className="mt-auto flex items-center justify-between pt-2">
                         <QtyStepper
                           value={line.qty}
-                          onChange={(q) => setQty(line.id, q)}
+                          onChange={(q) => setQty(key, q)}
                           min={1}
                           size="sm"
                         />
                         <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
-                          {formatPrice(effectivePrice(product) * line.qty, lang)}
+                          {formatPrice(pricing.total, lang)}
                         </span>
                       </div>
                     </div>
@@ -341,15 +391,31 @@ export function CartDrawer() {
                   <span>{t("cart.subtotal")}</span>
                   <span className="font-bold text-ink">{formatPrice(cartSubtotal, lang)}</span>
                 </div>
+                {cartDiscount && (
+                  <div className="flex items-center justify-between text-emerald-600">
+                    <span className="text-xs font-bold">
+                      🎉 {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}
+                    </span>
+                    <span className="font-bold">-{formatPrice(cartDiscount.amount, lang)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-ink-2">
                   <span>{t("cart.delivery")}</span>
-                  <span className="text-xs text-ink-3">{t("cart.deliveryNote")}</span>
+                  {deliveryOffer ? (
+                    <span className="text-xs font-bold text-emerald-600">
+                      {deliveryOffer.deliveryFee === 0
+                        ? t("cart.freeDelivery")
+                        : formatPrice(deliveryOffer.deliveryFee ?? 0, lang)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-ink-3">{t("cart.deliveryNote")}</span>
+                  )}
                 </div>
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-line-2 pt-3">
                 <span className="font-bold text-ink">{t("cart.total")}</span>
                 <span className="text-lg font-black text-brand">
-                  {formatPrice(cartSubtotal, lang)}
+                  {formatPrice(previewTotal, lang)}
                 </span>
               </div>
               <button

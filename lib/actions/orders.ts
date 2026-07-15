@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
+import { sendOrderTelegramNotification } from "@/lib/telegram";
 import type { OrderStatusDb } from "@/lib/supabase/types";
 
 /* ------------------------------ Place order ---------------------------- */
@@ -21,7 +22,10 @@ const placeOrderSchema = z.object({
     .array(
       z.object({
         productId: z.string().min(1),
+        itemId: z.string().uuid().nullable().optional(),
         qty: z.number().int().min(1).max(99),
+        waterproof: z.boolean().optional().default(false),
+        customImageUrl: z.string().url().max(500).nullable().optional(),
         note: z.string().max(200).nullable().optional(),
       }),
     )
@@ -48,7 +52,14 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     p_address_line: v.addressLine ?? null,
     p_notes: v.notes ?? null,
     p_coupon_code: v.couponCode ?? null,
-    p_items: v.items.map((i) => ({ product_id: i.productId, qty: i.qty, note: i.note ?? null })),
+    p_items: v.items.map((i) => ({
+      product_id: i.productId,
+      item_id: i.itemId ?? null,
+      qty: i.qty,
+      waterproof: i.waterproof,
+      custom_image_url: i.customImageUrl ?? null,
+      note: i.note ?? null,
+    })),
   });
 
   if (error) {
@@ -57,6 +68,21 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
   }
 
   const result = data as { code: string; total: number };
+
+  // Alert the store's Telegram bot. Fully non-fatal: sendOrderTelegramNotification
+  // never throws, so a Telegram outage can never fail an already-successful
+  // order. Still awaited (not fire-and-forget) — Netlify Functions can freeze
+  // the function the instant this action's response is sent, which would
+  // silently kill an un-awaited call before the request ever reaches Telegram.
+  await sendOrderTelegramNotification({
+    code: result.code,
+    customerName: v.customerName,
+    customerPhone: v.customerPhone,
+    provinceCode: v.provinceCode ?? null,
+    total: result.total,
+    itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
+  });
+
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
@@ -88,6 +114,35 @@ export async function updateOrderStatusAction(
 export async function loadMoreOrdersAction(offset: number): Promise<OrdersPage> {
   await requireAdmin();
   return getAllOrders(offset);
+}
+
+/**
+ * Bulk status move for the order-cards grid. Each entry carries its own target
+ * status (computed client-side as next/previous step per card), validated here.
+ */
+export async function updateManyOrderStatusesAction(
+  updates: { code: string; status: OrderStatusDb }[],
+): Promise<{ ok: boolean; failed: string[] }> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const failed: string[] = [];
+
+  for (const u of updates.slice(0, 100)) {
+    if (!STATUSES.includes(u.status)) {
+      failed.push(u.code);
+      continue;
+    }
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: u.status })
+      .eq("code", u.code);
+    if (error) failed.push(u.code);
+  }
+
+  revalidatePath("/dashboard/orders");
+  revalidatePath("/dashboard");
+  revalidatePath("/orders");
+  return { ok: failed.length === 0, failed };
 }
 
 /* ------------------------------ Track order ---------------------------- */

@@ -58,7 +58,7 @@ export function Hero() {
               {t("hero.shop")}
             </Link>
             <Link
-              href="#track"
+              href="/orders"
               className="tap inline-flex items-center gap-2 rounded-xl border border-line bg-transparent px-5 py-2.5 text-[13px] font-semibold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
             >
               <Package size={16} />

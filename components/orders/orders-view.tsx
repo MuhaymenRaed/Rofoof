@@ -1,15 +1,36 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { OrderTracker } from "@/components/ui/order-tracker";
-import { Package } from "@/components/icons";
+import { Package, Droplet } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { statusStyle, type Order } from "@/lib/products";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function OrdersView({ orders }: { orders: Order[] }) {
   const { t } = useStore();
+  const router = useRouter();
+
+  // Real-time: when the admin moves any of this user's orders to a new step,
+  // Supabase Realtime notifies us and the server refetch repaints the exact
+  // color-coded status — no polling, no manual refresh.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel("my-orders")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, () =>
+        router.refresh(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -73,47 +94,95 @@ function OrderCard({ order }: { order: Order }) {
 
         {/* Items */}
         <ul className="mt-4 space-y-2 border-t border-line-2 pt-4">
-          {order.items.map((item) => {
+          {order.items.map((item, idx) => {
             const product = getProduct(item.productId);
-            const name = product
-              ? lang === "ar"
-                ? product.nameAr
-                : product.nameEn
-              : item.productId;
+            const name = lang === "ar" ? item.nameAr : item.nameEn;
+            const variant = lang === "ar" ? item.itemNameAr : item.itemNameEn;
             return (
-              <li
-                key={item.productId}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span className="flex items-center gap-2.5 text-ink-2">
+              <li key={idx} className="flex items-center justify-between gap-3 text-sm">
+                <span className="flex min-w-0 items-center gap-2.5 text-ink-2">
                   <span
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base"
+                    className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg text-base"
                     style={{
                       background: product
                         ? `color-mix(in srgb, ${product.color} 14%, var(--surface))`
                         : "var(--surface-2)",
                     }}
                   >
-                    {product?.emoji ?? "📦"}
+                    {item.customImageUrl || product?.image ? (
+                      <Image
+                        src={item.customImageUrl ?? product!.image!}
+                        alt=""
+                        fill
+                        sizes="32px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      product?.emoji ?? "📦"
+                    )}
                   </span>
-                  <span className="font-semibold text-ink">{name}</span>
-                  <span className="text-ink-3">× {item.qty}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-ink">
+                      {name}
+                      {variant && <span className="text-ink-3"> — {variant}</span>}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[10px] text-ink-3">
+                      × {item.qty}
+                      {item.freeQty > 0 && (
+                        <span className="font-bold text-emerald-600">
+                          ({item.freeQty} {t("cart.free")})
+                        </span>
+                      )}
+                      {item.waterproof && (
+                        <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
+                          <Droplet size={9} /> {t("badge.waterproof")}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 </span>
-                <span className="font-bold text-ink-2">{formatPrice(item.lineTotal, lang)}</span>
+                <span className="shrink-0 font-bold text-ink-2">
+                  {formatPrice(item.lineTotal, lang)}
+                </span>
               </li>
             );
           })}
         </ul>
 
-        {/* Footer */}
-        <div className="mt-4 flex items-center justify-between border-t border-line-2 pt-4">
-          <span className="flex items-center gap-2 text-sm font-semibold text-ink-2">
-            <Package size={16} className="text-brand" />
-            {order.customer}
-          </span>
-          <span className="text-base font-black text-brand">
-            {formatPrice(order.total, lang)}
-          </span>
+        {/* Money breakdown */}
+        <div className="mt-4 space-y-1 border-t border-line-2 pt-4 text-sm">
+          {(order.discountTotal > 0 || order.deliveryFee > 0) && (
+            <>
+              <div className="flex items-center justify-between text-ink-2">
+                <span>{t("cart.subtotal")}</span>
+                <span className="font-semibold">{formatPrice(order.subtotal, lang)}</span>
+              </div>
+              {order.discountTotal > 0 && (
+                <div className="flex items-center justify-between text-emerald-600">
+                  <span className="text-xs font-bold">
+                    {t("cart.discount")}
+                    {order.offerNote && ` · ${order.offerNote}`}
+                  </span>
+                  <span className="font-bold">-{formatPrice(order.discountTotal, lang)}</span>
+                </div>
+              )}
+              {order.deliveryFee > 0 && (
+                <div className="flex items-center justify-between text-ink-2">
+                  <span>{t("cart.delivery")}</span>
+                  <span className="font-semibold">{formatPrice(order.deliveryFee, lang)}</span>
+                </div>
+              )}
+            </>
+          )}
+          <div className="flex items-center justify-between pt-1">
+            <span className="flex items-center gap-2 font-semibold text-ink-2">
+              <Package size={16} className="text-brand" />
+              {order.customer}
+            </span>
+            <span className="text-base font-black text-brand">
+              {formatPrice(order.total, lang)}
+            </span>
+          </div>
         </div>
 
         {/* Tracker */}

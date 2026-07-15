@@ -21,6 +21,48 @@ export interface FandomInfo {
   nameEn: string;
 }
 
+/**
+ * How the product behaves in the store:
+ *  - standard: images are angles of ONE product; single price (Minecraft medals)
+ *  - package:  images are DISTINCT items the buyer picks from, each with its
+ *              own optional price (stickers / posters / brooches)
+ *  - tiered:   unit price depends on quantity via price tiers (disk medals)
+ */
+export type ProductKind = "standard" | "package" | "tiered";
+
+/** One selectable item inside a package product. */
+export interface ProductItem {
+  id: string;
+  imageUrl: string;
+  nameAr: string;
+  nameEn: string;
+  /** null → inherits the parent product's price */
+  price: number | null;
+}
+
+/** "min_qty and above → this unit price". */
+export interface PriceTier {
+  minQty: number;
+  unitPrice: number;
+}
+
+export type OfferKind = "bundle" | "cart_percent" | "cart_delivery" | "flash";
+
+/** A live promotion from the offers engine (RLS already filtered to live ones). */
+export interface Offer {
+  id: string;
+  kind: OfferKind;
+  titleAr: string;
+  titleEn: string;
+  productId: string | null;
+  buyQty: number | null;
+  freeQty: number | null;
+  minCartTotal: number | null;
+  percent: number | null;
+  deliveryFee: number | null;
+  endsAt: string | null;
+}
+
 export interface Product {
   id: string;
   nameAr: string;
@@ -43,6 +85,16 @@ export interface Product {
   fandoms: Fandom[];
   badge?: Badge;
   waterproof?: boolean;
+  /** extra IQD per unit when the buyer selects the waterproof variant */
+  waterproofSurcharge: number;
+  /** posters: buyer may upload their own artwork for printing */
+  allowCustomImage: boolean;
+  /** behavior selector — see ProductKind */
+  kind: ProductKind;
+  /** package contents (kind === "package"); ordered */
+  items: ProductItem[];
+  /** volume-pricing ladder (kind === "tiered"); ascending minQty */
+  tiers: PriceTier[];
   soldOut?: boolean;
   /** admin/inventory only — whether the product is visible in the storefront */
   isActive?: boolean;
@@ -65,6 +117,39 @@ export function effectivePrice(p: Pick<Product, "price" | "discountPercent">): n
   return p.discountPercent > 0 ? Math.floor((p.price * (100 - p.discountPercent)) / 100) : p.price;
 }
 
+/** Base tier unit price for a quantity (greatest minQty ≤ qty wins). */
+export function tierUnitPrice(p: Pick<Product, "price" | "tiers">, qty: number): number {
+  let best: number | null = null;
+  let bestMin = 0;
+  for (const t of p.tiers) {
+    if (t.minQty <= qty && t.minQty >= bestMin) {
+      best = t.unitPrice;
+      bestMin = t.minQty;
+    }
+  }
+  return best ?? p.price;
+}
+
+/** The lowest price a product can be bought at — used for "from X" display. */
+export function lowestPrice(p: Product): number {
+  if (p.kind === "tiered" && p.tiers.length > 0) {
+    const base = Math.min(...p.tiers.map((t) => t.unitPrice));
+    return p.discountPercent > 0 ? Math.floor((base * (100 - p.discountPercent)) / 100) : base;
+  }
+  if (p.kind === "package" && p.items.length > 0) {
+    const base = Math.min(...p.items.map((i) => i.price ?? p.price));
+    return p.discountPercent > 0 ? Math.floor((base * (100 - p.discountPercent)) / 100) : base;
+  }
+  return effectivePrice(p);
+}
+
+/** Whether a package/tiered product has per-variant prices (show "from"). */
+export function hasVariablePrice(p: Product): boolean {
+  if (p.kind === "tiered") return p.tiers.length > 1;
+  if (p.kind === "package") return p.items.some((i) => i.price !== null && i.price !== p.price);
+  return false;
+}
+
 export const MAX_PRICE = 25000;
 
 /** Category codes that can be waterproof (paper/vinyl products). */
@@ -79,7 +164,17 @@ export type OrderStatus = "review" | "accepted" | "shipped" | "delivered";
 export interface OrderItem {
   productId: string;
   qty: number;
+  /** bundle freebies included in qty but not charged */
+  freeQty: number;
+  unitPrice: number;
   lineTotal: number;
+  nameAr: string;
+  nameEn: string;
+  itemNameAr?: string;
+  itemNameEn?: string;
+  waterproof: boolean;
+  customImageUrl?: string;
+  note?: string;
 }
 
 export interface Order {
@@ -88,7 +183,15 @@ export interface Order {
   tracking?: string;
   status: OrderStatus;
   customer: string;
+  phone: string;
+  provinceCode?: string;
+  addressLine?: string;
+  notes?: string;
+  offerNote?: string;
   items: OrderItem[];
+  subtotal: number;
+  discountTotal: number;
+  deliveryFee: number;
   total: number;
 }
 

@@ -22,7 +22,7 @@ const upsertProductSchema = z.object({
   descEn: z.string().trim().max(1000).optional().default(""),
   price: z.number().int().min(0).max(10_000_000),
   discountPercent: z.number().int().min(0).max(90).optional().default(0),
-  images: z.array(z.string().url()).max(12).optional().default([]),
+  images: z.array(z.string().url()).max(30).optional().default([]),
   color: z
     .string()
     .trim()
@@ -32,6 +32,34 @@ const upsertProductSchema = z.object({
   categories: z.array(z.string().trim().min(1).max(60)).min(1).max(8),
   fandoms: z.array(z.string().trim().min(1).max(60)).max(8).optional().default([]),
   waterproof: z.boolean().optional().default(false),
+  waterproofSurcharge: z.number().int().min(0).max(100000).optional().default(0),
+  allowCustomImage: z.boolean().optional().default(false),
+  kind: z.enum(["standard", "package", "tiered"]).optional().default("standard"),
+  /** package contents; existing items carry their id, new ones don't */
+  items: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        imageUrl: z.string().url(),
+        nameAr: z.string().trim().max(120).optional().default(""),
+        nameEn: z.string().trim().max(120).optional().default(""),
+        price: z.number().int().min(0).max(10_000_000).nullable().optional(),
+      }),
+    )
+    .max(30)
+    .optional()
+    .default([]),
+  /** volume-pricing ladder for tiered products */
+  tiers: z
+    .array(
+      z.object({
+        minQty: z.number().int().min(1).max(999),
+        unitPrice: z.number().int().min(0).max(10_000_000),
+      }),
+    )
+    .max(10)
+    .optional()
+    .default([]),
   stock: z.number().int().min(0).max(100000).optional().default(0),
   /** false = create only (fail on duplicate id) */
   isUpdate: z.boolean().optional().default(false),
@@ -71,6 +99,9 @@ export async function upsertProductAction(
     color: p.color,
     category_code: p.categories[0],
     waterproof: p.waterproof,
+    waterproof_surcharge: p.waterproofSurcharge,
+    allow_custom_image: p.allowCustomImage,
+    kind: p.kind,
     stock: p.stock,
   };
 
@@ -97,6 +128,32 @@ export async function upsertProductAction(
     p_codes: p.fandoms,
   });
   if (fanErr) return { ok: false, error: fanErr.message };
+
+  // Package contents: replace the item set (removed ones are soft-deleted so
+  // order history keeps pointing at them).
+  if (p.kind === "package") {
+    const { error: itemsErr } = await supabase.rpc("admin_set_product_items", {
+      p_id: p.id,
+      p_items: p.items.map((it, i) => ({
+        id: it.id ?? null,
+        image_url: it.imageUrl,
+        name_ar: it.nameAr,
+        name_en: it.nameEn,
+        price: it.price ?? null,
+        sort_order: i,
+      })),
+    });
+    if (itemsErr) return { ok: false, error: itemsErr.message };
+  }
+
+  // Volume-pricing ladder: replace-all for tiered products.
+  if (p.kind === "tiered") {
+    const { error: tiersErr } = await supabase.rpc("admin_set_price_tiers", {
+      p_id: p.id,
+      p_tiers: p.tiers.map((t) => ({ min_qty: t.minQty, unit_price: t.unitPrice })),
+    });
+    if (tiersErr) return { ok: false, error: tiersErr.message };
+  }
 
   revalidateCatalog();
   return { ok: true };
