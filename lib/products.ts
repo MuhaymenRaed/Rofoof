@@ -158,6 +158,25 @@ export function canBeWaterproof(categoryCodes: string[]): boolean {
   return categoryCodes.some((c) => WATERPROOF_CATEGORIES.includes(c));
 }
 
+/* --------------------------- Custom requests ---------------------------- */
+export type CustomType = "brooch" | "sticker" | "poster";
+
+/** Per-type unit pricing for custom requests (mirrors custom_pricing table). */
+export interface CustomPricing {
+  kind: CustomType;
+  unitPrice: number;
+  waterproofExtra: number;
+}
+
+/** Distinct accent for custom requests everywhere (lists, badges, stats). */
+export const CUSTOM_ORDER_COLOR = "#d946ef";
+
+export const CUSTOM_TYPE_LABEL: Record<CustomType, { ar: string; en: string; emoji: string }> = {
+  brooch: { ar: "بروش", en: "Brooch", emoji: "🎀" },
+  sticker: { ar: "ستكر", en: "Sticker", emoji: "✨" },
+  poster: { ar: "بوستر", en: "Poster", emoji: "🖼️" },
+};
+
 /* ------------------------------- Orders -------------------------------- */
 export type OrderStatus = "review" | "accepted" | "shipped" | "delivered";
 
@@ -193,6 +212,11 @@ export interface Order {
   discountTotal: number;
   deliveryFee: number;
   total: number;
+  /** custom design request (brooch/sticker/poster) — styled distinctly */
+  isCustom: boolean;
+  customType?: CustomType;
+  customImages: string[];
+  customWaterproof: boolean;
 }
 
 /** Map an order status to the active tracker step index (0..3). */

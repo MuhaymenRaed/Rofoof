@@ -10,7 +10,9 @@ import {
   getCategories,
   getFandoms,
   getOffers,
+  getCustomPricing,
 } from "@/lib/data/catalog";
+import { CustomRequestModal } from "@/components/layout/custom-request-modal";
 import { Ticker } from "@/components/layout/ticker";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -77,12 +79,13 @@ const noFlashScript = `
 `;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [products, announcement, categories, fandoms, offers] = await Promise.all([
+  const [products, announcement, categories, fandoms, offers, customPricing] = await Promise.all([
     getProducts(),
     getAnnouncement(),
     getCategories(),
     getFandoms(),
     getOffers(),
+    getCustomPricing(),
   ]);
 
   return (
@@ -98,6 +101,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               categories={categories}
               fandoms={fandoms}
               offers={offers}
+              customPricing={customPricing}
               initialAnnouncement={announcement}
             >
               {/* pb clears the fixed mobile tab bar (h-14 + safe area) */}
@@ -110,6 +114,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <MobileTabBar />
               <CartDrawer />
               <QuickViewModal />
+              <CustomRequestModal />
             </StoreProvider>
           </AuthProvider>
         </ThemeProvider>

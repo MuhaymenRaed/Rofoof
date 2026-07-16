@@ -16,9 +16,9 @@ import {
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { UsersIcon, TrendIcon, BarsIcon } from "@/components/dashboard/dash-icons";
-import { Package, Bag, Star } from "@/components/icons";
+import { Package, Bag, Star, Sparkles } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { statusStyle, type Order, type OrderStatus } from "@/lib/products";
+import { statusStyle, CUSTOM_ORDER_COLOR, type Order, type OrderStatus } from "@/lib/products";
 import type { DashboardStats, WeeklyRevenuePoint } from "@/lib/data/dashboard";
 import type { DictKey } from "@/lib/i18n";
 
@@ -110,6 +110,32 @@ export function OverviewView({
             </div>
           );
         })}
+      </div>
+
+      {/* Custom design requests — their own signature card */}
+      <div
+        className="flex flex-wrap items-center gap-4 rounded-2xl border p-4 card-shadow"
+        style={{
+          borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 40%, transparent)`,
+          background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 6%, var(--surface))`,
+        }}
+      >
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
+          style={{ background: CUSTOM_ORDER_COLOR }}
+        >
+          <Sparkles size={22} />
+        </span>
+        <div className="flex-1">
+          <div className="text-2xl font-black" style={{ color: CUSTOM_ORDER_COLOR }}>
+            {stats.customOrders}
+          </div>
+          <div className="text-xs font-semibold text-ink-3">{t("dash.customOrders")}</div>
+        </div>
+        <div className="text-end">
+          <div className="text-lg font-black text-ink">{formatPrice(stats.customRevenue, lang)}</div>
+          <div className="text-[11px] font-semibold text-ink-3">{t("dash.customRevenue")}</div>
+        </div>
       </div>
 
       {/* Secondary stats */}

@@ -373,6 +373,44 @@ export const dict = {
   // Analytics
   "dash.statusDist": { ar: "توزيع حالات الطلبات", en: "Order status distribution" },
   "dash.salesRatio": { ar: "نسبة المبيعات", en: "Sales ratio" },
+  "dash.customOrders": { ar: "الطلبات المخصصة", en: "Custom requests" },
+  "dash.customRevenue": { ar: "إيراد الطلبات المخصصة", en: "Custom requests revenue" },
+
+  // Custom design requests
+  "custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your custom design" },
+  "custom.subtitle": {
+    ar: "ارفع صورك ونحوّلها لبروشات أو ستكرات أو بوسترات",
+    en: "Upload your images and we turn them into brooches, stickers or posters",
+  },
+  "custom.cardHint": { ar: "صمّمها على كيفك ✨", en: "Make it yours ✨" },
+  "custom.chooseType": { ar: "شنو تريد نسوّيلك؟", en: "What should we make for you?" },
+  "custom.type.brooch": { ar: "بروش", en: "Brooch" },
+  "custom.type.sticker": { ar: "ستكر", en: "Sticker" },
+  "custom.type.poster": { ar: "بوستر", en: "Poster" },
+  "custom.images": { ar: "صورك", en: "Your images" },
+  "custom.imagesHint": {
+    ar: "حتى 20 صورة، 10MB لكل صورة — كل صورة = قطعة",
+    en: "Up to 20 images, 10MB each — every image = one piece",
+  },
+  "custom.addImages": { ar: "أضف صورك", en: "Add your images" },
+  "custom.tooBig": { ar: "صورة أكبر من 10MB تم تجاهلها", en: "An image over 10MB was skipped" },
+  "custom.description": { ar: "وصف طلبك (اختياري)", en: "Describe your request (optional)" },
+  "custom.descPlaceholder": {
+    ar: "مقاسات، ألوان، ملاحظات خاصة…",
+    en: "Sizes, colors, special notes…",
+  },
+  "custom.perPiece": { ar: "سعر القطعة", en: "Per piece" },
+  "custom.piecesCount": { ar: "عدد القطع", en: "Pieces" },
+  "custom.estimated": { ar: "السعر التقديري", en: "Estimated price" },
+  "custom.send": { ar: "إرسال الطلب", en: "Send request" },
+  "custom.sending": { ar: "جارٍ رفع الصور والإرسال…", en: "Uploading & sending…" },
+  "custom.successTitle": { ar: "وصلنا طلبك! 🎉", en: "We got your request! 🎉" },
+  "custom.successHint": {
+    ar: "راح نراجع صورك ونتواصل وياك لتأكيد التفاصيل والسعر النهائي.",
+    en: "We'll review your images and contact you to confirm details & final price.",
+  },
+  "custom.badge": { ar: "طلب مخصص", en: "Custom request" },
+  "custom.imagesLabel": { ar: "الصور المرفقة", en: "Attached images" },
 
   // Discounts (buyer-facing)
   "product.off": { ar: "خصم", en: "OFF" },

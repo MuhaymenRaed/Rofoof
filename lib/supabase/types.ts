@@ -170,6 +170,12 @@ export interface Database {
         Update: Partial<{ min_qty: number; unit_price: number }>;
         Relationships: [];
       };
+      custom_pricing: {
+        Row: { kind: string; unit_price: number; waterproof_extra: number };
+        Insert: { kind: string; unit_price: number; waterproof_extra?: number };
+        Update: Partial<{ unit_price: number; waterproof_extra: number }>;
+        Relationships: [];
+      };
       offers: {
         Row: {
           id: string;
@@ -238,6 +244,10 @@ export interface Database {
           total: number;
           tracking: string | null;
           offer_note: string | null;
+          is_custom: boolean;
+          custom_type: string | null;
+          custom_images: string[];
+          custom_waterproof: boolean;
         } & Timestamps;
         Insert: {
           user_id?: string | null;
@@ -370,6 +380,19 @@ export interface Database {
       };
       admin_set_product_items: { Args: { p_id: string; p_items: Json }; Returns: number };
       admin_set_price_tiers: { Args: { p_id: string; p_tiers: Json }; Returns: number };
+      place_custom_request: {
+        Args: {
+          p_customer_name: string;
+          p_customer_phone: string;
+          p_province_code: string | null;
+          p_address_line: string | null;
+          p_type: string;
+          p_waterproof: boolean;
+          p_description: string | null;
+          p_images: string[];
+        };
+        Returns: Json;
+      };
       is_admin: { Args: Record<string, never>; Returns: boolean };
     };
     Enums: {

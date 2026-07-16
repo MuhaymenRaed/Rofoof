@@ -7,9 +7,14 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { OrderTracker } from "@/components/ui/order-tracker";
-import { Package, Droplet } from "@/components/icons";
+import { Package, Droplet, Sparkles } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { statusStyle, type Order } from "@/lib/products";
+import {
+  statusStyle,
+  CUSTOM_ORDER_COLOR,
+  CUSTOM_TYPE_LABEL,
+  type Order,
+} from "@/lib/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function OrdersView({ orders }: { orders: Order[] }) {
@@ -68,17 +73,36 @@ export function OrdersView({ orders }: { orders: Order[] }) {
 
 function OrderCard({ order }: { order: Order }) {
   const { t, lang, getProduct } = useStore();
-  const accent = statusStyle[order.status].color;
+  // Custom design requests wear their own signature color.
+  const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
+  const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-line-2 bg-surface card-shadow">
+    <article
+      className="overflow-hidden rounded-2xl border bg-surface card-shadow"
+      style={
+        order.isCustom
+          ? { borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 40%, transparent)` }
+          : undefined
+      }
+    >
       <div className="h-1" style={{ background: accent }} />
       <div className="p-5 sm:p-6">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-extrabold text-ink">{order.code}</span>
+              {order.isCustom && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black text-white"
+                  style={{ background: CUSTOM_ORDER_COLOR }}
+                >
+                  <Sparkles size={10} />
+                  {t("custom.badge")}
+                  {typeMeta && ` · ${lang === "ar" ? typeMeta.ar : typeMeta.en}`}
+                </span>
+              )}
               {order.tracking && (
                 <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-ink-3">
                   {t("orders.tracking")}: {order.tracking}
@@ -91,6 +115,34 @@ function OrderCard({ order }: { order: Order }) {
           </div>
           <StatusPill status={order.status} />
         </div>
+
+        {/* Custom request artwork */}
+        {order.isCustom && order.customImages.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-ink-3">
+              {t("custom.imagesLabel")} ({order.customImages.length})
+              {order.customWaterproof && (
+                <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
+                  <Droplet size={10} /> {t("badge.waterproof")}
+                </span>
+              )}
+            </p>
+            <div className="no-scrollbar flex gap-2 overflow-x-auto">
+              {order.customImages.map((url) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tap relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition hover:opacity-80"
+                  style={{ borderColor: CUSTOM_ORDER_COLOR }}
+                >
+                  <Image src={url} alt="" fill sizes="56px" className="object-cover" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Items */}
         <ul className="mt-4 space-y-2 border-t border-line-2 pt-4">

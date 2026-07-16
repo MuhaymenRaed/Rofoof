@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useStore } from "@/components/providers/store-provider";
-import { Bag, Package } from "@/components/icons";
+import { Bag, Package, Sparkles } from "@/components/icons";
+import { CUSTOM_ORDER_COLOR } from "@/lib/products";
 
 const STATS = [
   { num: "16K", key: "stat.followers" as const },
@@ -11,7 +12,7 @@ const STATS = [
 ];
 
 export function Hero() {
-  const { t } = useStore();
+  const { t, openCustom } = useStore();
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-line-2 bg-surface card-shadow">
@@ -64,6 +65,15 @@ export function Hero() {
               <Package size={16} />
               {t("hero.track")}
             </Link>
+            <button
+              type="button"
+              onClick={openCustom}
+              className="tap inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold text-white transition hover:opacity-90"
+              style={{ background: CUSTOM_ORDER_COLOR }}
+            >
+              <Sparkles size={16} />
+              {t("custom.title")}
+            </button>
           </div>
         </div>
       </div>

@@ -2,12 +2,19 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
-import { X, Package, Phone, MapPin, ChevronEnd, Droplet } from "@/components/icons";
+import { X, Package, Phone, MapPin, ChevronEnd, Droplet, Sparkles } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { provinceLabelKey } from "@/lib/provinces";
-import { statusStyle, type Order, type OrderStatus } from "@/lib/products";
+import {
+  statusStyle,
+  CUSTOM_ORDER_COLOR,
+  CUSTOM_TYPE_LABEL,
+  type Order,
+  type OrderStatus,
+} from "@/lib/products";
 import {
   updateOrderStatusAction,
   updateManyOrderStatusesAction,
@@ -154,11 +161,12 @@ export function OrdersBoard({
       ) : (
         <div className="space-y-3">
           {orders.map((o) => {
-            const accent = statusStyle[o.status].color;
+            const accent = o.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[o.status].color;
             const isSelected = selected.has(o.code);
             const first = o.items[0];
             const firstName = first ? (lang === "ar" ? first.nameAr : first.nameEn) : "";
             const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
+            const typeMeta = o.customType ? CUSTOM_TYPE_LABEL[o.customType] : null;
             return (
               <article
                 key={o.code}
@@ -166,8 +174,16 @@ export function OrdersBoard({
                 className={`tap flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border bg-surface p-4 card-shadow transition hover:-translate-y-0.5 hover:border-brand sm:gap-4 sm:px-5 ${
                   isSelected ? "border-brand ring-2 ring-brand/25" : "border-line-2"
                 }`}
+                style={
+                  o.isCustom && !isSelected
+                    ? {
+                        borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 40%, transparent)`,
+                        background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 4%, var(--surface))`,
+                      }
+                    : undefined
+                }
               >
-                {/* status accent */}
+                {/* accent: status color, or the custom-request signature color */}
                 <span className="h-12 w-1.5 shrink-0 rounded-full" style={{ background: accent }} />
 
                 <input
@@ -182,6 +198,16 @@ export function OrdersBoard({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="text-sm font-extrabold text-ink">{o.code}</span>
+                    {o.isCustom && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black text-white"
+                        style={{ background: CUSTOM_ORDER_COLOR }}
+                      >
+                        <Sparkles size={9} />
+                        {t("custom.badge")}
+                        {typeMeta && ` · ${lang === "ar" ? typeMeta.ar : typeMeta.en}`}
+                      </span>
+                    )}
                     <span className="text-[11px] text-ink-3" dir="ltr">
                       {o.date}
                     </span>
@@ -247,7 +273,8 @@ function OrderDetailsModal({
   onSetStatus: (next: OrderStatus) => void;
 }) {
   const { t, lang } = useStore();
-  const accent = statusStyle[order.status].color;
+  const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
+  const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -273,8 +300,18 @@ function OrderDetailsModal({
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-line-2 px-5 py-4">
           <div>
-            <h2 className="text-base font-black text-ink">
+            <h2 className="flex flex-wrap items-center gap-2 text-base font-black text-ink">
               {t("dash.orderDetails")} · {order.code}
+              {order.isCustom && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black text-white"
+                  style={{ background: CUSTOM_ORDER_COLOR }}
+                >
+                  <Sparkles size={10} />
+                  {t("custom.badge")}
+                  {typeMeta && ` · ${lang === "ar" ? typeMeta.ar : typeMeta.en}`}
+                </span>
+              )}
             </h2>
             <span className="text-[11px] text-ink-3" dir="ltr">
               {order.date}
@@ -344,6 +381,39 @@ function OrderDetailsModal({
               <p className="mt-2 text-[12px] italic text-ink-3">&ldquo;{order.notes}&rdquo;</p>
             )}
           </div>
+
+          {/* Custom request artwork */}
+          {order.isCustom && order.customImages.length > 0 && (
+            <div
+              className="rounded-2xl border p-4"
+              style={{
+                borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 35%, transparent)`,
+                background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 5%, var(--surface))`,
+              }}
+            >
+              <p className="mb-2 flex items-center gap-2 text-xs font-bold text-ink-2">
+                {t("custom.imagesLabel")} ({order.customImages.length})
+                {order.customWaterproof && (
+                  <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
+                    <Droplet size={11} /> {t("badge.waterproof")}
+                  </span>
+                )}
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {order.customImages.map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="tap relative aspect-square overflow-hidden rounded-lg border border-line-2 transition hover:opacity-80"
+                  >
+                    <Image src={url} alt="" fill sizes="72px" className="object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Items */}
           <ul className="space-y-2">

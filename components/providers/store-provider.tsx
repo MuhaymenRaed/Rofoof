@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { translate, type DictKey, type Lang } from "@/lib/i18n";
-import type { CategoryInfo, FandomInfo, Offer, Product } from "@/lib/products";
+import type { CategoryInfo, CustomPricing, FandomInfo, Offer, Product } from "@/lib/products";
 import { linePricing, type LinePricing } from "@/lib/pricing";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -84,6 +84,11 @@ interface StoreContextValue {
   quickView: Product | null;
   openQuickView: (id: string) => void;
   closeQuickView: () => void;
+  // custom design request modal
+  customPricing: CustomPricing[];
+  customOpen: boolean;
+  openCustom: () => void;
+  closeCustom: () => void;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -96,6 +101,7 @@ export function StoreProvider({
   categories,
   fandoms,
   offers,
+  customPricing,
   initialAnnouncement,
 }: {
   children: ReactNode;
@@ -103,6 +109,7 @@ export function StoreProvider({
   categories: CategoryInfo[];
   fandoms: FandomInfo[];
   offers: Offer[];
+  customPricing: CustomPricing[];
   initialAnnouncement: AnnouncementSettings | null;
 }) {
   const { user } = useAuth();
@@ -113,6 +120,7 @@ export function StoreProvider({
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
   const [ann, setAnn] = useState<AnnouncementSettings>(
     initialAnnouncement ?? { ar: "", en: "", active: false },
   );
@@ -295,6 +303,8 @@ export function StoreProvider({
   const closeCart = useCallback(() => setCartOpen(false), []);
   const openQuickView = useCallback((id: string) => setQuickViewId(id), []);
   const closeQuickView = useCallback(() => setQuickViewId(null), []);
+  const openCustom = useCallback(() => setCustomOpen(true), []);
+  const closeCustom = useCallback(() => setCustomOpen(false), []);
 
   const setAnnouncementSettings = useCallback((next: AnnouncementSettings) => setAnn(next), []);
 
@@ -354,6 +364,10 @@ export function StoreProvider({
     quickView,
     openQuickView,
     closeQuickView,
+    customPricing,
+    customOpen,
+    openCustom,
+    closeCustom,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

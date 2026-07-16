@@ -3,7 +3,14 @@ import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { mapProduct, mapOffer, type ProductRowWithFandoms, type OfferRowLike } from "./mappers";
 import { TAGS } from "./tags";
-import type { CategoryInfo, FandomInfo, Offer, Product } from "@/lib/products";
+import type {
+  CategoryInfo,
+  CustomPricing,
+  CustomType,
+  FandomInfo,
+  Offer,
+  Product,
+} from "@/lib/products";
 
 const PRODUCT_SELECT =
   "*, product_fandoms(fandom_code), product_categories(category_code), " +
@@ -122,6 +129,31 @@ export async function getOffers(): Promise<Offer[]> {
     return await cachedOffers();
   } catch (error) {
     console.error("[catalog] getOffers failed:", error);
+    return [];
+  }
+}
+
+/** Custom-request unit prices — display only; the RPC re-reads them itself. */
+const cachedCustomPricing = unstable_cache(
+  async (): Promise<CustomPricing[]> => {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase.from("custom_pricing").select("*");
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      kind: r.kind as CustomType,
+      unitPrice: r.unit_price,
+      waterproofExtra: r.waterproof_extra,
+    }));
+  },
+  ["catalog:custom-pricing"],
+  { tags: [TAGS.settings], revalidate: 300 },
+);
+
+export async function getCustomPricing(): Promise<CustomPricing[]> {
+  try {
+    return await cachedCustomPricing();
+  } catch (error) {
+    console.error("[catalog] getCustomPricing failed:", error);
     return [];
   }
 }

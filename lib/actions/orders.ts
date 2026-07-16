@@ -89,6 +89,64 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
   return { ok: true, code: result.code, total: result.total };
 }
 
+/* --------------------------- Custom requests ---------------------------- */
+
+const customRequestSchema = z.object({
+  customerName: z.string().trim().min(2).max(80),
+  customerPhone: z.string().trim().min(6).max(20),
+  provinceCode: z.string().trim().min(1).nullable().optional(),
+  addressLine: z.string().trim().max(200).nullable().optional(),
+  type: z.enum(["brooch", "sticker", "poster"]),
+  waterproof: z.boolean().optional().default(false),
+  description: z.string().trim().max(1000).optional().default(""),
+  // WebP artwork already uploaded to the public custom-artwork bucket; the
+  // RPC re-validates the prefix and recomputes the price server-side.
+  images: z.array(z.string().url().max(500)).min(1).max(20),
+});
+
+export type CustomRequestInput = z.input<typeof customRequestSchema>;
+
+export async function placeCustomRequestAction(
+  input: CustomRequestInput,
+): Promise<PlaceOrderResult> {
+  const parsed = customRequestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const v = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("place_custom_request", {
+    p_customer_name: v.customerName,
+    p_customer_phone: v.customerPhone,
+    p_province_code: v.provinceCode ?? null,
+    p_address_line: v.addressLine ?? null,
+    p_type: v.type,
+    p_waterproof: v.waterproof,
+    p_description: v.description || null,
+    p_images: v.images,
+  });
+
+  if (error) {
+    console.error("[customRequest]", error);
+    return { ok: false, error: error.message };
+  }
+
+  const result = data as { code: string; total: number };
+
+  await sendOrderTelegramNotification({
+    code: result.code,
+    customerName: v.customerName,
+    customerPhone: v.customerPhone,
+    provinceCode: v.provinceCode ?? null,
+    total: result.total,
+    itemCount: v.images.length,
+  });
+
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/orders");
+  return { ok: true, code: result.code, total: result.total };
+}
+
 /* --------------------------- Update status (admin) --------------------- */
 
 const STATUSES: OrderStatusDb[] = ["review", "accepted", "shipped", "delivered"];

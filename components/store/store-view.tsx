@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/components/providers/store-provider";
 import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
+import { CustomOrderCard } from "@/components/store/custom-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
 import { Search, Sliders, X, ChevronEnd } from "@/components/icons";
 import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
@@ -179,6 +180,7 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                {current === 1 && <CustomOrderCard />}
                 {pageItems.map((p, i) => (
                   <ProductCard key={p.id} product={p} priority={current === 1 && i < 2} />
                 ))}

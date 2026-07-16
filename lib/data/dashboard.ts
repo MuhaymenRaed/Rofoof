@@ -22,6 +22,8 @@ export interface DashboardStats {
   activeOrders: number;
   deliveredOrders: number;
   totalOrders: number;
+  customOrders: number;
+  customRevenue: number;
   revenue: number;
   revenue30d: number;
   avgOrder: number;
@@ -39,6 +41,8 @@ const EMPTY_STATS: DashboardStats = {
   activeOrders: 0,
   deliveredOrders: 0,
   totalOrders: 0,
+  customOrders: 0,
+  customRevenue: 0,
   revenue: 0,
   revenue30d: 0,
   avgOrder: 0,
@@ -82,6 +86,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     activeOrders: n("active_orders"),
     deliveredOrders: n("delivered_orders"),
     totalOrders: n("total_orders"),
+    customOrders: n("custom_orders"),
+    customRevenue: n("custom_revenue"),
     revenue: n("revenue"),
     revenue30d: n("revenue_30d"),
     avgOrder: n("avg_order"),

@@ -151,5 +151,9 @@ export function mapOrder(row: OrderRowWithItems): Order {
     discountTotal: row.discount_total,
     deliveryFee: row.delivery_fee,
     total: row.total,
+    isCustom: row.is_custom ?? false,
+    customType: (row.custom_type ?? undefined) as Order["customType"],
+    customImages: row.custom_images ?? [],
+    customWaterproof: row.custom_waterproof ?? false,
   };
 }
