@@ -16,6 +16,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { CartDrawer } from "@/components/layout/cart-drawer";
 import { QuickViewModal } from "@/components/layout/quick-view-modal";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -58,6 +59,9 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#F7F3EE" },
     { media: "(prefers-color-scheme: dark)", color: "#0C0B0A" },
   ],
+  // Edge-to-edge on notched phones; the tab bar pads itself with
+  // env(safe-area-inset-bottom) so it clears the home indicator.
+  viewportFit: "cover",
 };
 
 // next-themes handles the theme before paint. We only set language/direction
@@ -96,12 +100,14 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               offers={offers}
               initialAnnouncement={announcement}
             >
-              <div className="flex min-h-screen flex-col">
+              {/* pb clears the fixed mobile tab bar (h-14 + safe area) */}
+              <div className="flex min-h-screen flex-col pb-16 md:pb-0">
                 <Ticker />
                 <Header />
                 <main className="flex-1">{children}</main>
                 <Footer />
               </div>
+              <MobileTabBar />
               <CartDrawer />
               <QuickViewModal />
             </StoreProvider>

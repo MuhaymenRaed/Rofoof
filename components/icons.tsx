@@ -25,6 +25,27 @@ function Base({ size = 20, children, ...props }: IconProps & { children: React.R
   );
 }
 
+export const Home = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 11.5 12 4l8 7.5" />
+    <path d="M6 10v9h4.5v-5h3v5H18v-9" />
+  </Base>
+);
+
+export const User = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M5 20a7 7 0 0 1 14 0" />
+  </Base>
+);
+
+export const Bell = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 13 6 9Z" />
+    <path d="M10 18.5a2 2 0 0 0 4 0" />
+  </Base>
+);
+
 export const Sun = (p: IconProps) => (
   <Base {...p}>
     <circle cx="12" cy="12" r="4" />

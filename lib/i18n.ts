@@ -365,6 +365,10 @@ export const dict = {
   "dash.nextStep": { ar: "الخطوة التالية", en: "Next step" },
   "dash.prevStep": { ar: "الخطوة السابقة", en: "Previous step" },
   "dash.itemsLabel": { ar: "القطع", en: "Items" },
+  "dash.orderDetails": { ar: "تفاصيل الطلب", en: "Order details" },
+  "dash.customerInfo": { ar: "بيانات الزبون", en: "Customer info" },
+  "dash.setStatus": { ar: "حالة الطلب", en: "Order status" },
+  "dash.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
   // Analytics
   "dash.statusDist": { ar: "توزيع حالات الطلبات", en: "Order status distribution" },

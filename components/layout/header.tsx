@@ -65,11 +65,11 @@ export function Header() {
 
         {/* Right cluster */}
         <div className="ms-auto flex items-center gap-1 md:ms-0">
-          {/* Language */}
+          {/* Language — always visible; on phones the tab bar frees the space */}
           <button
             type="button"
             onClick={toggleLang}
-            className="tap hidden items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand sm:flex"
+            className="tap flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
           >
             <Globe size={13} />
             {t("toggle.lang")}
@@ -78,10 +78,11 @@ export function Header() {
           {/* Theme */}
           <ThemeToggle />
 
+          {/* Desktop-only cluster — on phones these live in the bottom tab bar */}
           <Link
             href="/store"
             aria-label={t("aria.search")}
-            className="tap grid h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+            className="tap hidden h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink md:grid"
           >
             <Search size={18} />
           </Link>
@@ -89,7 +90,7 @@ export function Header() {
           <Link
             href="/favorites"
             aria-label={t("aria.favorites")}
-            className="tap relative grid h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+            className="tap relative hidden h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink md:grid"
           >
             <Heart size={18} filled={isActive("/favorites")} />
             {wishlist.length > 0 && (
@@ -103,7 +104,7 @@ export function Header() {
             type="button"
             onClick={openCart}
             aria-label={t("aria.cart")}
-            className="tap relative grid h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+            className="tap relative hidden h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink md:grid"
           >
             <Bag size={18} />
             {cartCount > 0 && (
@@ -118,7 +119,7 @@ export function Header() {
           </button>
 
           {/* Account */}
-          <div className="ms-1">
+          <div className="ms-1 hidden md:block">
             <AccountMenu />
           </div>
 

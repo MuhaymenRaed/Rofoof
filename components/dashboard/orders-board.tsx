@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
-import { Check, Package, Phone, MapPin, ChevronEnd, Droplet } from "@/components/icons";
+import { X, Package, Phone, MapPin, ChevronEnd, Droplet } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { provinceLabelKey } from "@/lib/provinces";
 import { statusStyle, type Order, type OrderStatus } from "@/lib/products";
@@ -21,7 +22,11 @@ function shifted(status: OrderStatus, dir: 1 | -1): OrderStatus | null {
   return i >= 0 && i < FLOW.length ? FLOW[i] : null;
 }
 
-/** Admin orders — a grid of rectangular order cards with bulk step actions. */
+/**
+ * Admin orders — one full-width row card per order. Clicking a row opens a
+ * detail modal with the complete order + direct status control. A top bar
+ * bulk-moves the checked orders one step forward/back.
+ */
 export function OrdersBoard({
   initialOrders,
   initialHasMore,
@@ -31,6 +36,7 @@ export function OrdersBoard({
 }) {
   const { t, lang } = useStore();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [detailCode, setDetailCode] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const {
@@ -43,6 +49,7 @@ export function OrdersBoard({
     return { items: page.orders, hasMore: page.hasMore };
   });
 
+  const detail = detailCode ? orders.find((o) => o.code === detailCode) ?? null : null;
   const allSelected = orders.length > 0 && selected.size === orders.length;
 
   function toggleSelect(code: string) {
@@ -54,14 +61,9 @@ export function OrdersBoard({
     });
   }
 
-  function toggleSelectAll() {
-    setSelected(allSelected ? new Set() : new Set(orders.map((o) => o.code)));
-  }
-
-  /** Move ONE order a step forward/back (optimistic, reverted on failure). */
-  function move(code: string, current: OrderStatus, dir: 1 | -1) {
-    const next = shifted(current, dir);
-    if (!next) return;
+  /** Set ONE order to an exact status (optimistic, reverted on failure). */
+  function setStatus(code: string, current: OrderStatus, next: OrderStatus) {
+    if (next === current) return;
     setOrders((prev) => prev.map((o) => (o.code === code ? { ...o, status: next } : o)));
     startTransition(async () => {
       const res = await updateOrderStatusAction(code, next);
@@ -98,14 +100,17 @@ export function OrdersBoard({
     });
   }
 
-  const bulkBar = useMemo(
-    () => (
+  return (
+    <div>
+      {/* Bulk actions bar */}
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line-2 bg-surface p-3 card-shadow">
         <label className="flex cursor-pointer items-center gap-2 text-[13px] font-bold text-ink">
           <input
             type="checkbox"
             checked={allSelected}
-            onChange={toggleSelectAll}
+            onChange={() =>
+              setSelected(allSelected ? new Set() : new Set(orders.map((o) => o.code)))
+            }
             className="h-4 w-4 accent-brand"
           />
           {t("dash.selectAll")}
@@ -140,149 +145,73 @@ export function OrdersBoard({
           </button>
         </div>
       </div>
-    ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allSelected, selected.size, orders, t],
-  );
 
-  return (
-    <div>
-      {bulkBar}
-
+      {/* One order per row */}
       {orders.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-line py-16 text-center text-sm text-ink-3">
           {t("dash.empty")}
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-3">
           {orders.map((o) => {
             const accent = statusStyle[o.status].color;
             const isSelected = selected.has(o.code);
-            const canBack = shifted(o.status, -1) !== null;
-            const canNext = shifted(o.status, 1) !== null;
+            const first = o.items[0];
+            const firstName = first ? (lang === "ar" ? first.nameAr : first.nameEn) : "";
+            const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
             return (
               <article
                 key={o.code}
-                className={`overflow-hidden rounded-2xl border bg-surface card-shadow transition ${
+                onClick={() => setDetailCode(o.code)}
+                className={`tap flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border bg-surface p-4 card-shadow transition hover:-translate-y-0.5 hover:border-brand sm:gap-4 sm:px-5 ${
                   isSelected ? "border-brand ring-2 ring-brand/25" : "border-line-2"
                 }`}
               >
-                <div className="h-1" style={{ background: accent }} />
-                <div className="p-4">
-                  {/* Header: select + code + status */}
-                  <div className="flex items-start justify-between gap-2">
-                    <label className="flex cursor-pointer items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(o.code)}
-                        className="h-4 w-4 accent-brand"
-                      />
-                      <span className="flex flex-col">
-                        <span className="text-sm font-extrabold text-ink">{o.code}</span>
-                        <span className="text-[11px] text-ink-3" dir="ltr">
-                          {o.date}
-                        </span>
-                      </span>
-                    </label>
-                    <StatusPill status={o.status} />
-                  </div>
+                {/* status accent */}
+                <span className="h-12 w-1.5 shrink-0 rounded-full" style={{ background: accent }} />
 
-                  {/* Customer details */}
-                  <div className="mt-3 space-y-1 border-t border-line-2 pt-3 text-[12px] text-ink-2">
-                    <p className="font-bold text-ink">{o.customer}</p>
-                    <p className="flex items-center gap-1.5">
-                      <Phone size={12} className="shrink-0 text-brand" />
-                      <a href={`tel:${o.phone.replace(/\s/g, "")}`} dir="ltr" className="tap hover:text-brand">
-                        {o.phone}
-                      </a>
-                    </p>
-                    {(o.provinceCode || o.addressLine) && (
-                      <p className="flex items-center gap-1.5">
-                        <MapPin size={12} className="shrink-0 text-brand" />
-                        <span className="truncate">
-                          {o.provinceCode ? t(provinceLabelKey(o.provinceCode)) : ""}
-                          {o.provinceCode && o.addressLine ? " · " : ""}
-                          {o.addressLine ?? ""}
-                        </span>
-                      </p>
-                    )}
-                  </div>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelect(o.code)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={o.code}
+                  className="h-4 w-4 shrink-0 accent-brand"
+                />
 
-                  {/* Contents */}
-                  <ul className="mt-3 space-y-1 border-t border-line-2 pt-3">
-                    {o.items.map((it, i) => {
-                      const itemName = lang === "ar" ? it.nameAr : it.nameEn;
-                      const variant = lang === "ar" ? it.itemNameAr : it.itemNameEn;
-                      return (
-                        <li key={i} className="flex items-center gap-1.5 text-[12px] text-ink-2">
-                          <Package size={11} className="shrink-0 text-ink-3" />
-                          <span className="truncate">
-                            {itemName}
-                            {variant && <span className="text-ink-3"> — {variant}</span>}
-                          </span>
-                          {it.waterproof && <Droplet size={11} className="shrink-0 text-sky-500" />}
-                          {it.customImageUrl && (
-                            <a
-                              href={it.customImageUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="tap shrink-0 text-[10px] font-bold text-brand hover:underline"
-                            >
-                              🖼️
-                            </a>
-                          )}
-                          <span className="ms-auto shrink-0 font-bold text-ink">
-                            ×{it.qty}
-                            {it.freeQty > 0 && (
-                              <span className="text-emerald-600"> ({it.freeQty} {t("cart.free")})</span>
-                            )}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-
-                  {/* Money + step controls */}
-                  <div className="mt-3 flex items-center justify-between border-t border-line-2 pt-3">
-                    <span className="flex flex-col">
-                      <span className="text-sm font-black text-brand">{formatPrice(o.total, lang)}</span>
-                      {(o.discountTotal > 0 || o.offerNote) && (
-                        <span className="text-[10px] font-bold text-emerald-600">
-                          {o.discountTotal > 0 && `-${formatPrice(o.discountTotal, lang)}`}
-                          {o.offerNote && ` · ${o.offerNote}`}
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => move(o.code, o.status, -1)}
-                        disabled={!canBack}
-                        aria-label={t("dash.prevStep")}
-                        className="tap grid h-8 w-8 place-items-center rounded-lg border border-line text-ink-2 transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <span className="ltr:rotate-180">
-                          <ChevronEnd size={14} />
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => move(o.code, o.status, 1)}
-                        disabled={!canNext}
-                        aria-label={t("dash.nextStep")}
-                        className="tap grid h-8 place-items-center gap-1 rounded-lg bg-emerald-500/12 px-2.5 text-xs font-bold text-emerald-600 transition hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <span className="flex items-center gap-1">
-                          <Check size={13} />
-                          <span className="rtl:rotate-180">
-                            <ChevronEnd size={13} />
-                          </span>
-                        </span>
-                      </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-sm font-extrabold text-ink">{o.code}</span>
+                    <span className="text-[11px] text-ink-3" dir="ltr">
+                      {o.date}
                     </span>
                   </div>
+                  <p className="mt-0.5 truncate text-[13px] font-bold text-ink-2">
+                    {o.customer}
+                    <span dir="ltr" className="ms-2 text-[11px] font-semibold text-ink-3">
+                      {o.phone}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 truncate text-[12px] text-ink-3">
+                    <Package size={12} className="shrink-0" />
+                    <span className="truncate">
+                      {firstName}
+                      {o.items.length > 1 && ` +${o.items.length - 1}`}
+                    </span>
+                    <span className="shrink-0">
+                      · {itemCount} {t("dash.itemsLabel")}
+                    </span>
+                  </p>
                 </div>
+
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <StatusPill status={o.status} />
+                  <span className="text-sm font-black text-brand">{formatPrice(o.total, lang)}</span>
+                </div>
+
+                <span className="shrink-0 text-ink-3 rtl:rotate-180" aria-hidden>
+                  <ChevronEnd size={16} />
+                </span>
               </article>
             );
           })}
@@ -294,6 +223,212 @@ export function OrdersBoard({
           {hasMore ? t("dash.loadingMore") : t("dash.allLoaded")}
         </div>
       )}
+
+      {detail && (
+        <OrderDetailsModal
+          order={detail}
+          onClose={() => setDetailCode(null)}
+          onSetStatus={(next) => setStatus(detail.code, detail.status, next)}
+        />
+      )}
     </div>
   );
+}
+
+/* ---------------------------- Details modal ----------------------------- */
+
+function OrderDetailsModal({
+  order,
+  onClose,
+  onSetStatus,
+}: {
+  order: Order;
+  onClose: () => void;
+  onSetStatus: (next: OrderStatus) => void;
+}) {
+  const { t, lang } = useStore();
+  const accent = statusStyle[order.status].color;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const content = (
+    <div className="fixed inset-0 z-[70] grid place-items-center p-4">
+      <div
+        onClick={onClose}
+        className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
+        style={{ animation: "fade-in 0.2s ease both" }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={order.code}
+        className="relative z-10 flex max-h-[90vh] w-full max-w-md animate-pop flex-col overflow-hidden rounded-3xl border border-line-2 bg-surface shadow-2xl"
+      >
+        <div className="h-1 shrink-0" style={{ background: accent }} />
+
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-line-2 px-5 py-4">
+          <div>
+            <h2 className="text-base font-black text-ink">
+              {t("dash.orderDetails")} · {order.code}
+            </h2>
+            <span className="text-[11px] text-ink-3" dir="ltr">
+              {order.date}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("aria.close")}
+            className="tap grid h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {/* Full status control */}
+          <div>
+            <p className="mb-2 text-xs font-bold text-ink-2">{t("dash.setStatus")}</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {FLOW.map((s) => {
+                const meta = statusStyle[s];
+                const active = order.status === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => onSetStatus(s)}
+                    aria-pressed={active}
+                    className={`tap rounded-xl border px-1 py-2 text-[10px] font-bold transition ${
+                      active ? "text-white" : "border-line bg-surface text-ink-2 hover:text-ink"
+                    }`}
+                    style={active ? { background: meta.color, borderColor: meta.color } : undefined}
+                  >
+                    {t(meta.key)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Customer */}
+          <div className="rounded-2xl border border-line-2 bg-surface-2/40 p-4">
+            <p className="mb-2 text-xs font-bold text-ink-2">{t("dash.customerInfo")}</p>
+            <p className="text-sm font-extrabold text-ink">{order.customer}</p>
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-ink-2">
+              <Phone size={13} className="shrink-0 text-brand" />
+              <a
+                href={`tel:${order.phone.replace(/\s/g, "")}`}
+                dir="ltr"
+                className="tap font-semibold hover:text-brand"
+              >
+                {order.phone}
+              </a>
+            </p>
+            {(order.provinceCode || order.addressLine) && (
+              <p className="mt-1 flex items-start gap-1.5 text-[13px] text-ink-2">
+                <MapPin size={13} className="mt-0.5 shrink-0 text-brand" />
+                <span>
+                  {order.provinceCode ? t(provinceLabelKey(order.provinceCode)) : ""}
+                  {order.provinceCode && order.addressLine ? " · " : ""}
+                  {order.addressLine ?? ""}
+                </span>
+              </p>
+            )}
+            {order.notes && (
+              <p className="mt-2 text-[12px] italic text-ink-3">&ldquo;{order.notes}&rdquo;</p>
+            )}
+          </div>
+
+          {/* Items */}
+          <ul className="space-y-2">
+            {order.items.map((it, i) => {
+              const itemName = lang === "ar" ? it.nameAr : it.nameEn;
+              const variant = lang === "ar" ? it.itemNameAr : it.itemNameEn;
+              return (
+                <li
+                  key={i}
+                  className="flex items-center gap-2 rounded-xl border border-line-2 px-3 py-2.5 text-[13px]"
+                >
+                  <Package size={13} className="shrink-0 text-ink-3" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold text-ink">
+                      {itemName}
+                      {variant && <span className="font-semibold text-ink-3"> — {variant}</span>}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-ink-3">
+                      ×{it.qty}
+                      {it.freeQty > 0 && (
+                        <span className="font-bold text-emerald-600">
+                          ({it.freeQty} {t("cart.free")})
+                        </span>
+                      )}
+                      {it.waterproof && (
+                        <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
+                          <Droplet size={10} /> {t("badge.waterproof")}
+                        </span>
+                      )}
+                      {it.note && (
+                        <span className="truncate italic">&ldquo;{it.note}&rdquo;</span>
+                      )}
+                    </span>
+                  </span>
+                  {it.customImageUrl && (
+                    <a
+                      href={it.customImageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="tap shrink-0 rounded-lg bg-brand-soft px-2 py-1 text-[10px] font-bold text-brand hover:underline"
+                    >
+                      🖼️
+                    </a>
+                  )}
+                  <span className="shrink-0 font-bold text-ink-2">
+                    {formatPrice(it.lineTotal, lang)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Money breakdown */}
+          <div className="space-y-1 rounded-2xl border border-line-2 p-4 text-sm">
+            <div className="flex items-center justify-between text-ink-2">
+              <span>{t("cart.subtotal")}</span>
+              <span className="font-semibold">{formatPrice(order.subtotal, lang)}</span>
+            </div>
+            {order.discountTotal > 0 && (
+              <div className="flex items-center justify-between text-emerald-600">
+                <span className="text-xs font-bold">
+                  {t("cart.discount")}
+                  {order.offerNote && ` · ${order.offerNote}`}
+                </span>
+                <span className="font-bold">-{formatPrice(order.discountTotal, lang)}</span>
+              </div>
+            )}
+            {order.deliveryFee > 0 && (
+              <div className="flex items-center justify-between text-ink-2">
+                <span>{t("cart.delivery")}</span>
+                <span className="font-semibold">{formatPrice(order.deliveryFee, lang)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-line-2 pt-2">
+              <span className="font-bold text-ink">{t("cart.total")}</span>
+              <span className="text-base font-black text-brand">
+                {formatPrice(order.total, lang)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(content, document.body);
 }
