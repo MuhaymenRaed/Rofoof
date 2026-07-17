@@ -162,7 +162,9 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
         <div className="min-w-0 flex-1">
           {filtered.length === 0 ? (
             <div className="grid place-items-center rounded-2xl border border-dashed border-line bg-surface py-20 text-center">
-              <p className="text-3xl">🔍</p>
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-brand-soft text-brand">
+                <Search size={26} />
+              </span>
               <p className="mt-3 font-bold text-ink">{t("store.empty")}</p>
               <p className="mt-1 text-sm text-ink-3">{t("store.emptyHint")}</p>
               <button

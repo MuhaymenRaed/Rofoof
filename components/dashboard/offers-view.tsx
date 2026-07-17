@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { Plus, Trash } from "@/components/icons";
+import { Plus, Trash, Zap, Gift, Percent, Truck } from "@/components/icons";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
 import {
@@ -16,11 +16,15 @@ import {
 import type { OfferKindDb } from "@/lib/supabase/types";
 import type { DictKey } from "@/lib/i18n";
 
-const KINDS: { id: OfferKindDb; key: DictKey; emoji: string }[] = [
-  { id: "flash", key: "offer.kind.flash", emoji: "⚡" },
-  { id: "bundle", key: "offer.kind.bundle", emoji: "🎁" },
-  { id: "cart_percent", key: "offer.kind.cart_percent", emoji: "🛒" },
-  { id: "cart_delivery", key: "offer.kind.cart_delivery", emoji: "🚚" },
+const KINDS: {
+  id: OfferKindDb;
+  key: DictKey;
+  icon: React.ComponentType<{ size?: number }>;
+}[] = [
+  { id: "flash", key: "offer.kind.flash", icon: Zap },
+  { id: "bundle", key: "offer.kind.bundle", icon: Gift },
+  { id: "cart_percent", key: "offer.kind.cart_percent", icon: Percent },
+  { id: "cart_delivery", key: "offer.kind.cart_delivery", icon: Truck },
 ];
 
 export function OffersView({ initialOffers }: { initialOffers: AdminOffer[] }) {
@@ -170,7 +174,10 @@ export function OffersView({ initialOffers }: { initialOffers: AdminOffer[] }) {
                     : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
                 }`}
               >
-                {k.emoji} {t(k.key)}
+                <span className="inline-flex items-center justify-center gap-1.5">
+                  <k.icon size={14} />
+                  {t(k.key)}
+                </span>
               </button>
             ))}
           </div>
@@ -284,8 +291,8 @@ export function OffersView({ initialOffers }: { initialOffers: AdminOffer[] }) {
             const product = o.productId ? products.find((p) => p.id === o.productId) : null;
             return (
               <li key={o.id} className="flex flex-wrap items-center gap-3 p-4 sm:px-5">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-lg">
-                  {kindMeta?.emoji}
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">
+                  {kindMeta && <kindMeta.icon size={18} />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-bold text-ink">

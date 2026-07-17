@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { X, Plus, Check, Droplet, Sparkles } from "@/components/icons";
+import { X, Plus, Check, Droplet, Sparkles, Award, Sticker, Photo } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/products";
@@ -15,6 +15,13 @@ import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
 
 const MAX_IMAGES = 20;
 const TYPES: CustomType[] = ["brooch", "sticker", "poster"];
+
+/** Elegant stroke icons for the three custom types (no emojis). */
+const TYPE_ICON: Record<CustomType, React.ComponentType<{ size?: number }>> = {
+  brooch: Award,
+  sticker: Sticker,
+  poster: Photo,
+};
 
 interface Artwork {
   blob: Blob;
@@ -241,13 +248,14 @@ function RequestForm({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-3 gap-2">
             {TYPES.map((k) => {
               const on = type === k;
+              const Icon = TYPE_ICON[k];
               return (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setType(k)}
                   aria-pressed={on}
-                  className={`tap flex flex-col items-center gap-1 rounded-2xl border px-2 py-3 text-xs font-bold transition ${
+                  className={`tap flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-bold transition ${
                     on ? "text-white" : "border-line bg-surface text-ink-2 hover:text-ink"
                   }`}
                   style={
@@ -256,7 +264,7 @@ function RequestForm({ onClose }: { onClose: () => void }) {
                       : undefined
                   }
                 >
-                  <span className="text-xl">{CUSTOM_TYPE_LABEL[k].emoji}</span>
+                  <Icon size={22} />
                   {lang === "ar" ? CUSTOM_TYPE_LABEL[k].ar : CUSTOM_TYPE_LABEL[k].en}
                 </button>
               );

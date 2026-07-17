@@ -25,6 +25,41 @@ function Base({ size = 20, children, ...props }: IconProps & { children: React.R
   );
 }
 
+/** Rosette / pin — the brooch mark. */
+export const Award = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="9" r="5.5" />
+    <path d="M8.7 13.5 7 21l5-2.6L17 21l-1.7-7.5" />
+  </Base>
+);
+
+/** Lightning — flash sales. */
+export const Zap = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M13 2 4.5 13.5h6L11 22l8.5-11.5h-6L13 2Z" />
+  </Base>
+);
+
+/** Wrapped gift — bundle offers. */
+export const Gift = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 12v8.5h16V12" />
+    <path d="M2.5 8h19v4h-19Z" />
+    <path d="M12 8v12.5" />
+    <path d="M12 8s-4.5.2-5.5-1.8C5.8 4.8 7 3.5 8.4 3.5 10.8 3.5 12 8 12 8Z" />
+    <path d="M12 8s4.5.2 5.5-1.8c.7-1.4-.5-2.7-1.9-2.7C13.2 3.5 12 8 12 8Z" />
+  </Base>
+);
+
+/** Percent — cart-total discounts. */
+export const Percent = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M19 5 5 19" />
+    <circle cx="6.8" cy="6.8" r="2.3" />
+    <circle cx="17.2" cy="17.2" r="2.3" />
+  </Base>
+);
+
 export const Home = (p: IconProps) => (
   <Base {...p}>
     <path d="M4 11.5 12 4l8 7.5" />

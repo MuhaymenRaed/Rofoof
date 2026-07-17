@@ -44,9 +44,9 @@ export function CustomOrderCard() {
           {(Object.keys(CUSTOM_TYPE_LABEL) as (keyof typeof CUSTOM_TYPE_LABEL)[]).map((k) => (
             <span
               key={k}
-              className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink-2 shadow-sm"
+              className="rounded-full border bg-surface px-2.5 py-0.5 text-[10px] font-bold text-ink-2 shadow-sm"
+              style={{ borderColor: "color-mix(in srgb, var(--c) 30%, transparent)" }}
             >
-              {CUSTOM_TYPE_LABEL[k].emoji}{" "}
               {lang === "ar" ? CUSTOM_TYPE_LABEL[k].ar : CUSTOM_TYPE_LABEL[k].en}
             </span>
           ))}

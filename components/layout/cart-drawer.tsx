@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useStore, cartLineKey } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { X, Bag, Trash, Whatsapp, Check, Droplet } from "@/components/icons";
+import { X, Bag, Trash, Whatsapp, Check, Droplet, Percent } from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
@@ -274,7 +274,10 @@ export function CartDrawer() {
             <div className="border-t border-line-2 px-5 py-4">
               {cartDiscount && (
                 <div className="mb-2 flex items-center justify-between text-xs font-bold text-emerald-600">
-                  <span>🎉 {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Percent size={12} />
+                    {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}
+                  </span>
                   <span>-{formatPrice(cartDiscount.amount, lang)}</span>
                 </div>
               )}
@@ -393,8 +396,9 @@ export function CartDrawer() {
                 </div>
                 {cartDiscount && (
                   <div className="flex items-center justify-between text-emerald-600">
-                    <span className="text-xs font-bold">
-                      🎉 {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}
+                    <span className="flex items-center gap-1.5 text-xs font-bold">
+                      <Percent size={12} />
+                      {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}
                     </span>
                     <span className="font-bold">-{formatPrice(cartDiscount.amount, lang)}</span>
                   </div>

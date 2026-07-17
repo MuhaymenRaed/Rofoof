@@ -125,6 +125,38 @@ export async function deleteOfferAction(id: string): Promise<{ ok: boolean; erro
   return { ok: true };
 }
 
+/* --------------------------- Custom pricing ----------------------------- */
+
+const customPricingSchema = z.object({
+  kind: z.enum(["brooch", "sticker", "poster"]),
+  unitPrice: z.number().int().min(0).max(10_000_000),
+  waterproofExtra: z.number().int().min(0).max(10_000_000),
+});
+
+/** Update a custom-request unit price (admin). Used by the dashboard editor. */
+export async function updateCustomPricingAction(input: {
+  kind: "brooch" | "sticker" | "poster";
+  unitPrice: number;
+  waterproofExtra: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = customPricingSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const p = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("custom_pricing")
+    .update({ unit_price: p.unitPrice, waterproof_extra: p.waterproofExtra })
+    .eq("kind", p.kind);
+  if (error) return { ok: false, error: error.message };
+
+  // The storefront modal reads pricing through the settings-tagged cache.
+  revalidateTag(TAGS.settings, "max");
+  revalidatePath("/dashboard/offers");
+  return { ok: true };
+}
+
 /** All offers (admin sees every row via RLS, including inactive/deleted-not). */
 export async function getAdminOffers(): Promise<AdminOffer[]> {
   await requireAdmin();

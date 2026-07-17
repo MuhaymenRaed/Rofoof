@@ -19,7 +19,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl font-black text-ink">
             <span className="h-6 w-1.5 rounded-full bg-brand" />
-            📊 {t("dash.title")}
+            {t("dash.title")}
           </h1>
           <p className="mt-1.5 ps-4 text-xs text-ink-3">{today}</p>
         </div>

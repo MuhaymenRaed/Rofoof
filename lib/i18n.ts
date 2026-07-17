@@ -382,7 +382,7 @@ export const dict = {
     ar: "ارفع صورك ونحوّلها لبروشات أو ستكرات أو بوسترات",
     en: "Upload your images and we turn them into brooches, stickers or posters",
   },
-  "custom.cardHint": { ar: "صمّمها على كيفك ✨", en: "Make it yours ✨" },
+  "custom.cardHint": { ar: "صمّمها على كيفك", en: "Make it yours" },
   "custom.chooseType": { ar: "شنو تريد نسوّيلك؟", en: "What should we make for you?" },
   "custom.type.brooch": { ar: "بروش", en: "Brooch" },
   "custom.type.sticker": { ar: "ستكر", en: "Sticker" },
@@ -404,13 +404,14 @@ export const dict = {
   "custom.estimated": { ar: "السعر التقديري", en: "Estimated price" },
   "custom.send": { ar: "إرسال الطلب", en: "Send request" },
   "custom.sending": { ar: "جارٍ رفع الصور والإرسال…", en: "Uploading & sending…" },
-  "custom.successTitle": { ar: "وصلنا طلبك! 🎉", en: "We got your request! 🎉" },
+  "custom.successTitle": { ar: "وصلنا طلبك!", en: "We got your request!" },
   "custom.successHint": {
     ar: "راح نراجع صورك ونتواصل وياك لتأكيد التفاصيل والسعر النهائي.",
     en: "We'll review your images and contact you to confirm details & final price.",
   },
   "custom.badge": { ar: "طلب مخصص", en: "Custom request" },
   "custom.imagesLabel": { ar: "الصور المرفقة", en: "Attached images" },
+  "custom.pricingTitle": { ar: "أسعار الطلبات المخصصة", en: "Custom request pricing" },
 
   // Discounts (buyer-facing)
   "product.off": { ar: "خصم", en: "OFF" },

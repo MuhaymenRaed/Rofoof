@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Trash, Droplet } from "@/components/icons";
+import { X, Plus, Trash, Droplet, Photo } from "@/components/icons";
 import {
   canBeWaterproof,
   type CategoryInfo,
@@ -759,7 +759,10 @@ export function ProductEditorModal({
           {/* Custom artwork (posters) */}
           {customEligible && (
             <label className="flex cursor-pointer items-center justify-between rounded-xl border border-line-2 bg-surface-2/40 p-3">
-              <span className="text-[13px] font-semibold text-ink">🖼️ {t("dash.allowCustom")}</span>
+              <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                <Photo size={16} className="text-brand" />
+                {t("dash.allowCustom")}
+              </span>
               <input
                 type="checkbox"
                 checked={allowCustom}

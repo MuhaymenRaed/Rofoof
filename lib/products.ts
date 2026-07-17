@@ -171,10 +171,10 @@ export interface CustomPricing {
 /** Distinct accent for custom requests everywhere (lists, badges, stats). */
 export const CUSTOM_ORDER_COLOR = "#d946ef";
 
-export const CUSTOM_TYPE_LABEL: Record<CustomType, { ar: string; en: string; emoji: string }> = {
-  brooch: { ar: "بروش", en: "Brooch", emoji: "🎀" },
-  sticker: { ar: "ستكر", en: "Sticker", emoji: "✨" },
-  poster: { ar: "بوستر", en: "Poster", emoji: "🖼️" },
+export const CUSTOM_TYPE_LABEL: Record<CustomType, { ar: string; en: string }> = {
+  brooch: { ar: "بروش", en: "Brooch" },
+  sticker: { ar: "ستكر", en: "Sticker" },
+  poster: { ar: "بوستر", en: "Poster" },
 };
 
 /* ------------------------------- Orders -------------------------------- */

@@ -169,8 +169,10 @@ function OrderCard({ order }: { order: Order }) {
                         sizes="32px"
                         className="object-cover"
                       />
+                    ) : product?.emoji ? (
+                      product.emoji
                     ) : (
-                      product?.emoji ?? "📦"
+                      <Package size={15} className="text-ink-3" />
                     )}
                   </span>
                   <span className="min-w-0">

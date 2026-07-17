@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
-import { X, Package, Phone, MapPin, ChevronEnd, Droplet, Sparkles } from "@/components/icons";
+import { X, Package, Phone, MapPin, ChevronEnd, Droplet, Sparkles, Photo } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { provinceLabelKey } from "@/lib/provinces";
 import {
@@ -453,9 +453,10 @@ function OrderDetailsModal({
                       href={it.customImageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="tap shrink-0 rounded-lg bg-brand-soft px-2 py-1 text-[10px] font-bold text-brand hover:underline"
+                      aria-label={t("custom.imagesLabel")}
+                      className="tap grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand transition hover:bg-brand hover:text-white"
                     >
-                      🖼️
+                      <Photo size={14} />
                     </a>
                   )}
                   <span className="shrink-0 font-bold text-ink-2">

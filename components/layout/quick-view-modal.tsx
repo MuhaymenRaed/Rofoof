@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Heart, Cart, Check, Truck, Droplet, Plus } from "@/components/icons";
+import { X, Heart, Cart, Check, Truck, Droplet, Plus, Zap, Gift } from "@/components/icons";
 import { Stars } from "@/components/ui/stars";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Countdown } from "@/components/ui/countdown";
@@ -228,15 +228,19 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           <div className="mt-3 space-y-1.5">
             {flash && flash.endsAt && (
               <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-line bg-brand-soft px-3 py-2 text-[12px] font-bold text-brand">
-                <span>⚡ {lang === "ar" ? flash.titleAr : flash.titleEn}</span>
+                <span className="flex items-center gap-1.5">
+                  <Zap size={13} />
+                  {lang === "ar" ? flash.titleAr : flash.titleEn}
+                </span>
                 <span className="ms-auto flex items-center gap-1.5">
                   {t("offer.endsIn")} <Countdown endsAt={flash.endsAt} />
                 </span>
               </div>
             )}
             {bundle && (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] font-bold text-emerald-600">
-                🎁 {lang === "ar" ? bundle.titleAr : bundle.titleEn}
+              <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] font-bold text-emerald-600">
+                <Gift size={13} />
+                {lang === "ar" ? bundle.titleAr : bundle.titleEn}
               </div>
             )}
           </div>
