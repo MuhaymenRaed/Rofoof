@@ -14,6 +14,16 @@ import type {
 } from "@/lib/products";
 import type { OrderItemRow, OrderRow, ProductRow } from "@/lib/supabase/types";
 
+/**
+ * PostgREST select that hydrates a product with everything mapProduct() needs:
+ * category/fandom codes, package items, and volume-price tiers. Shared by the
+ * public catalog and the admin inventory so the embed can never drift.
+ */
+export const PRODUCT_SELECT =
+  "*, product_fandoms(fandom_code), product_categories(category_code), " +
+  "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
+  "product_price_tiers(min_qty, unit_price)";
+
 /** A products row joined with its fandom/category codes, items and tiers. */
 export type ProductRowWithFandoms = ProductRow & {
   product_fandoms?: { fandom_code: string }[] | null;

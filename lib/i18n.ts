@@ -129,20 +129,6 @@ export const dict = {
   "cart.remove": { ar: "حذف", en: "Remove" },
   "cart.items": { ar: "عنصر", en: "items" },
 
-  // Track order
-  "track.title": { ar: "أدخل كود الطلب", en: "Enter order code" },
-  "track.sub": {
-    ar: "الكود يُرسَل إليك عند تأكيد الطلب عبر واتساب",
-    en: "Your code is sent on WhatsApp once the order is confirmed",
-  },
-  "track.placeholder": { ar: "مثال: RF-20251", en: "e.g. RF-20251" },
-  "track.button": { ar: "تتبّع", en: "Track" },
-  "track.notFound": {
-    ar: "لم يتم العثور على هذا الكود",
-    en: "No order found for this code",
-  },
-  "track.tryCode": { ar: "جرّب: RFQ-8841", en: "Try: RFQ-8841" },
-
   // Tracker steps
   "step.pending": { ar: "بانتظار التأكيد", en: "Pending" },
   "step.accepted": { ar: "مقبول", en: "Accepted" },
@@ -562,6 +548,7 @@ export const dict = {
   "product.off": { ar: "خصم", en: "OFF" },
   "product.from": { ar: "يبدأ من", en: "From" },
   "product.chooseItem": { ar: "اختر التصميم", en: "Pick a design" },
+  "product.chooseItems": { ar: "اختر التصاميم", en: "Pick your designs" },
   "product.waterproofOption": {
     ar: "نسخة مقاومة للماء",
     en: "Waterproof version",
@@ -580,6 +567,7 @@ export const dict = {
   "product.perUnit": { ar: "للقطعة", en: "each" },
   "offer.endsIn": { ar: "ينتهي خلال", en: "Ends in" },
   "cart.free": { ar: "مجاناً", en: "FREE" },
+  "cart.pieces": { ar: "قطعة", en: "pieces" },
   "cart.discount": { ar: "الخصم", en: "Discount" },
   "cart.freeDelivery": { ar: "توصيل مجاني", en: "Free delivery" },
   "dash.changeImage": { ar: "تغيير الصورة", en: "Change image" },

@@ -1,7 +1,13 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { mapProduct, mapOffer, type ProductRowWithFandoms, type OfferRowLike } from "./mappers";
+import {
+  mapProduct,
+  mapOffer,
+  PRODUCT_SELECT,
+  type ProductRowWithFandoms,
+  type OfferRowLike,
+} from "./mappers";
 import { TAGS } from "./tags";
 import type {
   CategoryInfo,
@@ -11,11 +17,6 @@ import type {
   Offer,
   Product,
 } from "@/lib/products";
-
-const PRODUCT_SELECT =
-  "*, product_fandoms(fandom_code), product_categories(category_code), " +
-  "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
-  "product_price_tiers(min_qty, unit_price)";
 
 /**
  * Public catalog. Cached across requests (tag: products, revalidate 5 min) and

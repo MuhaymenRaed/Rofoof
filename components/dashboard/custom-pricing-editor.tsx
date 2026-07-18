@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { Sparkles, Check, Award, Sticker, Photo } from "@/components/icons";
+import { Sparkles, Check, CUSTOM_TYPE_ICON } from "@/components/icons";
 import {
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
@@ -11,12 +11,6 @@ import {
   type CustomType,
 } from "@/lib/products";
 import { updateCustomPricingAction } from "@/lib/actions/offers";
-
-const TYPE_ICON: Record<CustomType, React.ComponentType<{ size?: number }>> = {
-  brooch: Award,
-  sticker: Sticker,
-  poster: Photo,
-};
 
 /**
  * Admin control over custom-request pricing (per-type unit price +
@@ -81,7 +75,7 @@ export function CustomPricingEditor({ initialPricing }: { initialPricing: Custom
       <div className="divide-y divide-line-2">
         {rows.map((row) => {
           const meta = CUSTOM_TYPE_LABEL[row.kind];
-          const Icon = TYPE_ICON[row.kind];
+          const Icon = CUSTOM_TYPE_ICON[row.kind];
           const waterproofable = row.kind !== "brooch";
           return (
             <div key={row.kind} className="flex flex-wrap items-end gap-3 p-4 sm:px-5">

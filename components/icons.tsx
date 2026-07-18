@@ -282,3 +282,13 @@ export const Whatsapp = (p: IconProps) => (
     <path d="M9 9.2c.2-.6.5-.6.8-.6h.5c.2 0 .4 0 .6.5l.7 1.6c.1.2 0 .4-.1.5l-.5.6c-.1.2-.2.3 0 .6a6 6 0 0 0 2.4 2.1c.3.1.5.1.6 0l.6-.7c.2-.2.3-.1.5-.1l1.6.8c.2.1.4.2.4.4 0 .6-.4 1.4-.7 1.6-.4.3-1.6.8-3.4 0a8 8 0 0 1-3.9-3.9c-.6-1.3-.4-2.4-.2-2.9Z" />
   </Base>
 );
+
+/**
+ * Elegant stroke icons for the three custom-request types — shared by the
+ * request modal and the admin pricing editor so they never diverge.
+ */
+export const CUSTOM_TYPE_ICON = {
+  brooch: Award,
+  sticker: Sticker,
+  poster: Photo,
+} as const;

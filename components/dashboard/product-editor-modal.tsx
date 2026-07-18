@@ -20,6 +20,7 @@ import {
   createFandomAction,
 } from "@/lib/actions/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { toWebp } from "@/lib/webp";
 import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
@@ -291,11 +292,13 @@ export function ProductEditorModal({
           continue;
         }
         if (!r.file) continue;
-        const ext = (r.file.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `${id}/${Date.now()}-${i}.${ext}`;
+        // Re-encode to WebP in the browser (handles PNG/JPEG and iPhone
+        // HEIC/HEIF) so the bucket only ever stores compact files.
+        const webp = await toWebp(r.file);
+        const path = `${id}/${Date.now()}-${i}.${webp.ext}`;
         const { error: upErr } = await supabase.storage
           .from("product-images")
-          .upload(path, r.file, { upsert: true, contentType: r.file.type });
+          .upload(path, webp.blob, { upsert: true, contentType: webp.contentType });
         if (upErr) {
           setUploading(false);
           setError(upErr.message);

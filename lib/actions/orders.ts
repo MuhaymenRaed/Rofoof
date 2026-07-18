@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createAnonClient } from "@/lib/supabase/anon";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { sendOrderTelegramNotification } from "@/lib/telegram";
@@ -201,36 +200,4 @@ export async function updateManyOrderStatusesAction(
   revalidatePath("/dashboard");
   revalidatePath("/orders");
   return { ok: failed.length === 0, failed };
-}
-
-/* ------------------------------ Track order ---------------------------- */
-
-export interface TrackingItem {
-  name_ar: string;
-  name_en: string;
-  qty: number;
-  line_total: number;
-}
-export interface TrackingResult {
-  code: string;
-  status: OrderStatusDb;
-  total: number;
-  tracking: string | null;
-  created_at: string;
-  items: TrackingItem[];
-  events: { status: OrderStatusDb; created_at: string }[];
-}
-
-export async function trackOrderAction(code: string): Promise<TrackingResult | null> {
-  const trimmed = code.trim();
-  if (!trimmed) return null;
-
-  // Public, PII-safe RPC — anon client is fine.
-  const supabase = createAnonClient();
-  const { data, error } = await supabase.rpc("get_order_tracking", { p_code: trimmed });
-  if (error) {
-    console.error("[trackOrder]", error);
-    return null;
-  }
-  return (data as TrackingResult | null) ?? null;
 }

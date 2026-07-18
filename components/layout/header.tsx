@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -28,9 +29,17 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-line-2 bg-surface/85 backdrop-blur-xl">
       <div className="mx-auto flex h-15 max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
-        {/* Logo — single wordmark that follows the selected language */}
-        <Link href="/" className="tap shrink-0 text-xl font-black text-brand">
-          {t("brand.name")}
+        {/* Logo — mascot mark + wordmark that follows the selected language */}
+        <Link href="/" className="tap flex shrink-0 items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={34}
+            height={34}
+            priority
+            className="h-8 w-8 shrink-0 object-contain"
+          />
+          <span className="text-xl font-black text-brand">{t("brand.name")}</span>
         </Link>
 
         {/* Desktop nav */}

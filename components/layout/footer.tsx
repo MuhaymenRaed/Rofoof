@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { Instagram, Whatsapp, MapPin, Phone, Truck } from "@/components/icons";
 import {
@@ -33,8 +34,15 @@ export function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <div className="text-xl font-black text-brand">
-              {t("brand.name")}
+            <div className="flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt=""
+                width={36}
+                height={36}
+                className="h-9 w-9 shrink-0 object-contain"
+              />
+              <span className="text-xl font-black text-brand">{t("brand.name")}</span>
             </div>
             <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-ink-2">
               {t("footer.tagline")}

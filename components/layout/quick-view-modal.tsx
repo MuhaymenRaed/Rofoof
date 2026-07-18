@@ -3,19 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Heart, Cart, Check, Truck, Droplet, Plus, Zap, Gift } from "@/components/icons";
+import { X, Heart, Cart, Check, Truck, Droplet, Plus, Minus, Zap, Gift } from "@/components/icons";
 import { Stars } from "@/components/ui/stars";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
-import { tierUnitPrice, type Product, type ProductItem } from "@/lib/products";
-import {
-  bundleOfferFor,
-  freeUnitsFor,
-  liveFlashOffer,
-  unitPriceFor,
-} from "@/lib/pricing";
+import { tierUnitPrice, type Product } from "@/lib/products";
+import { bundleOfferFor, freeUnitsFor, linePricing, liveFlashOffer, unitPriceFor } from "@/lib/pricing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { toWebp } from "@/lib/webp";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -51,12 +47,15 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const isPackage = product.kind === "package" && product.items.length > 0;
   const isTiered = product.kind === "tiered" && product.tiers.length > 0;
 
+  // Standard/tiered use a single quantity; a package keeps a per-item quantity
+  // map so the buyer can pick several distinct designs from the one package.
   const [qty, setQty] = useState(1);
+  const [selections, setSelections] = useState<Record<string, number>>(
+    isPackage ? { [product.items[0].id]: 1 } : {},
+  );
+  const [previewId, setPreviewId] = useState<string | null>(isPackage ? product.items[0].id : null);
   const [note, setNote] = useState("");
   const [added, setAdded] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<ProductItem | null>(
-    isPackage ? product.items[0] : null,
-  );
   const [waterproof, setWaterproof] = useState(false);
   const [customUrl, setCustomUrl] = useState<string | null>(null);
   const [uploadingCustom, setUploadingCustom] = useState(false);
@@ -70,28 +69,64 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
   const flash = liveFlashOffer(product, offers);
   const bundle = bundleOfferFor(product, offers);
-  const unit = unitPriceFor(product, qty, { item: selectedItem, waterproof }, offers);
+
+  // Package: price/quantity summed across every chosen item.
+  const packageLines = isPackage
+    ? product.items
+        .filter((it) => (selections[it.id] ?? 0) > 0)
+        .map((it) => {
+          const q = selections[it.id] ?? 0;
+          const p = linePricing(product, q, { item: it, waterproof }, offers);
+          const baseUnit = (it.price ?? product.price) + (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
+          return { item: it, qty: q, ...p, baseTotal: baseUnit * Math.max(q - p.free, 0) };
+        })
+    : [];
+  const packageCount = packageLines.reduce((s, l) => s + l.qty, 0);
+  const packageTotal = packageLines.reduce((s, l) => s + l.total, 0);
+  const packageBase = packageLines.reduce((s, l) => s + l.baseTotal, 0);
+  const packageFree = packageLines.reduce((s, l) => s + l.free, 0);
+
+  // Standard/tiered pricing.
+  const unit = unitPriceFor(product, qty, { waterproof }, offers);
   const free = freeUnitsFor(product, qty, offers);
   const lineTotal = unit * Math.max(qty - free, 0);
-  const baseUnit =
-    product.kind === "tiered" ? tierUnitPrice(product, qty) : selectedItem?.price ?? product.price;
-  const showStruck = unit < baseUnit;
+  const stdBaseUnit =
+    (product.kind === "tiered" ? tierUnitPrice(product, qty) : product.price) +
+    (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
 
-  // What the big picture shows: selected item (package) or the gallery image.
+  const displayTotal = isPackage ? packageTotal : lineTotal;
+  const displayBase = isPackage ? packageBase : stdBaseUnit * Math.max(qty - free, 0);
+  const displayFree = isPackage ? packageFree : free;
+  const showStruck = displayBase > displayTotal;
+  const canAdd = !product.soldOut && (isPackage ? packageCount > 0 : true);
+
+  // Left media: the previewed package item, or the gallery image.
+  const previewItem = isPackage ? product.items.find((it) => it.id === previewId) : undefined;
   const mainImage = isPackage
-    ? selectedItem?.imageUrl
+    ? previewItem?.imageUrl ?? product.items[0].imageUrl
     : product.images[galleryIndex] ?? product.images[0];
+
+  function setItemQty(itemId: string, next: number) {
+    setSelections((prev) => {
+      const copy = { ...prev };
+      if (next <= 0) delete copy[itemId];
+      else copy[itemId] = Math.min(99, next);
+      return copy;
+    });
+    if (next > 0) setPreviewId(itemId);
+  }
 
   async function pickCustom(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
     setUploadingCustom(true);
-    const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
-    const path = `${crypto.randomUUID()}.${ext}`;
+    // Re-encode to WebP in the browser so the bucket only stores compact files.
+    const webp = await toWebp(f);
+    const path = `${crypto.randomUUID()}.${webp.ext}`;
     const { error } = await supabase.storage
       .from("custom-artwork")
-      .upload(path, f, { contentType: f.type });
+      .upload(path, webp.blob, { contentType: webp.contentType });
     setUploadingCustom(false);
     if (!error) {
       setCustomUrl(supabase.storage.from("custom-artwork").getPublicUrl(path).data.publicUrl);
@@ -99,13 +134,22 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   }
 
   function handleAdd() {
-    if (product.soldOut) return;
-    addToCart(product.id, qty, {
-      itemId: selectedItem?.id,
-      waterproof: waterproof && product.waterproof ? true : undefined,
-      customImageUrl: customUrl ?? undefined,
-      note: note.trim() || undefined,
-    });
+    if (!canAdd) return;
+    const wp = waterproof && product.waterproof ? true : undefined;
+    const trimmedNote = note.trim() || undefined;
+
+    if (isPackage) {
+      for (const line of packageLines) {
+        addToCart(product.id, line.qty, { itemId: line.item.id, waterproof: wp, note: trimmedNote });
+      }
+    } else {
+      addToCart(product.id, qty, { waterproof: wp, note: trimmedNote });
+    }
+    // A custom-artwork upload is always its own distinct line.
+    if (customUrl) {
+      addToCart(product.id, 1, { customImageUrl: customUrl, waterproof: wp, note: trimmedNote });
+    }
+
     setAdded(true);
     setTimeout(() => {
       onClose();
@@ -113,19 +157,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     }, 550);
   }
 
-  const thumbs: { key: string; src: string; onPick: () => void; active: boolean }[] = isPackage
-    ? product.items.map((it) => ({
-        key: it.id,
-        src: it.imageUrl,
-        onPick: () => setSelectedItem(it),
-        active: selectedItem?.id === it.id,
-      }))
-    : product.images.map((src, i) => ({
-        key: src,
-        src,
-        onPick: () => setGalleryIndex(i),
-        active: galleryIndex === i,
-      }));
+  const galleryThumbs = !isPackage && product.images.length > 1;
 
   return (
     <div
@@ -157,19 +189,19 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         ) : (
           <span className="text-[120px] drop-shadow-sm">{product.emoji}</span>
         )}
-        {thumbs.length > 1 && (
+        {galleryThumbs && (
           <div className="no-scrollbar absolute inset-x-0 bottom-0 z-10 flex gap-2 overflow-x-auto bg-linear-to-t from-black/45 to-transparent p-3">
-            {thumbs.map((th) => (
+            {product.images.map((src, i) => (
               <button
-                key={th.key}
+                key={src}
                 type="button"
-                onClick={th.onPick}
+                onClick={() => setGalleryIndex(i)}
                 aria-label={name}
                 className={`tap h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${
-                  th.active ? "border-white" : "border-white/40 hover:border-white/70"
+                  galleryIndex === i ? "border-white" : "border-white/40 hover:border-white/70"
                 }`}
               >
-                <Image src={th.src} alt="" width={48} height={48} className="h-full w-full object-cover" />
+                <Image src={src} alt="" width={48} height={48} className="h-full w-full object-cover" />
               </button>
             ))}
           </div>
@@ -189,19 +221,19 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             <div className="relative h-44 overflow-hidden rounded-2xl">
               <Image src={mainImage} alt={name} fill sizes="100vw" className="object-cover" />
             </div>
-            {thumbs.length > 1 && (
+            {galleryThumbs && (
               <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
-                {thumbs.map((th) => (
+                {product.images.map((src, i) => (
                   <button
-                    key={th.key}
+                    key={src}
                     type="button"
-                    onClick={th.onPick}
+                    onClick={() => setGalleryIndex(i)}
                     aria-label={name}
                     className={`tap h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${
-                      th.active ? "border-brand" : "border-line"
+                      galleryIndex === i ? "border-brand" : "border-line"
                     }`}
                   >
-                    <Image src={th.src} alt="" width={48} height={48} className="h-full w-full object-cover" />
+                    <Image src={src} alt="" width={48} height={48} className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -246,16 +278,91 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           </div>
         )}
 
-        {/* Package: pick a design */}
+        {/* Package: choose one or more designs, each with its own quantity */}
         {isPackage && (
-          <p className="mt-4 text-xs font-bold text-ink-2">
-            {t("product.chooseItem")}
-            {selectedItem && (selectedItem.nameAr || selectedItem.nameEn) && (
-              <span className="ms-2 font-semibold text-ink-3">
-                {lang === "ar" ? selectedItem.nameAr : selectedItem.nameEn}
+          <div className="mt-4">
+            <p className="mb-2 flex items-center justify-between text-xs font-bold text-ink-2">
+              {t("product.chooseItems")}
+              <span className="font-semibold text-ink-3">
+                {packageCount} {t("cart.pieces")}
               </span>
-            )}
-          </p>
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {product.items.map((it) => {
+                const q = selections[it.id] ?? 0;
+                const on = q > 0;
+                const itemName = lang === "ar" ? it.nameAr : it.nameEn;
+                const itemPrice = it.price ?? product.price;
+                return (
+                  <div
+                    key={it.id}
+                    className={`relative overflow-hidden rounded-xl border-2 transition ${
+                      on ? "border-brand" : "border-line-2"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setItemQty(it.id, q > 0 ? q : 1)}
+                      onMouseEnter={() => setPreviewId(it.id)}
+                      aria-label={itemName || name}
+                      aria-pressed={on}
+                      className="tap block aspect-square w-full"
+                    >
+                      <Image
+                        src={it.imageUrl}
+                        alt={itemName || ""}
+                        width={80}
+                        height={80}
+                        className="h-full w-full object-cover"
+                      />
+                      {on && (
+                        <span className="absolute inset-0 grid place-items-center bg-brand/25">
+                          <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow">
+                            <Check size={14} />
+                          </span>
+                        </span>
+                      )}
+                    </button>
+                    <div className="flex items-center justify-between bg-surface px-1.5 py-1">
+                      <span className="text-[9px] font-black" style={{ color: "var(--c)" }}>
+                        {itemPrice.toLocaleString("en-US")}
+                      </span>
+                      {on ? (
+                        <span className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setItemQty(it.id, q - 1)}
+                            aria-label={t("cart.remove")}
+                            className="tap grid h-4 w-4 place-items-center rounded bg-surface-2 text-ink-2 hover:text-brand"
+                          >
+                            <Minus size={10} />
+                          </button>
+                          <span className="min-w-3 text-center text-[10px] font-bold text-ink">{q}</span>
+                          <button
+                            type="button"
+                            onClick={() => setItemQty(it.id, q + 1)}
+                            aria-label={t("product.add")}
+                            className="tap grid h-4 w-4 place-items-center rounded bg-surface-2 text-ink-2 hover:text-brand"
+                          >
+                            <Plus size={10} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setItemQty(it.id, 1)}
+                          aria-label={t("product.add")}
+                          className="tap grid h-4 w-4 place-items-center rounded bg-brand/12 text-brand"
+                        >
+                          <Plus size={10} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Tiered: volume price ladder */}
@@ -312,16 +419,8 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             <input ref={customFileRef} type="file" accept="image/*" onChange={pickCustom} className="hidden" />
             {customUrl ? (
               <div className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2">
-                <Image
-                  src={customUrl}
-                  alt=""
-                  width={48}
-                  height={48}
-                  className="h-12 w-12 rounded-lg object-cover"
-                />
-                <span className="flex-1 text-xs font-bold text-emerald-600">
-                  {t("product.customUploaded")}
-                </span>
+                <Image src={customUrl} alt="" width={48} height={48} className="h-12 w-12 rounded-lg object-cover" />
+                <span className="flex-1 text-xs font-bold text-emerald-600">{t("product.customUploaded")}</span>
                 <button
                   type="button"
                   onClick={() => setCustomUrl(null)}
@@ -356,21 +455,16 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         {/* Price */}
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <span className="text-2xl font-black" style={{ color: "var(--c)" }}>
-            {formatPrice(lineTotal, lang)}
+            {formatPrice(displayTotal, lang)}
           </span>
-          {qty > 1 && (
-            <span className="text-xs font-bold text-ink-3">
-              {formatPrice(unit, lang)} {t("product.perUnit")}
-            </span>
-          )}
           {showStruck && (
             <span className="text-sm font-bold text-ink-3 line-through">
-              {formatPrice(baseUnit * Math.max(qty - free, 0), lang)}
+              {formatPrice(displayBase, lang)}
             </span>
           )}
-          {free > 0 && (
+          {displayFree > 0 && (
             <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white">
-              {free} {t("cart.free")}
+              {displayFree} {t("cart.free")}
             </span>
           )}
         </div>
@@ -393,20 +487,20 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             aria-pressed={wished}
             aria-label={t("aria.favorites")}
             className={`tap grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition ${
-              wished
-                ? "border-brand bg-brand text-white"
-                : "border-line text-ink-2 hover:border-brand hover:text-brand"
+              wished ? "border-brand bg-brand text-white" : "border-line text-ink-2 hover:border-brand hover:text-brand"
             }`}
           >
             <Heart size={20} filled={wished} />
           </button>
 
-          <QtyStepper value={qty} onChange={(q) => setQty(Math.max(1, q))} />
+          {/* Standard/tiered keep a single quantity stepper; packages use the
+              per-item controls in the grid above. */}
+          {!isPackage && <QtyStepper value={qty} onChange={(q) => setQty(Math.max(1, q))} />}
 
           <button
             type="button"
             onClick={handleAdd}
-            disabled={product.soldOut || uploadingCustom}
+            disabled={!canAdd || uploadingCustom}
             className="tap flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-ink-3"
           >
             {product.soldOut ? (

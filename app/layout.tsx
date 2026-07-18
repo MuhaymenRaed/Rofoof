@@ -47,13 +47,20 @@ export const metadata: Metadata = {
     description:
       "ستكرات، بروشات، ميداليات وبوسترات لكل اهتماماتك — توصيل لجميع محافظات العراق.",
     locale: "ar_IQ",
+    images: ["/logo.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "رفوف · rofoof",
     description: "ستكرات وميداليات صناعة عراقية — توصيل لجميع محافظات العراق.",
+    images: ["/logo.png"],
   },
-  // Favicons are auto-generated from app/icon.svg + app/apple-icon.svg.
+  // Browser-tab + Apple touch icon: the رفوف mascot in public/logo.png.
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export const viewport: Viewport = {

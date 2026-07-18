@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { X, Plus, Check, Droplet, Sparkles, Award, Sticker, Photo } from "@/components/icons";
+import { X, Plus, Check, Droplet, Sparkles, CUSTOM_TYPE_ICON } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/products";
@@ -15,13 +15,6 @@ import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
 
 const MAX_IMAGES = 20;
 const TYPES: CustomType[] = ["brooch", "sticker", "poster"];
-
-/** Elegant stroke icons for the three custom types (no emojis). */
-const TYPE_ICON: Record<CustomType, React.ComponentType<{ size?: number }>> = {
-  brooch: Award,
-  sticker: Sticker,
-  poster: Photo,
-};
 
 interface Artwork {
   blob: Blob;
@@ -248,7 +241,7 @@ function RequestForm({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-3 gap-2">
             {TYPES.map((k) => {
               const on = type === k;
-              const Icon = TYPE_ICON[k];
+              const Icon = CUSTOM_TYPE_ICON[k];
               return (
                 <button
                   key={k}

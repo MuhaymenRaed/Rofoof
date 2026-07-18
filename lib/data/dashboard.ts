@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { mapProduct, type ProductRowWithFandoms } from "./mappers";
+import { mapProduct, PRODUCT_SELECT, type ProductRowWithFandoms } from "./mappers";
 import type { Product, OrderStatus } from "@/lib/products";
 
 export interface TopProduct {
@@ -153,11 +153,7 @@ export async function getInventory(offset = 0, limit = 30): Promise<InventoryPag
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("products")
-    .select(
-      "*, product_fandoms(fandom_code), product_categories(category_code), " +
-        "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
-        "product_price_tiers(min_qty, unit_price)",
-    )
+    .select(PRODUCT_SELECT)
     .order("sort_order", { ascending: false })
     .range(offset, offset + limit);
 
