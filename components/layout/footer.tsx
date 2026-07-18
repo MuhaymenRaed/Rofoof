@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useStore } from "@/components/providers/store-provider";
 import { Instagram, Whatsapp, MapPin, Phone, Truck } from "@/components/icons";
-import { WHATSAPP_URL, WHATSAPP_NUMBER, INSTAGRAM_URL, formatWhatsappDisplay } from "@/lib/contact";
+import {
+  WHATSAPP_URL,
+  WHATSAPP_NUMBER,
+  INSTAGRAM_URL,
+  formatWhatsappDisplay,
+} from "@/lib/contact";
 import type { DictKey } from "@/lib/i18n";
 
 const SHOP_LINKS: { href: string; key: DictKey }[] = [
@@ -12,7 +17,11 @@ const SHOP_LINKS: { href: string; key: DictKey }[] = [
   { href: "/favorites", key: "nav.favorites" },
 ];
 
-const HELP_LINKS: DictKey[] = ["footer.faq", "footer.returns", "footer.shipping"];
+const HELP_LINKS: DictKey[] = [
+  "footer.faq",
+  "footer.returns",
+  "footer.shipping",
+];
 
 export function Footer() {
   const { t } = useStore();
@@ -24,7 +33,9 @@ export function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <div className="text-xl font-black text-brand">{t("brand.name")}</div>
+            <div className="text-xl font-black text-brand">
+              {t("brand.name")}
+            </div>
             <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-ink-2">
               {t("footer.tagline")}
             </p>
@@ -100,11 +111,14 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2">
                 <MapPin size={16} className="text-brand" />
-                {t("footer.delivery")}
+                {t("footer.location")}
               </li>
               <li className="flex items-center gap-2" dir="ltr">
                 <Phone size={16} className="text-brand" />
-                <a href={`tel:+${WHATSAPP_NUMBER}`} className="tap hover:text-brand">
+                <a
+                  href={`tel:+${WHATSAPP_NUMBER}`}
+                  className="tap hover:text-brand"
+                >
                   {formatWhatsappDisplay()}
                 </a>
               </li>
@@ -117,7 +131,7 @@ export function Footer() {
             © {year} رفوف · rofoof — {t("footer.rights")}
           </p>
           <p className="flex items-center gap-1.5">
-            <Truck size={14} /> {t("footer.delivery")}
+            <Truck size={14} /> {t("footer.location")}
           </p>
         </div>
       </div>

@@ -31,7 +31,10 @@ export const dict = {
 
   // Hero
   "hero.tag": { ar: "وصل جديد", en: "New arrivals" },
-  "hero.title": { ar: "ستكرات وميداليات صناعة عراقية", en: "Iraqi-made stickers & medals" },
+  "hero.title": {
+    ar: "ستكرات وميداليات صناعة عراقية",
+    en: "Iraqi-made stickers & medals",
+  },
   "hero.desc": {
     ar: "ستكرات، بروشات، ميداليات وبوسترات لكل اهتماماتك — منتجات مرتبة في حانة البوستات ♥",
     en: "Stickers, brooches, medals & posters for every fandom — curated with love ♥",
@@ -77,7 +80,10 @@ export const dict = {
   "store.maxPrice": { ar: "أعلى سعر", en: "Max price" },
   "store.results": { ar: "منتج", en: "products" },
   "store.empty": { ar: "لا توجد منتجات مطابقة", en: "No matching products" },
-  "store.emptyHint": { ar: "جرّب تعديل الفلاتر أو البحث", en: "Try adjusting filters or search" },
+  "store.emptyHint": {
+    ar: "جرّب تعديل الفلاتر أو البحث",
+    en: "Try adjusting filters or search",
+  },
   "store.clear": { ar: "مسح الفلاتر", en: "Clear filters" },
   "store.sort": { ar: "ترتيب", en: "Sort" },
   "sort.popular": { ar: "الأكثر رواجاً", en: "Most popular" },
@@ -89,8 +95,14 @@ export const dict = {
   "product.add": { ar: "أضف للسلة", en: "Add to cart" },
   "product.added": { ar: "أُضيف ✓", en: "Added ✓" },
   "product.soldout": { ar: "نفد المخزون", en: "Sold out" },
-  "product.notes": { ar: "ملاحظات / نص مخصص لهذا المنتج", en: "Notes / custom text for this product" },
-  "product.notesPlaceholder": { ar: "اكتب هنا أي نص أو تعليمات خاصة…", en: "Write any custom text or instructions…" },
+  "product.notes": {
+    ar: "ملاحظات / نص مخصص لهذا المنتج",
+    en: "Notes / custom text for this product",
+  },
+  "product.notesPlaceholder": {
+    ar: "اكتب هنا أي نص أو تعليمات خاصة…",
+    en: "Write any custom text or instructions…",
+  },
   "product.reviews": { ar: "تقييم", en: "reviews" },
   "product.quantity": { ar: "الكمية", en: "Quantity" },
   "product.related": { ar: "منتجات مشابهة", en: "You may also like" },
@@ -98,22 +110,37 @@ export const dict = {
   // Cart drawer
   "cart.title": { ar: "السلة", en: "Cart" },
   "cart.empty": { ar: "السلة فارغة", en: "Your cart is empty" },
-  "cart.emptyHint": { ar: "أضف بعض المنتجات لتبدأ", en: "Add some products to get started" },
+  "cart.emptyHint": {
+    ar: "أضف بعض المنتجات لتبدأ",
+    en: "Add some products to get started",
+  },
   "cart.browse": { ar: "تصفّح المتجر", en: "Browse store" },
   "cart.subtotal": { ar: "المجموع الفرعي", en: "Subtotal" },
   "cart.delivery": { ar: "التوصيل", en: "Delivery" },
-  "cart.deliveryNote": { ar: "يُحتسب عند التأكيد", en: "Calculated at confirmation" },
+  "cart.deliveryNote": {
+    ar: "يُحتسب عند التأكيد",
+    en: "Calculated at confirmation",
+  },
   "cart.total": { ar: "الإجمالي", en: "Total" },
-  "cart.checkout": { ar: "إتمام الطلب عبر واتساب", en: "Checkout via WhatsApp" },
+  "cart.checkout": {
+    ar: "إتمام الطلب عبر واتساب",
+    en: "Checkout via WhatsApp",
+  },
   "cart.remove": { ar: "حذف", en: "Remove" },
   "cart.items": { ar: "عنصر", en: "items" },
 
   // Track order
   "track.title": { ar: "أدخل كود الطلب", en: "Enter order code" },
-  "track.sub": { ar: "الكود يُرسَل إليك عند تأكيد الطلب عبر واتساب", en: "Your code is sent on WhatsApp once the order is confirmed" },
+  "track.sub": {
+    ar: "الكود يُرسَل إليك عند تأكيد الطلب عبر واتساب",
+    en: "Your code is sent on WhatsApp once the order is confirmed",
+  },
   "track.placeholder": { ar: "مثال: RF-20251", en: "e.g. RF-20251" },
   "track.button": { ar: "تتبّع", en: "Track" },
-  "track.notFound": { ar: "لم يتم العثور على هذا الكود", en: "No order found for this code" },
+  "track.notFound": {
+    ar: "لم يتم العثور على هذا الكود",
+    en: "No order found for this code",
+  },
   "track.tryCode": { ar: "جرّب: RFQ-8841", en: "Try: RFQ-8841" },
 
   // Tracker steps
@@ -130,24 +157,49 @@ export const dict = {
 
   // Orders page
   "orders.title": { ar: "طلباتي", en: "My Orders" },
-  "orders.subtitle": { ar: "كل طلباتك ومتابعة حالتها في مكان واحد", en: "All your orders and their status in one place" },
+  "orders.subtitle": {
+    ar: "كل طلباتك ومتابعة حالتها في مكان واحد",
+    en: "All your orders and their status in one place",
+  },
   "orders.tracking": { ar: "رقم التتبّع", en: "Tracking no." },
   "orders.empty": { ar: "لا توجد طلبات بعد", en: "No orders yet" },
 
   // Favorites page
   "fav.title": { ar: "المفضلة", en: "Favorites" },
-  "fav.subtitle": { ar: "المنتجات التي أعجبتك محفوظة هنا", en: "Products you liked are saved here" },
-  "fav.empty": { ar: "قائمة المفضلة فارغة", en: "Your favorites list is empty" },
-  "fav.emptyHint": { ar: "اضغط على ♥ في أي منتج لإضافته هنا", en: "Tap ♥ on any product to save it here" },
+  "fav.subtitle": {
+    ar: "المنتجات التي أعجبتك محفوظة هنا",
+    en: "Products you liked are saved here",
+  },
+  "fav.empty": {
+    ar: "قائمة المفضلة فارغة",
+    en: "Your favorites list is empty",
+  },
+  "fav.emptyHint": {
+    ar: "اضغط على ♥ في أي منتج لإضافته هنا",
+    en: "Tap ♥ on any product to save it here",
+  },
   "fav.count": { ar: "منتج مفضّل", en: "saved products" },
 
   // Footer
-  "footer.tagline": { ar: "ستكرات وميداليات وبوسترات صناعة عراقية ♥", en: "Iraqi-made stickers, medals & posters ♥" },
+  "footer.tagline": {
+    ar: "ستكرات وميداليات وبوسترات صناعة عراقية ♥",
+    en: "Iraqi-made stickers, medals & posters ♥",
+  },
   "footer.shop": { ar: "تسوّق", en: "Shop" },
   "footer.help": { ar: "المساعدة", en: "Help" },
   "footer.contact": { ar: "تواصل معنا", en: "Contact" },
-  "footer.delivery": { ar: "توصيل لكل المحافظات", en: "Delivery to all provinces" },
-  "footer.rights": { ar: "جميع الحقوق محفوظة", en: "All rights reserved" },
+  "footer.delivery": {
+    ar: "ادارة سريعة لطلباتك",
+    en: "Fast management of your orders",
+  },
+  "footer.location": {
+    ar: "توصيل لكل المحافظات",
+    en: "Delivery to all provinces",
+  },
+  "footer.rights": {
+    ar: "جميع الحقوق محفوظة Qcode",
+    en: "All rights reserved Qcode",
+  },
   "footer.faq": { ar: "الأسئلة الشائعة", en: "FAQ" },
   "footer.returns": { ar: "الإرجاع والاستبدال", en: "Returns" },
   "footer.shipping": { ar: "الشحن والتوصيل", en: "Shipping" },
@@ -162,29 +214,50 @@ export const dict = {
   "auth.email": { ar: "البريد الإلكتروني", en: "Email" },
   "auth.password": { ar: "كلمة المرور", en: "Password" },
   "auth.signinTitle": { ar: "أهلاً بعودتك", en: "Welcome back" },
-  "auth.signinSub": { ar: "سجّل الدخول للمتابعة إلى رفوف", en: "Sign in to continue to rofoof" },
+  "auth.signinSub": {
+    ar: "سجّل الدخول للمتابعة إلى رفوف",
+    en: "Sign in to continue to rofoof",
+  },
   "auth.noAccess": { ar: "هذه الصفحة للمدراء فقط", en: "Admins only" },
-  "auth.noAccessHint": { ar: "سجّل الدخول بحساب مدير للوصول إلى لوحة التحكم", en: "Sign in with an admin account to access the dashboard" },
+  "auth.noAccessHint": {
+    ar: "سجّل الدخول بحساب مدير للوصول إلى لوحة التحكم",
+    en: "Sign in with an admin account to access the dashboard",
+  },
   "auth.signedInAs": { ar: "مسجّل الدخول", en: "Signed in" },
   "auth.role.admin": { ar: "مدير", en: "Admin" },
   "auth.role.customer": { ar: "عميل", en: "Customer" },
   "auth.signup": { ar: "إنشاء حساب", en: "Create account" },
   "auth.signupTitle": { ar: "أنشئ حسابك", en: "Create your account" },
-  "auth.signupSub": { ar: "انضم إلى رفوف لتتبّع طلباتك ومفضّلتك", en: "Join rofoof to track orders and favorites" },
+  "auth.signupSub": {
+    ar: "انضم إلى رفوف لتتبّع طلباتك ومفضّلتك",
+    en: "Join rofoof to track orders and favorites",
+  },
   "auth.name": { ar: "الاسم الكامل", en: "Full name" },
   "auth.noAccount": { ar: "ليس لديك حساب؟", en: "No account?" },
-  "auth.haveAccount": { ar: "لديك حساب بالفعل؟", en: "Already have an account?" },
+  "auth.haveAccount": {
+    ar: "لديك حساب بالفعل؟",
+    en: "Already have an account?",
+  },
   "auth.toSignup": { ar: "أنشئ حساباً", en: "Sign up" },
   "auth.toSignin": { ar: "سجّل الدخول", en: "Sign in" },
   "auth.confirmEmail": {
     ar: "تحقّق من بريدك لتأكيد الحساب ثم سجّل الدخول",
     en: "Check your email to confirm your account, then sign in",
   },
-  "auth.invalidCreds": { ar: "بيانات الدخول غير صحيحة", en: "Invalid email or password" },
-  "auth.genericError": { ar: "حدث خطأ، حاول مجدداً", en: "Something went wrong, try again" },
+  "auth.invalidCreds": {
+    ar: "بيانات الدخول غير صحيحة",
+    en: "Invalid email or password",
+  },
+  "auth.genericError": {
+    ar: "حدث خطأ، حاول مجدداً",
+    en: "Something went wrong, try again",
+  },
   "auth.google": { ar: "المتابعة عبر Google", en: "Continue with Google" },
   "auth.or": { ar: "أو", en: "or" },
-  "auth.oauthError": { ar: "تعذّر تسجيل الدخول عبر Google", en: "Google sign-in failed" },
+  "auth.oauthError": {
+    ar: "تعذّر تسجيل الدخول عبر Google",
+    en: "Google sign-in failed",
+  },
   "auth.forgot": { ar: "نسيت كلمة المرور؟", en: "Forgot password?" },
   "auth.accountExists": {
     ar: "هذا البريد مسجّل بالفعل — سجّل الدخول بدلاً من ذلك",
@@ -204,7 +277,10 @@ export const dict = {
   },
 
   // Password reset
-  "reset.requestTitle": { ar: "استعادة كلمة المرور", en: "Reset your password" },
+  "reset.requestTitle": {
+    ar: "استعادة كلمة المرور",
+    en: "Reset your password",
+  },
   "reset.requestSub": {
     ar: "أدخل بريدك وسنرسل لك رابط استعادة كلمة المرور",
     en: "Enter your email and we'll send you a reset link",
@@ -218,19 +294,34 @@ export const dict = {
   },
   "reset.backToLogin": { ar: "العودة لتسجيل الدخول", en: "Back to sign in" },
   "reset.newTitle": { ar: "كلمة مرور جديدة", en: "Set a new password" },
-  "reset.newSub": { ar: "اختر كلمة مرور جديدة لحسابك", en: "Choose a new password for your account" },
+  "reset.newSub": {
+    ar: "اختر كلمة مرور جديدة لحسابك",
+    en: "Choose a new password for your account",
+  },
   "reset.newPassword": { ar: "كلمة المرور الجديدة", en: "New password" },
   "reset.confirmPassword": { ar: "تأكيد كلمة المرور", en: "Confirm password" },
   "reset.update": { ar: "تحديث كلمة المرور", en: "Update password" },
   "reset.updating": { ar: "جارٍ التحديث…", en: "Updating…" },
-  "reset.mismatch": { ar: "كلمتا المرور غير متطابقتين", en: "Passwords don't match" },
-  "reset.successTitle": { ar: "تم تحديث كلمة المرور ✓", en: "Password updated ✓" },
+  "reset.mismatch": {
+    ar: "كلمتا المرور غير متطابقتين",
+    en: "Passwords don't match",
+  },
+  "reset.successTitle": {
+    ar: "تم تحديث كلمة المرور ✓",
+    en: "Password updated ✓",
+  },
   "reset.successHint": {
     ar: "يمكنك الآن استخدام كلمة المرور الجديدة لتسجيل الدخول.",
     en: "You can now sign in with your new password.",
   },
-  "reset.verifying": { ar: "جارٍ التحقّق من الرابط…", en: "Verifying your link…" },
-  "reset.invalidTitle": { ar: "الرابط غير صالح", en: "Invalid or expired link" },
+  "reset.verifying": {
+    ar: "جارٍ التحقّق من الرابط…",
+    en: "Verifying your link…",
+  },
+  "reset.invalidTitle": {
+    ar: "الرابط غير صالح",
+    en: "Invalid or expired link",
+  },
   "reset.invalidHint": {
     ar: "انتهت صلاحية رابط الاستعادة أو تم استخدامه. اطلب رابطاً جديداً.",
     en: "This reset link has expired or was already used. Request a new one.",
@@ -261,11 +352,17 @@ export const dict = {
   "dash.newUsers": { ar: "مستخدمون جدد", en: "New users" },
   "dash.activeOrders": { ar: "طلبات نشطة", en: "Active orders" },
   "dash.revenue": { ar: "إجمالي الإيرادات", en: "Total revenue" },
-  "dash.weeklyRevenue": { ar: "الإيرادات الأسبوعية (د.ع)", en: "Weekly revenue (IQD)" },
+  "dash.weeklyRevenue": {
+    ar: "الإيرادات الأسبوعية (د.ع)",
+    en: "Weekly revenue (IQD)",
+  },
   "dash.latestOrders": { ar: "آخر الطلبات", en: "Latest orders" },
   "dash.announcement": { ar: "شريط الإعلان", en: "Announcement bar" },
   "dash.updateAnnouncement": { ar: "تحديث الإعلان", en: "Update banner" },
-  "dash.announcementPlaceholder": { ar: "اكتب نص الإعلان…", en: "Write the announcement…" },
+  "dash.announcementPlaceholder": {
+    ar: "اكتب نص الإعلان…",
+    en: "Write the announcement…",
+  },
   "dash.saved": { ar: "تم الحفظ ✓", en: "Saved ✓" },
   "dash.reset": { ar: "استعادة الافتراضي", en: "Reset" },
   "dash.addProduct": { ar: "إضافة منتج", en: "Add product" },
@@ -304,7 +401,10 @@ export const dict = {
   "dash.fieldDescAr": { ar: "الوصف (عربي)", en: "Description (Arabic)" },
   "dash.fieldDescEn": { ar: "الوصف (إنجليزي)", en: "Description (English)" },
   "dash.fieldCategories": { ar: "الفئات", en: "Categories" },
-  "dash.categoriesHint": { ar: "اختر فئة واحدة على الأقل", en: "Pick at least one category" },
+  "dash.categoriesHint": {
+    ar: "اختر فئة واحدة على الأقل",
+    en: "Pick at least one category",
+  },
   "dash.newCategory": { ar: "فئة جديدة", en: "New category" },
   "dash.catNameAr": { ar: "الاسم بالعربي", en: "Arabic name" },
   "dash.catNameEn": { ar: "الاسم بالإنجليزي", en: "English name" },
@@ -322,7 +422,10 @@ export const dict = {
   "dash.saveChanges": { ar: "حفظ التعديلات", en: "Save changes" },
   "dash.kind": { ar: "نوع المنتج", en: "Product type" },
   "dash.kind.standard": { ar: "منتج عادي", en: "Standard" },
-  "dash.kind.package": { ar: "باكج (قطع متعددة)", en: "Package (multiple items)" },
+  "dash.kind.package": {
+    ar: "باكج (قطع متعددة)",
+    en: "Package (multiple items)",
+  },
   "dash.kind.tiered": { ar: "سعر حسب الكمية", en: "Volume pricing" },
   "dash.packageHint": {
     ar: "كل صورة قطعة مستقلة — حدّد سعرها أو اتركه فارغاً ليرث سعر المنتج",
@@ -333,15 +436,30 @@ export const dict = {
   "dash.tierMinQty": { ar: "من كمية", en: "From qty" },
   "dash.tierPrice": { ar: "سعر القطعة", en: "Unit price" },
   "dash.addTier": { ar: "إضافة درجة", en: "Add tier" },
-  "dash.surcharge": { ar: "زيادة سعر المقاوم للماء (د.ع)", en: "Waterproof surcharge (IQD)" },
-  "dash.allowCustom": { ar: "السماح بصورة مخصصة من الزبون", en: "Allow customer's custom image" },
+  "dash.surcharge": {
+    ar: "زيادة سعر المقاوم للماء (د.ع)",
+    en: "Waterproof surcharge (IQD)",
+  },
+  "dash.allowCustom": {
+    ar: "السماح بصورة مخصصة من الزبون",
+    en: "Allow customer's custom image",
+  },
 
   // Offers manager
   "dash.offersTab": { ar: "العروض", en: "Offers" },
   "offer.new": { ar: "عرض جديد", en: "New offer" },
-  "offer.kind.bundle": { ar: "اشترِ X واحصل على Y مجاناً", en: "Buy X get Y free" },
-  "offer.kind.cart_percent": { ar: "خصم على مجموع السلة", en: "Cart total discount" },
-  "offer.kind.cart_delivery": { ar: "توصيل مجاني/مخفّض", en: "Free/discounted delivery" },
+  "offer.kind.bundle": {
+    ar: "اشترِ X واحصل على Y مجاناً",
+    en: "Buy X get Y free",
+  },
+  "offer.kind.cart_percent": {
+    ar: "خصم على مجموع السلة",
+    en: "Cart total discount",
+  },
+  "offer.kind.cart_delivery": {
+    ar: "توصيل مجاني/مخفّض",
+    en: "Free/discounted delivery",
+  },
   "offer.kind.flash": { ar: "عرض خاطف (مؤقت)", en: "Flash sale (timed)" },
   "offer.titleAr": { ar: "عنوان العرض (عربي)", en: "Offer title (Arabic)" },
   "offer.titleEn": { ar: "عنوان العرض (إنجليزي)", en: "Offer title (English)" },
@@ -350,14 +468,20 @@ export const dict = {
   "offer.freeQty": { ar: "مجاناً", en: "Get free" },
   "offer.minCart": { ar: "الحد الأدنى للسلة (د.ع)", en: "Minimum cart (IQD)" },
   "offer.percent": { ar: "نسبة الخصم %", en: "Discount %" },
-  "offer.deliveryFee": { ar: "أجرة التوصيل (0 = مجاني)", en: "Delivery fee (0 = free)" },
+  "offer.deliveryFee": {
+    ar: "أجرة التوصيل (0 = مجاني)",
+    en: "Delivery fee (0 = free)",
+  },
   "offer.endsAt": { ar: "ينتهي في", en: "Ends at" },
   "offer.create": { ar: "إنشاء العرض", en: "Create offer" },
   "offer.live": { ar: "فعّال", en: "Live" },
   "offer.off": { ar: "متوقف", en: "Off" },
   "offer.expired": { ar: "انتهى", en: "Expired" },
   "offer.delete": { ar: "حذف", en: "Delete" },
-  "offer.empty": { ar: "لا عروض بعد — أنشئ أول عرض", en: "No offers yet — create your first" },
+  "offer.empty": {
+    ar: "لا عروض بعد — أنشئ أول عرض",
+    en: "No offers yet — create your first",
+  },
 
   // Order cards / bulk actions
   "dash.selectAll": { ar: "تحديد الكل", en: "Select all" },
@@ -371,10 +495,16 @@ export const dict = {
   "dash.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
   // Analytics
-  "dash.statusDist": { ar: "توزيع حالات الطلبات", en: "Order status distribution" },
+  "dash.statusDist": {
+    ar: "توزيع حالات الطلبات",
+    en: "Order status distribution",
+  },
   "dash.salesRatio": { ar: "نسبة المبيعات", en: "Sales ratio" },
   "dash.customOrders": { ar: "الطلبات المخصصة", en: "Custom requests" },
-  "dash.customRevenue": { ar: "إيراد الطلبات المخصصة", en: "Custom requests revenue" },
+  "dash.customRevenue": {
+    ar: "إيراد الطلبات المخصصة",
+    en: "Custom requests revenue",
+  },
 
   // Custom design requests
   "custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your custom design" },
@@ -383,7 +513,10 @@ export const dict = {
     en: "Upload your images and we turn them into brooches, stickers or posters",
   },
   "custom.cardHint": { ar: "صمّمها على كيفك", en: "Make it yours" },
-  "custom.chooseType": { ar: "شنو تريد نسوّيلك؟", en: "What should we make for you?" },
+  "custom.chooseType": {
+    ar: "شنو تريد نسوّيلك؟",
+    en: "What should we make for you?",
+  },
   "custom.type.brooch": { ar: "بروش", en: "Brooch" },
   "custom.type.sticker": { ar: "ستكر", en: "Sticker" },
   "custom.type.poster": { ar: "بوستر", en: "Poster" },
@@ -393,8 +526,14 @@ export const dict = {
     en: "Up to 20 images, 10MB each — every image = one piece",
   },
   "custom.addImages": { ar: "أضف صورك", en: "Add your images" },
-  "custom.tooBig": { ar: "صورة أكبر من 10MB تم تجاهلها", en: "An image over 10MB was skipped" },
-  "custom.description": { ar: "وصف طلبك (اختياري)", en: "Describe your request (optional)" },
+  "custom.tooBig": {
+    ar: "صورة أكبر من 10MB تم تجاهلها",
+    en: "An image over 10MB was skipped",
+  },
+  "custom.description": {
+    ar: "وصف طلبك (اختياري)",
+    en: "Describe your request (optional)",
+  },
   "custom.descPlaceholder": {
     ar: "مقاسات، ألوان، ملاحظات خاصة…",
     en: "Sizes, colors, special notes…",
@@ -403,7 +542,10 @@ export const dict = {
   "custom.piecesCount": { ar: "عدد القطع", en: "Pieces" },
   "custom.estimated": { ar: "السعر التقديري", en: "Estimated price" },
   "custom.send": { ar: "إرسال الطلب", en: "Send request" },
-  "custom.sending": { ar: "جارٍ رفع الصور والإرسال…", en: "Uploading & sending…" },
+  "custom.sending": {
+    ar: "جارٍ رفع الصور والإرسال…",
+    en: "Uploading & sending…",
+  },
   "custom.successTitle": { ar: "وصلنا طلبك!", en: "We got your request!" },
   "custom.successHint": {
     ar: "راح نراجع صورك ونتواصل وياك لتأكيد التفاصيل والسعر النهائي.",
@@ -411,14 +553,23 @@ export const dict = {
   },
   "custom.badge": { ar: "طلب مخصص", en: "Custom request" },
   "custom.imagesLabel": { ar: "الصور المرفقة", en: "Attached images" },
-  "custom.pricingTitle": { ar: "أسعار الطلبات المخصصة", en: "Custom request pricing" },
+  "custom.pricingTitle": {
+    ar: "أسعار الطلبات المخصصة",
+    en: "Custom request pricing",
+  },
 
   // Discounts (buyer-facing)
   "product.off": { ar: "خصم", en: "OFF" },
   "product.from": { ar: "يبدأ من", en: "From" },
   "product.chooseItem": { ar: "اختر التصميم", en: "Pick a design" },
-  "product.waterproofOption": { ar: "نسخة مقاومة للماء", en: "Waterproof version" },
-  "product.customImage": { ar: "اطبع تصميمك الخاص", en: "Print your own design" },
+  "product.waterproofOption": {
+    ar: "نسخة مقاومة للماء",
+    en: "Waterproof version",
+  },
+  "product.customImage": {
+    ar: "اطبع تصميمك الخاص",
+    en: "Print your own design",
+  },
   "product.customImageHint": {
     ar: "ارفع صورة عالية الجودة وسنطبعها لك",
     en: "Upload a high-quality image and we'll print it",
@@ -477,7 +628,10 @@ export const dict = {
   "checkout.placing": { ar: "جارٍ الإرسال…", en: "Placing…" },
   "checkout.back": { ar: "رجوع للسلة", en: "Back to cart" },
   "checkout.proceed": { ar: "متابعة الطلب", en: "Proceed to checkout" },
-  "checkout.error": { ar: "تعذّر إتمام الطلب، حاول مجدداً", en: "Couldn't place the order, try again" },
+  "checkout.error": {
+    ar: "تعذّر إتمام الطلب، حاول مجدداً",
+    en: "Couldn't place the order, try again",
+  },
   "checkout.successTitle": { ar: "تم استلام طلبك ✓", en: "Order received ✓" },
   "checkout.successHint": {
     ar: "احتفظ بكود الطلب لتتبّعه. سنتواصل معك عبر واتساب للتأكيد.",
@@ -493,7 +647,7 @@ export const dict = {
   "store.of": { ar: "من", en: "of" },
 
   // Misc
-  "currency": { ar: "د.ع", en: "IQD" },
+  currency: { ar: "د.ع", en: "IQD" },
 
   // 404 / error pages
   "notFound.title": { ar: "الصفحة غير موجودة", en: "Page not found" },
