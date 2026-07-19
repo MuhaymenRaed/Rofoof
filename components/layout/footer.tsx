@@ -31,10 +31,11 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t border-line-2 bg-surface">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Stacked and centered on phones; columned and start-aligned from sm up */}
+        <div className="grid gap-10 text-center sm:grid-cols-2 sm:text-start lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2 sm:justify-start">
               <Image
                 src="/logo.png"
                 alt=""
@@ -44,10 +45,10 @@ export function Footer() {
               />
               <span className="text-xl font-black text-brand">{t("brand.name")}</span>
             </div>
-            <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-ink-2">
+            <p className="mx-auto mt-3 max-w-xs text-[13px] leading-relaxed text-ink-2 sm:mx-0">
               {t("footer.tagline")}
             </p>
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 flex items-center justify-center gap-2 sm:justify-start">
               <a
                 href={INSTAGRAM_URL}
                 target="_blank"
@@ -113,15 +114,15 @@ export function Footer() {
               {t("footer.contact")}
             </h3>
             <ul className="space-y-2.5 text-[13px] font-medium text-ink-2">
-              <li className="flex items-center gap-2">
+              <li className="flex items-center justify-center gap-2 sm:justify-start">
                 <Truck size={16} className="text-brand" />
                 {t("footer.delivery")}
               </li>
-              <li className="flex items-center gap-2">
+              <li className="flex items-center justify-center gap-2 sm:justify-start">
                 <MapPin size={16} className="text-brand" />
                 {t("footer.location")}
               </li>
-              <li className="flex items-center gap-2" dir="ltr">
+              <li className="flex items-center justify-center gap-2 sm:justify-start" dir="ltr">
                 <Phone size={16} className="text-brand" />
                 <a
                   href={`tel:+${WHATSAPP_NUMBER}`}
