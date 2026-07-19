@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { X, Package, Phone, MapPin, ChevronEnd, Droplet, Sparkles, Photo } from "@/components/icons";
@@ -21,6 +22,7 @@ import {
   loadMoreOrdersAction,
 } from "@/lib/actions/orders";
 import { usePaginatedList } from "@/lib/hooks/use-paginated-list";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const FLOW: OrderStatus[] = ["review", "accepted", "shipped", "delivered"];
 
@@ -42,9 +44,25 @@ export function OrdersBoard({
   initialHasMore: boolean;
 }) {
   const { t, lang } = useStore();
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailCode, setDetailCode] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // Live-reflect new orders and buyer cancellations (INSERT/DELETE/UPDATE)
+  // without the admin needing to refresh.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel("admin-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () =>
+        router.refresh(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const {
     items: orders,

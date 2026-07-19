@@ -302,7 +302,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                   >
                     <button
                       type="button"
-                      onClick={() => setItemQty(it.id, q > 0 ? q : 1)}
+                      onClick={() => setItemQty(it.id, on ? 0 : 1)}
                       onMouseEnter={() => setPreviewId(it.id)}
                       aria-label={itemName || name}
                       aria-pressed={on}

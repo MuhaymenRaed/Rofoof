@@ -149,6 +149,16 @@ export const dict = {
   },
   "orders.tracking": { ar: "رقم التتبّع", en: "Tracking no." },
   "orders.empty": { ar: "لا توجد طلبات بعد", en: "No orders yet" },
+  "orders.cancel": { ar: "إلغاء الطلب", en: "Cancel order" },
+  "orders.cancelTitle": { ar: "إلغاء الطلب؟", en: "Cancel this order?" },
+  "orders.cancelHint": {
+    ar: "لا يمكن التراجع بعد الإلغاء، وسيُحذف الطلب نهائياً. يمكنك الإلغاء فقط قبل قبول الطلب.",
+    en: "This can't be undone — the order will be permanently removed. You can only cancel before it's accepted.",
+  },
+  "orders.cancelYes": { ar: "نعم، ألغِ الطلب", en: "Yes, cancel it" },
+  "orders.cancelNo": { ar: "تراجع", en: "Keep order" },
+  "orders.cancelling": { ar: "جارٍ الإلغاء…", en: "Cancelling…" },
+  "orders.cancelError": { ar: "تعذّر إلغاء الطلب، حاول مرة أخرى", en: "Couldn't cancel the order, try again" },
 
   // Favorites page
   "fav.title": { ar: "المفضلة", en: "Favorites" },

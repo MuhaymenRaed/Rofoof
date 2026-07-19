@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { sendOrderTelegramNotification } from "@/lib/telegram";
+import { sendCustomerOrderWhatsapp } from "@/lib/whatsapp";
 import type { OrderStatusDb } from "@/lib/supabase/types";
 
 /* ------------------------------ Place order ---------------------------- */
@@ -82,6 +83,17 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
   });
 
+  // Confirm to the CUSTOMER on WhatsApp from rofoof's official number (also
+  // non-fatal, also awaited for the same serverless reason).
+  await sendCustomerOrderWhatsapp({
+    code: result.code,
+    customerName: v.customerName,
+    customerPhone: v.customerPhone,
+    provinceCode: v.provinceCode ?? null,
+    total: result.total,
+    itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
+  });
+
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
@@ -131,14 +143,16 @@ export async function placeCustomRequestAction(
 
   const result = data as { code: string; total: number };
 
-  await sendOrderTelegramNotification({
+  const notify = {
     code: result.code,
     customerName: v.customerName,
     customerPhone: v.customerPhone,
     provinceCode: v.provinceCode ?? null,
     total: result.total,
     itemCount: v.images.length,
-  });
+  };
+  await sendOrderTelegramNotification(notify);
+  await sendCustomerOrderWhatsapp(notify);
 
   revalidatePath("/orders");
   revalidatePath("/dashboard");
@@ -171,6 +185,35 @@ export async function updateOrderStatusAction(
 export async function loadMoreOrdersAction(offset: number): Promise<OrdersPage> {
   await requireAdmin();
   return getAllOrders(offset);
+}
+
+/* --------------------------- Cancel (customer) ------------------------- */
+
+/**
+ * Let a signed-in buyer cancel their OWN order while it's still in review
+ * (not yet accepted). The cancel_order() RPC is SECURITY DEFINER and enforces
+ * both ownership (user_id = auth.uid()) and the review-only rule server-side,
+ * then hard-deletes the order (order_items cascade). Returns false if the
+ * order can't be cancelled (wrong owner, already accepted, or gone).
+ */
+export async function cancelOrderAction(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = code.trim();
+  if (!trimmed) return { ok: false, error: "invalid_input" };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("cancel_order", { p_code: trimmed });
+  if (error) {
+    console.error("[cancelOrder]", error);
+    return { ok: false, error: error.message };
+  }
+  if (data !== true) return { ok: false, error: "cannot_cancel" };
+
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/orders");
+  return { ok: true };
 }
 
 /**
