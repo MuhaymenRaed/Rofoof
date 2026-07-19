@@ -6,7 +6,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { sendOrderTelegramNotification } from "@/lib/telegram";
-import { sendCustomerOrderWhatsapp } from "@/lib/whatsapp";
 import type { OrderStatusDb } from "@/lib/supabase/types";
 
 /* ------------------------------ Place order ---------------------------- */
@@ -83,17 +82,6 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
   });
 
-  // Confirm to the CUSTOMER on WhatsApp from rofoof's official number (also
-  // non-fatal, also awaited for the same serverless reason).
-  await sendCustomerOrderWhatsapp({
-    code: result.code,
-    customerName: v.customerName,
-    customerPhone: v.customerPhone,
-    provinceCode: v.provinceCode ?? null,
-    total: result.total,
-    itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
-  });
-
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
@@ -143,16 +131,14 @@ export async function placeCustomRequestAction(
 
   const result = data as { code: string; total: number };
 
-  const notify = {
+  await sendOrderTelegramNotification({
     code: result.code,
     customerName: v.customerName,
     customerPhone: v.customerPhone,
     provinceCode: v.provinceCode ?? null,
     total: result.total,
     itemCount: v.images.length,
-  };
-  await sendOrderTelegramNotification(notify);
-  await sendCustomerOrderWhatsapp(notify);
+  });
 
   revalidatePath("/orders");
   revalidatePath("/dashboard");
