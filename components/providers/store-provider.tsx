@@ -11,7 +11,14 @@ import {
   type ReactNode,
 } from "react";
 import { translate, type DictKey, type Lang } from "@/lib/i18n";
-import type { CategoryInfo, CustomPricing, FandomInfo, Offer, Product } from "@/lib/products";
+import type {
+  CategoryInfo,
+  CustomCartRequest,
+  CustomPricing,
+  FandomInfo,
+  Offer,
+  Product,
+} from "@/lib/products";
 import { linePricing, type LinePricing } from "@/lib/pricing";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -72,6 +79,10 @@ interface StoreContextValue {
   setQty: (lineKey: string, qty: number) => void;
   removeFromCart: (lineKey: string) => void;
   clearCart: () => void;
+  /** custom design requests queued in the cart alongside products */
+  customRequests: CustomCartRequest[];
+  addCustomRequest: (req: Omit<CustomCartRequest, "id">) => void;
+  removeCustomRequest: (id: string) => void;
   // wishlist
   wishlist: string[];
   isWished: (id: string) => boolean;
@@ -93,7 +104,12 @@ interface StoreContextValue {
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 
-const LS = { lang: "rofoof.lang", cart: "rofoof.cart", wish: "rofoof.wish" };
+const LS = {
+  lang: "rofoof.lang",
+  cart: "rofoof.cart",
+  wish: "rofoof.wish",
+  custom: "rofoof.custom",
+};
 
 export function StoreProvider({
   children,
@@ -117,6 +133,7 @@ export function StoreProvider({
 
   const [lang, setLang] = useState<Lang>("ar");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [customRequests, setCustomRequests] = useState<CustomCartRequest[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
@@ -137,9 +154,11 @@ export function StoreProvider({
       const storedLang = localStorage.getItem(LS.lang) as Lang | null;
       const storedCart = localStorage.getItem(LS.cart);
       const storedWish = localStorage.getItem(LS.wish);
+      const storedCustom = localStorage.getItem(LS.custom);
       if (storedLang) setLang(storedLang);
       if (storedCart) setCart(JSON.parse(storedCart));
       if (storedWish) setWishlist(JSON.parse(storedWish));
+      if (storedCustom) setCustomRequests(JSON.parse(storedCustom));
     } catch {
       /* ignore */
     }
@@ -162,6 +181,11 @@ export function StoreProvider({
       localStorage.setItem(LS.cart, JSON.stringify(cart));
     } catch {}
   }, [cart]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS.custom, JSON.stringify(customRequests));
+    } catch {}
+  }, [customRequests]);
   useEffect(() => {
     try {
       localStorage.setItem(LS.wish, JSON.stringify(wishlist));
@@ -278,7 +302,19 @@ export function StoreProvider({
     setCart((prev) => prev.filter((l) => cartLineKey(l) !== lineKey));
   }, []);
 
-  const clearCart = useCallback(() => setCart([]), []);
+  /** Clears products AND queued custom requests — used after a successful order. */
+  const clearCart = useCallback(() => {
+    setCart([]);
+    setCustomRequests([]);
+  }, []);
+
+  const addCustomRequest = useCallback((req: Omit<CustomCartRequest, "id">) => {
+    setCustomRequests((prev) => [...prev, { ...req, id: crypto.randomUUID() }]);
+  }, []);
+
+  const removeCustomRequest = useCallback((id: string) => {
+    setCustomRequests((prev) => prev.filter((r) => r.id !== id));
+  }, []);
 
   const isWished = useCallback((id: string) => wishlist.includes(id), [wishlist]);
   const toggleWish = useCallback(
@@ -320,10 +356,19 @@ export function StoreProvider({
     [productMap, offers],
   );
 
-  const cartCount = useMemo(() => cart.reduce((n, l) => n + l.qty, 0), [cart]);
+  // Counts/totals span products AND queued custom requests (one piece per
+  // uploaded image), so the badge and cart summary reflect the whole basket.
+  const cartCount = useMemo(
+    () =>
+      cart.reduce((n, l) => n + l.qty, 0) +
+      customRequests.reduce((n, r) => n + r.images.length, 0),
+    [cart, customRequests],
+  );
   const cartSubtotal = useMemo(
-    () => cart.reduce((sum, l) => sum + pricingFor(l).total, 0),
-    [cart, pricingFor],
+    () =>
+      cart.reduce((sum, l) => sum + pricingFor(l).total, 0) +
+      customRequests.reduce((sum, r) => sum + r.unitPrice * r.images.length, 0),
+    [cart, customRequests, pricingFor],
   );
   const quickView = quickViewId ? productMap.get(quickViewId) ?? null : null;
 
@@ -355,6 +400,9 @@ export function StoreProvider({
     setQty,
     removeFromCart,
     clearCart,
+    customRequests,
+    addCustomRequest,
+    removeCustomRequest,
     wishlist,
     isWished,
     toggleWish,

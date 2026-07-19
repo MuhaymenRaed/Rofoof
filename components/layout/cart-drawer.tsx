@@ -5,12 +5,23 @@ import Link from "next/link";
 import Image from "next/image";
 import { useStore, cartLineKey } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { X, Bag, Trash, Whatsapp, Check, Droplet, Percent } from "@/components/icons";
+import {
+  X,
+  Bag,
+  Trash,
+  Whatsapp,
+  Check,
+  Droplet,
+  Percent,
+  Sparkles,
+  CUSTOM_TYPE_ICON,
+} from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
+import { CUSTOM_ORDER_COLOR, CUSTOM_TYPE_LABEL } from "@/lib/products";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
-import { placeOrderAction } from "@/lib/actions/orders";
+import { placeOrderAction, placeCustomRequestAction } from "@/lib/actions/orders";
 import { updateProfileAction } from "@/lib/actions/profile";
 import { whatsappMessageUrl } from "@/lib/contact";
 
@@ -27,6 +38,8 @@ export function CartDrawer() {
     setQty,
     removeFromCart,
     clearCart,
+    customRequests,
+    removeCustomRequest,
     getProduct,
     pricingFor,
     offers,
@@ -86,27 +99,62 @@ export function CartDrawer() {
     if (!name.trim() || !phone.trim() || !province) return;
     setPending(true);
     setError(false);
-    const res = await placeOrderAction({
+
+    const contact = {
       customerName: name,
       customerPhone: phone,
       provinceCode: province,
       addressLine: address || null,
-      notes: note || null,
-      items: cart.map((l) => ({
-        productId: l.id,
-        itemId: l.itemId ?? null,
-        qty: l.qty,
-        waterproof: l.waterproof ?? false,
-        customImageUrl: l.customImageUrl ?? null,
-        note: l.note ?? null,
-      })),
-    });
+    };
+    const codes: string[] = [];
+
+    // Products go out as one order; each queued custom request becomes its own
+    // custom order (they're produced and priced separately, and the schema
+    // carries the artwork at order level).
+    if (cart.length > 0) {
+      const res = await placeOrderAction({
+        ...contact,
+        notes: note || null,
+        items: cart.map((l) => ({
+          productId: l.id,
+          itemId: l.itemId ?? null,
+          qty: l.qty,
+          waterproof: l.waterproof ?? false,
+          customImageUrl: l.customImageUrl ?? null,
+          note: l.note ?? null,
+        })),
+      });
+      if (!res.ok) {
+        setPending(false);
+        setError(true);
+        return;
+      }
+      codes.push(res.code);
+    }
+
+    for (const req of customRequests) {
+      const res = await placeCustomRequestAction({
+        ...contact,
+        type: req.type,
+        waterproof: req.waterproof,
+        description: req.description,
+        images: req.images,
+      });
+      if (!res.ok) {
+        setPending(false);
+        setError(true);
+        return;
+      }
+      codes.push(res.code);
+    }
+
     setPending(false);
-    if (!res.ok) {
+    if (codes.length === 0) {
       setError(true);
       return;
     }
-    setOrderCode(res.code);
+
+    setOrderCode(codes.join(" · "));
     clearCart();
     setStep("done");
 
@@ -195,7 +243,7 @@ export function CartDrawer() {
               {t("checkout.done")}
             </button>
           </div>
-        ) : cart.length === 0 ? (
+        ) : cart.length === 0 && customRequests.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-surface-2 text-ink-3">
               <Bag size={28} />
@@ -380,6 +428,78 @@ export function CartDrawer() {
                         />
                         <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
                           {formatPrice(pricing.total, lang)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Queued custom design requests — priced per uploaded image */}
+              {customRequests.map((req) => {
+                const meta = CUSTOM_TYPE_LABEL[req.type];
+                const Icon = CUSTOM_TYPE_ICON[req.type];
+                return (
+                  <div
+                    key={req.id}
+                    className="flex gap-3 rounded-2xl border p-3"
+                    style={{
+                      borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 40%, transparent)`,
+                      background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 6%, var(--surface))`,
+                    }}
+                  >
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
+                      <Image
+                        src={req.images[0]}
+                        alt=""
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                      />
+                      {req.images.length > 1 && (
+                        <span className="absolute bottom-0 inset-x-0 bg-black/60 py-0.5 text-center text-[9px] font-bold text-white">
+                          +{req.images.length - 1}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="flex items-center gap-1.5 text-[13px] font-bold text-ink">
+                            <Sparkles size={12} style={{ color: CUSTOM_ORDER_COLOR }} />
+                            {t("custom.badge")}
+                          </h3>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-ink-3">
+                              <Icon size={11} />
+                              {lang === "ar" ? meta.ar : meta.en}
+                            </span>
+                            <span className="text-[10px] font-semibold text-ink-3">
+                              × {req.images.length}
+                            </span>
+                            {req.waterproof && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-500/12 px-1.5 py-0.5 text-[9px] font-bold text-sky-600">
+                                <Droplet size={9} /> {t("badge.waterproof")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomRequest(req.id)}
+                          aria-label={t("cart.remove")}
+                          className="tap shrink-0 text-ink-3 transition hover:text-brand"
+                        >
+                          <Trash size={16} />
+                        </button>
+                      </div>
+                      <div className="mt-auto flex items-center justify-end pt-2">
+                        <span
+                          className="text-sm font-extrabold"
+                          style={{ color: CUSTOM_ORDER_COLOR }}
+                        >
+                          {formatPrice(req.unitPrice * req.images.length, lang)}
                         </span>
                       </div>
                     </div>

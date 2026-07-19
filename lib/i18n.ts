@@ -549,15 +549,10 @@ export const dict = {
   "custom.perPiece": { ar: "سعر القطعة", en: "Per piece" },
   "custom.piecesCount": { ar: "عدد القطع", en: "Pieces" },
   "custom.estimated": { ar: "السعر التقديري", en: "Estimated price" },
-  "custom.send": { ar: "إرسال الطلب", en: "Send request" },
+  "custom.addToCart": { ar: "أضف إلى السلة", en: "Add to cart" },
   "custom.sending": {
-    ar: "جارٍ رفع الصور والإرسال…",
-    en: "Uploading & sending…",
-  },
-  "custom.successTitle": { ar: "وصلنا طلبك!", en: "We got your request!" },
-  "custom.successHint": {
-    ar: "راح نراجع صورك ونتواصل وياك لتأكيد التفاصيل والسعر النهائي.",
-    en: "We'll review your images and contact you to confirm details & final price.",
+    ar: "جارٍ رفع الصور…",
+    en: "Uploading images…",
   },
   "custom.badge": { ar: "طلب مخصص", en: "Custom request" },
   "custom.imagesLabel": { ar: "الصور المرفقة", en: "Attached images" },

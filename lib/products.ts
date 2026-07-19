@@ -168,6 +168,21 @@ export interface CustomPricing {
   waterproofExtra: number;
 }
 
+/**
+ * A custom design request waiting in the cart. Artwork is already uploaded to
+ * the custom-artwork bucket (as WebP); `unitPrice` is a display-only estimate —
+ * place_custom_request() re-prices from custom_pricing at checkout.
+ */
+export interface CustomCartRequest {
+  /** client-generated id, only used to key/remove the line */
+  id: string;
+  type: CustomType;
+  images: string[];
+  description: string;
+  waterproof: boolean;
+  unitPrice: number;
+}
+
 /** Distinct accent for custom requests everywhere (lists, badges, stats). */
 export const CUSTOM_ORDER_COLOR = "#d946ef";
 

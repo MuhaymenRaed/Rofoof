@@ -4,12 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { useAuth } from "@/components/providers/auth-provider";
-import { X, Plus, Check, Droplet, Sparkles, CUSTOM_TYPE_ICON } from "@/components/icons";
+import { X, Plus, Cart, Droplet, Sparkles, CUSTOM_TYPE_ICON } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/products";
-import { placeCustomRequestAction } from "@/lib/actions/orders";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
 
@@ -26,9 +23,12 @@ interface Artwork {
 /**
  * "Order your custom design" — brooch/sticker/poster request with up to 20
  * images (converted to WebP in the browser before upload), description,
- * waterproof option, and a live price estimate. The RPC recomputes the price
- * server-side; the request lands in the normal orders pipeline flagged
- * is_custom.
+ * waterproof option, and a live price estimate.
+ *
+ * Adding does NOT place an order: the request is queued in the cart next to
+ * regular products, so the buyer can keep shopping and submit everything in
+ * one checkout. Contact details are collected there, and the price is
+ * recomputed server-side by place_custom_request().
  */
 export function CustomRequestModal() {
   const { customOpen, closeCustom } = useStore();
@@ -57,8 +57,7 @@ export function CustomRequestModal() {
 }
 
 function RequestForm({ onClose }: { onClose: () => void }) {
-  const { t, lang, customPricing } = useStore();
-  const { user } = useAuth();
+  const { t, lang, customPricing, addCustomRequest, openCart } = useStore();
   const supabase = createSupabaseBrowserClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -66,24 +65,10 @@ function RequestForm({ onClose }: { onClose: () => void }) {
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [description, setDescription] = useState("");
   const [waterproof, setWaterproof] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [province, setProvince] = useState("");
   const [converting, setConverting] = useState(false);
   const [pending, setPending] = useState(false);
   const [skippedBig, setSkippedBig] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [doneCode, setDoneCode] = useState<string | null>(null);
-
-  // Prefill contact info from the signed-in profile (same as checkout).
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!user) return;
-    setName((v) => v || user.name || "");
-    setPhone((v) => v || user.phone || "");
-    setProvince((v) => v || user.provinceCode || "");
-  }, [user]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Revoke previews on unmount.
   const artworksRef = useRef<Artwork[]>([]);
@@ -99,8 +84,7 @@ function RequestForm({ onClose }: { onClose: () => void }) {
     (waterproof && waterproofEligible ? pricing?.waterproofExtra ?? 0 : 0);
   const qty = artworks.length;
   const total = unit * qty;
-  const canSend =
-    qty > 0 && name.trim() !== "" && phone.trim() !== "" && province !== "" && !converting;
+  const canSend = qty > 0 && !converting;
 
   async function pickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -139,8 +123,9 @@ function RequestForm({ onClose }: { onClose: () => void }) {
     setError(null);
 
     try {
-      // Upload the WebP artwork, then hand the URLs to the server action.
-      const urls = await Promise.all(
+      // Upload the WebP artwork now so the cart only carries lightweight URLs
+      // (and the images survive a page reload while the request sits there).
+      const images = await Promise.all(
         artworks.map(async (a, i) => {
           const path = `${crypto.randomUUID()}-${i}.${a.ext}`;
           const { error: upErr } = await supabase.storage
@@ -151,55 +136,21 @@ function RequestForm({ onClose }: { onClose: () => void }) {
         }),
       );
 
-      const res = await placeCustomRequestAction({
-        customerName: name.trim(),
-        customerPhone: phone.trim(),
-        provinceCode: province,
+      addCustomRequest({
         type,
-        waterproof: waterproof && waterproofEligible,
+        images,
         description: description.trim(),
-        images: urls,
+        waterproof: waterproof && waterproofEligible,
+        unitPrice: unit,
       });
-      if (!res.ok) {
-        setError(res.error ?? t("checkout.error"));
-        return;
-      }
-      setDoneCode(res.code);
+
+      onClose();
+      openCart();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("checkout.error"));
     } finally {
       setPending(false);
     }
-  }
-
-  /* ------------------------------ Success -------------------------------- */
-  if (doneCode) {
-    return (
-      <div className="relative z-10 w-full max-w-md animate-pop rounded-3xl border border-line-2 bg-surface p-8 text-center shadow-2xl">
-        <div
-          className="mx-auto grid h-16 w-16 place-items-center rounded-2xl text-white"
-          style={{ background: CUSTOM_ORDER_COLOR }}
-        >
-          <Check size={30} />
-        </div>
-        <h2 className="mt-4 text-xl font-black text-ink">{t("custom.successTitle")}</h2>
-        <p className="mt-2 text-sm text-ink-3">{t("custom.successHint")}</p>
-        <p
-          dir="ltr"
-          className="mx-auto mt-4 w-fit rounded-xl px-4 py-2 text-base font-black text-white"
-          style={{ background: CUSTOM_ORDER_COLOR }}
-        >
-          {doneCode}
-        </p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="tap mt-6 w-full rounded-2xl bg-brand py-3 text-sm font-bold text-white transition hover:opacity-90"
-        >
-          {t("checkout.done")}
-        </button>
-      </div>
-    );
   }
 
   /* -------------------------------- Form --------------------------------- */
@@ -384,51 +335,6 @@ function RequestForm({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {/* Contact */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("checkout.name")}</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoComplete="name"
-              className="dash-input"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("checkout.phone")}</span>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              dir="ltr"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="+964 7xx xxx xxxx"
-              className="dash-input text-start"
-            />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">
-              {t("checkout.province")}
-            </span>
-            <select
-              value={province}
-              onChange={(e) => setProvince(e.target.value)}
-              required
-              className="dash-input cursor-pointer"
-            >
-              <option value="">{t("checkout.selectProvince")}</option>
-              {provinceCodes.map((code) => (
-                <option key={code} value={code}>
-                  {t(provinceLabelKey(code))}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
         {error && (
           <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
             {error}
@@ -441,10 +347,17 @@ function RequestForm({ onClose }: { onClose: () => void }) {
         <button
           type="submit"
           disabled={!canSend || pending}
-          className="tap w-full rounded-2xl py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="tap flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: CUSTOM_ORDER_COLOR }}
         >
-          {pending ? t("custom.sending") : t("custom.send")}
+          {pending ? (
+            t("custom.sending")
+          ) : (
+            <>
+              <Cart size={17} />
+              {t("custom.addToCart")}
+            </>
+          )}
         </button>
       </div>
     </form>
