@@ -149,6 +149,18 @@ export const dict = {
   },
   "orders.tracking": { ar: "رقم التتبّع", en: "Tracking no." },
   "orders.empty": { ar: "لا توجد طلبات بعد", en: "No orders yet" },
+  // Install app (PWA) banner
+  "pwa.title": { ar: "ثبّت تطبيق رفوف", en: "Install the rofoof app" },
+  "pwa.hint": {
+    ar: "وصول أسرع من شاشتك الرئيسية",
+    en: "Faster access from your home screen",
+  },
+  "pwa.install": { ar: "تثبيت", en: "Install" },
+  "pwa.iosHint": {
+    ar: "اضغط زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»",
+    en: "Tap Share, then “Add to Home Screen”",
+  },
+
   "orders.cancel": { ar: "إلغاء الطلب", en: "Cancel order" },
   "orders.cancelTitle": { ar: "إلغاء الطلب؟", en: "Cancel this order?" },
   "orders.cancelHint": {

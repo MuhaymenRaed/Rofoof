@@ -19,6 +19,7 @@ import { Footer } from "@/components/layout/footer";
 import { CartDrawer } from "@/components/layout/cart-drawer";
 import { QuickViewModal } from "@/components/layout/quick-view-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { InstallPrompt } from "@/components/layout/install-prompt";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -55,11 +56,12 @@ export const metadata: Metadata = {
     description: "ستكرات وميداليات صناعة عراقية — توصيل لجميع محافظات العراق.",
     images: ["/logo.png"],
   },
-  // Browser-tab + Apple touch icon: the رفوف mascot in public/logo.png.
+  // Browser tab uses the transparent mascot; the Apple touch icon needs an
+  // opaque square (iOS doesn't composite transparency), so it gets icon-192.
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",
-    apple: "/logo.png",
+    apple: "/icon-192.png",
   },
 };
 
@@ -113,6 +115,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             >
               {/* pb clears the fixed mobile tab bar (h-14 + safe area) */}
               <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+                <InstallPrompt />
                 <Ticker />
                 <Header />
                 <main className="flex-1">{children}</main>
