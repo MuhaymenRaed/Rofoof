@@ -93,9 +93,12 @@ async function sendTo(token: string, chatId: number, text: string): Promise<void
       signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
     });
     if (!res.ok) {
-      // 403 = user blocked the bot / stopped it → drop them from the list.
-      if (res.status === 403) await deactivate(chatId);
-      else console.error("[telegram] sendMessage failed:", res.status, await res.text());
+      const body = await res.text();
+      // Drop dead chats so we stop retrying them: 403 = bot blocked/stopped,
+      // 400 "chat not found" = the chat no longer exists.
+      const dead = res.status === 403 || (res.status === 400 && /chat not found/i.test(body));
+      if (dead) await deactivate(chatId);
+      else console.error("[telegram] sendMessage failed:", res.status, body);
     }
   } catch (error) {
     console.error("[telegram] sendMessage error:", chatId, error);
