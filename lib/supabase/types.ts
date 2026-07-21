@@ -176,6 +176,27 @@ export interface Database {
         Update: Partial<{ unit_price: number; waterproof_extra: number }>;
         Relationships: [];
       };
+      telegram_subscribers: {
+        Row: {
+          chat_id: number;
+          username: string | null;
+          first_name: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          chat_id: number;
+          username?: string | null;
+          first_name?: string | null;
+          is_active?: boolean;
+        };
+        Update: Partial<{
+          username: string | null;
+          first_name: string | null;
+          is_active: boolean;
+        }>;
+        Relationships: [];
+      };
       offers: {
         Row: {
           id: string;
