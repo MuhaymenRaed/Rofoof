@@ -5,14 +5,15 @@ import { useStore } from "@/components/providers/store-provider";
 import { Bag, Package, Sparkles } from "@/components/icons";
 import { CUSTOM_ORDER_COLOR } from "@/lib/products";
 
-const STATS = [
-  { num: "16K", key: "stat.followers" as const },
-  { num: "75+", key: "stat.products" as const },
-  { num: "4.9", key: "stat.rating" as const },
-];
-
 export function Hero() {
-  const { t, openCustom } = useStore();
+  const { t, openCustom, siteSettings } = useStore();
+
+  // Admin-editable from the dashboard (Offers → landing stats).
+  const STATS = [
+    { num: siteSettings.statFollowers, key: "stat.followers" as const },
+    { num: siteSettings.statProducts, key: "stat.products" as const },
+    { num: siteSettings.statRating, key: "stat.rating" as const },
+  ];
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-line-2 bg-surface card-shadow">

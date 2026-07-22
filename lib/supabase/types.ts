@@ -69,6 +69,7 @@ export interface Database {
           title?: string | null;
           starts_at?: string | null;
           ends_at?: string | null;
+          is_deleted?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["coupons"]["Insert"]>;
         Relationships: [];
@@ -273,6 +274,7 @@ export interface Database {
           free_qty: number | null;
           min_cart_total: number | null;
           percent: number | null;
+          fixed_amount: number | null;
           delivery_fee: number | null;
           user_id: string | null;
           starts_at: string | null;
@@ -290,6 +292,7 @@ export interface Database {
           free_qty?: number | null;
           min_cart_total?: number | null;
           percent?: number | null;
+          fixed_amount?: number | null;
           delivery_fee?: number | null;
           user_id?: string | null;
           starts_at?: string | null;
