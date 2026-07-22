@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { CategoryChips } from "@/components/ui/category-chips";
@@ -25,13 +25,24 @@ const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
   { id: "priceDesc", key: "sort.priceDesc" },
 ];
 
-export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSel }) {
+export function StoreView() {
   const { t, lang, products, subcategories } = useStore();
   const { isAdmin, ready } = useAuth();
   const router = useRouter();
+  // Read from the URL here (not on the server) so /store stays prerenderable.
+  const searchParams = useSearchParams();
+  const catParam = searchParams.get("cat")?.trim() || "all";
 
   const [addOpen, setAddOpen] = useState(false);
-  const [category, setCategory] = useState<CatSel>(initialCategory);
+  const [category, setCategory] = useState<CatSel>(catParam);
+
+  // Follow later URL changes (e.g. a category link elsewhere on the site).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setCategory(catParam);
+  }, [catParam]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const [subcategory, setSubcategory] = useState<string>("all");
   const [fandom, setFandom] = useState<FandomSel>("all");
   const [waterproof, setWaterproof] = useState(false);

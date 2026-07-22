@@ -1,13 +1,19 @@
+import { Suspense } from "react";
 import { StoreView } from "@/components/store/store-view";
+import StoreLoading from "./loading";
 
-export default async function StorePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ cat?: string }>;
-}) {
-  const { cat } = await searchParams;
-  // Categories are dynamic (DB-driven) — unknown codes simply match nothing.
-  const initialCategory = cat?.trim() || "all";
+/**
+ * Static shell + ISR. The `?cat=` filter is read client-side by StoreView
+ * (via useSearchParams, inside Suspense) instead of awaiting searchParams on
+ * the server — that keeps the whole catalog page prerenderable and served
+ * from cache rather than rendered per request.
+ */
+export const revalidate = 300;
 
-  return <StoreView initialCategory={initialCategory} />;
+export default function StorePage() {
+  return (
+    <Suspense fallback={<StoreLoading />}>
+      <StoreView />
+    </Suspense>
+  );
 }
