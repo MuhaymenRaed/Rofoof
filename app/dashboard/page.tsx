@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/auth/dal";
 import { getDashboardStats, getWeeklyRevenue, getStatusCounts } from "@/lib/data/dashboard";
 import { getAllOrders } from "@/lib/data/orders";
 import { OverviewView } from "@/components/dashboard/overview-view";
+import { RangeStats } from "@/components/dashboard/range-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,14 @@ export default async function DashboardOverviewPage() {
   ]);
 
   return (
-    <OverviewView stats={stats} weekly={weekly} statusCounts={statusCounts} latest={latestPage.orders} />
+    <>
+      <RangeStats />
+      <OverviewView
+        stats={stats}
+        weekly={weekly}
+        statusCounts={statusCounts}
+        latest={latestPage.orders}
+      />
+    </>
   );
 }

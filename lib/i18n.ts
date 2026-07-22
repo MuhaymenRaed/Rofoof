@@ -359,6 +359,10 @@ export const dict = {
   "dash.newUsers": { ar: "مستخدمون جدد", en: "New users" },
   "dash.activeOrders": { ar: "طلبات نشطة", en: "Active orders" },
   "dash.revenue": { ar: "إجمالي الإيرادات", en: "Total revenue" },
+  "dash.periodStats": { ar: "إحصائيات الفترة", en: "Period stats" },
+  "dash.daily": { ar: "يومي", en: "Daily" },
+  "dash.monthly": { ar: "شهري", en: "Monthly" },
+  "dash.yearly": { ar: "سنوي", en: "Yearly" },
   "dash.weeklyRevenue": {
     ar: "الإيرادات الأسبوعية (د.ع)",
     en: "Weekly revenue (IQD)",

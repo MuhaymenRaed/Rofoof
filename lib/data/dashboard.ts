@@ -140,6 +140,114 @@ export async function getWeeklyRevenue(): Promise<WeeklyRevenuePoint[]> {
     }));
 }
 
+/* ------------------------- Ranged (date) metrics ------------------------ */
+
+/** How the picked period is sliced for the chart. */
+export type RangeGrain = "day" | "month" | "year";
+
+export interface RangePoint {
+  label: string;
+  value: number;
+}
+
+export interface RangeStats {
+  revenue: number;
+  orders: number;
+  avgOrder: number;
+  delivered: number;
+  customOrders: number;
+  customRevenue: number;
+  series: RangePoint[];
+}
+
+const EMPTY_RANGE: RangeStats = {
+  revenue: 0,
+  orders: 0,
+  avgOrder: 0,
+  delivered: 0,
+  customOrders: 0,
+  customRevenue: 0,
+  series: [],
+};
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** Pre-seed every bucket of the period so gaps render as zero, not missing. */
+function emptyBuckets(from: Date, grain: RangeGrain): Map<string, number> {
+  const buckets = new Map<string, number>();
+  if (grain === "day") {
+    for (let h = 0; h < 24; h++) buckets.set(String(h).padStart(2, "0"), 0);
+  } else if (grain === "month") {
+    const days = new Date(from.getFullYear(), from.getMonth() + 1, 0).getDate();
+    for (let d = 1; d <= days; d++) buckets.set(String(d), 0);
+  } else {
+    for (const m of MONTHS_SHORT) buckets.set(m, 0);
+  }
+  return buckets;
+}
+
+function bucketKey(date: Date, grain: RangeGrain): string {
+  if (grain === "day") return String(date.getHours()).padStart(2, "0");
+  if (grain === "month") return String(date.getDate());
+  return MONTHS_SHORT[date.getMonth()];
+}
+
+/**
+ * Order metrics for an arbitrary window, sliced one grain finer than the
+ * period (a day by hour, a month by day, a year by month). Computed from the
+ * orders table directly so no extra RPC/migration is needed.
+ */
+export async function getRangeStats(
+  fromIso: string,
+  toIso: string,
+  grain: RangeGrain,
+): Promise<RangeStats> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("total, status, is_custom, created_at")
+    .gte("created_at", fromIso)
+    .lte("created_at", toIso)
+    .limit(5000);
+
+  if (error || !data) {
+    console.error("[dashboard] rangeStats:", error);
+    return EMPTY_RANGE;
+  }
+
+  const buckets = emptyBuckets(new Date(fromIso), grain);
+  let revenue = 0;
+  let delivered = 0;
+  let customOrders = 0;
+  let customRevenue = 0;
+
+  for (const row of data) {
+    const total = Number(row.total ?? 0);
+    revenue += total;
+    if (row.status === "delivered") delivered += 1;
+    if (row.is_custom) {
+      customOrders += 1;
+      customRevenue += total;
+    }
+    const key = bucketKey(new Date(row.created_at), grain);
+    buckets.set(key, (buckets.get(key) ?? 0) + total);
+  }
+
+  const orders = data.length;
+  return {
+    revenue,
+    orders,
+    avgOrder: orders > 0 ? Math.round(revenue / orders) : 0,
+    delivered,
+    customOrders,
+    customRevenue,
+    series: [...buckets].map(([label, value]) => ({ label, value })),
+  };
+}
+
 export interface InventoryPage {
   products: Product[];
   hasMore: boolean;
