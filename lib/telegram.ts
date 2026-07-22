@@ -4,15 +4,15 @@ import { translate } from "@/lib/i18n";
 import { provinceLabelKey } from "@/lib/provinces";
 
 /**
- * Telegram order-alert notifier. Broadcasts every new order to EVERY person
- * who has started the bot (stored in telegram_subscribers by the webhook),
- * plus any fixed chat IDs in TELEGRAM_CHAT_ID — so it's no longer tied to a
- * single recipient.
+ * Telegram order-alert notifier. Broadcasts every new order (and cancellations)
+ * to EVERY person who has started the bot (stored in telegram_subscribers by
+ * the webhook), plus any fixed chat IDs in TELEGRAM_CHAT_ID — so it's no longer
+ * tied to a single recipient.
  *
  * Never throws — a Telegram outage or misconfiguration must never fail a
- * checkout. Callers still `await` this (not fire-and-forget) because
- * serverless platforms can freeze the function the instant the response is
- * sent. Per-request timeouts keep the added latency bounded.
+ * checkout or a cancellation. Callers still `await` this (not fire-and-forget)
+ * because serverless platforms can freeze the function the instant the response
+ * is sent. Per-request timeouts keep the added latency bounded.
  */
 
 export interface OrderNotification {
@@ -20,6 +20,8 @@ export interface OrderNotification {
   customerName: string;
   customerPhone: string;
   provinceCode: string | null;
+  addressLine?: string | null;
+  notes?: string | null;
   total: number;
   itemCount: number;
 }
@@ -31,21 +33,53 @@ function escapeMarkdown(text: string): string {
   return text.replace(/([_*`[])/g, "\\$1");
 }
 
-function formatOrderMessage(order: OrderNotification): string {
-  const province = order.provinceCode
-    ? translate(provinceLabelKey(order.provinceCode), "ar")
-    : "—";
+function provinceLabel(provinceCode: string | null): string {
+  return provinceCode ? translate(provinceLabelKey(provinceCode), "ar") : "—";
+}
 
+function formatOrderMessage(order: OrderNotification): string {
   const lines = [
     "🛍️ *طلب جديد على المتجر!*",
     "",
     `📦 *كود الطلب:* \`${order.code}\``,
     `👤 *الزبون:* ${escapeMarkdown(order.customerName)}`,
     `📞 *الهاتف:* ${escapeMarkdown(order.customerPhone)}`,
-    `📍 *المحافظة:* ${escapeMarkdown(province)}`,
+    `📍 *المحافظة:* ${escapeMarkdown(provinceLabel(order.provinceCode))}`,
+  ];
+  if (order.addressLine?.trim()) {
+    lines.push(`🏠 *العنوان:* ${escapeMarkdown(order.addressLine.trim())}`);
+  }
+  if (order.notes?.trim()) {
+    lines.push(`📝 *ملاحظات:* ${escapeMarkdown(order.notes.trim())}`);
+  }
+  lines.push(
     `🧾 *عدد القطع:* ${order.itemCount}`,
     `💰 *المجموع:* ${order.total.toLocaleString("en-US")} د.ع`,
+  );
+  return lines.join("\n");
+}
+
+function formatCancelMessage(order: OrderNotification): string {
+  const lines = [
+    "❌ *تم إلغاء طلب من قبل الزبون*",
+    "",
+    `📦 *كود الطلب:* \`${order.code}\``,
+    `👤 *الزبون:* ${escapeMarkdown(order.customerName)}`,
+    `📞 *الهاتف:* ${escapeMarkdown(order.customerPhone)}`,
+    `📍 *المحافظة:* ${escapeMarkdown(provinceLabel(order.provinceCode))}`,
   ];
+  if (order.addressLine?.trim()) {
+    lines.push(`🏠 *العنوان:* ${escapeMarkdown(order.addressLine.trim())}`);
+  }
+  if (order.notes?.trim()) {
+    lines.push(`📝 *ملاحظات:* ${escapeMarkdown(order.notes.trim())}`);
+  }
+  lines.push(
+    `🧾 *عدد القطع:* ${order.itemCount}`,
+    `💰 *كان المجموع:* ${order.total.toLocaleString("en-US")} د.ع`,
+    "",
+    "_تم حذف الطلب من النظام._",
+  );
   return lines.join("\n");
 }
 
@@ -105,8 +139,8 @@ async function sendTo(token: string, chatId: number, text: string): Promise<void
   }
 }
 
-/** Broadcast a "new order" alert to every bot subscriber + env chat IDs. */
-export async function sendOrderTelegramNotification(order: OrderNotification): Promise<void> {
+/** Broadcast one message to every bot subscriber + env chat IDs. Never throws. */
+async function broadcast(text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     console.error("[telegram] TELEGRAM_BOT_TOKEN not set — skipping alert");
@@ -121,6 +155,17 @@ export async function sendOrderTelegramNotification(order: OrderNotification): P
     return;
   }
 
-  const text = formatOrderMessage(order);
   await Promise.allSettled(recipients.map((id) => sendTo(token, id, text)));
+}
+
+/** Broadcast a "new order" alert to every bot subscriber + env chat IDs. */
+export async function sendOrderTelegramNotification(order: OrderNotification): Promise<void> {
+  await broadcast(formatOrderMessage(order));
+}
+
+/** Broadcast a "customer cancelled" alert with the full order info. */
+export async function sendOrderCancelledTelegramNotification(
+  order: OrderNotification,
+): Promise<void> {
+  await broadcast(formatCancelMessage(order));
 }

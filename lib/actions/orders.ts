@@ -5,7 +5,10 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
-import { sendOrderTelegramNotification } from "@/lib/telegram";
+import {
+  sendOrderTelegramNotification,
+  sendOrderCancelledTelegramNotification,
+} from "@/lib/telegram";
 import type { OrderStatusDb } from "@/lib/supabase/types";
 
 /* ------------------------------ Place order ---------------------------- */
@@ -78,6 +81,8 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     customerName: v.customerName,
     customerPhone: v.customerPhone,
     provinceCode: v.provinceCode ?? null,
+    addressLine: v.addressLine ?? null,
+    notes: v.notes ?? null,
     total: result.total,
     itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
   });
@@ -136,6 +141,8 @@ export async function placeCustomRequestAction(
     customerName: v.customerName,
     customerPhone: v.customerPhone,
     provinceCode: v.provinceCode ?? null,
+    addressLine: v.addressLine ?? null,
+    notes: v.description || null,
     total: result.total,
     itemCount: v.images.length,
   });
@@ -189,12 +196,52 @@ export async function cancelOrderAction(
   if (!trimmed) return { ok: false, error: "invalid_input" };
 
   const supabase = await createSupabaseServerClient();
+
+  // Snapshot the order BEFORE cancel_order() hard-deletes it, so the
+  // cancellation alert can carry the full details. RLS scopes this read to the
+  // buyer's own order, matching what cancel_order() enforces.
+  const { data: snap } = await supabase
+    .from("orders")
+    .select(
+      "code, customer_name, customer_phone, province_code, address_line, notes, total, is_custom, custom_images, order_items(qty)",
+    )
+    .eq("code", trimmed)
+    .maybeSingle<{
+      code: string;
+      customer_name: string;
+      customer_phone: string;
+      province_code: string | null;
+      address_line: string | null;
+      notes: string | null;
+      total: number;
+      is_custom: boolean | null;
+      custom_images: string[] | null;
+      order_items: { qty: number }[] | null;
+    }>();
+
   const { data, error } = await supabase.rpc("cancel_order", { p_code: trimmed });
   if (error) {
     console.error("[cancelOrder]", error);
     return { ok: false, error: error.message };
   }
   if (data !== true) return { ok: false, error: "cannot_cancel" };
+
+  // Alert the store's bot that a customer cancelled (non-fatal — see place_order).
+  if (snap) {
+    const itemCount = snap.is_custom
+      ? snap.custom_images?.length ?? 0
+      : (snap.order_items ?? []).reduce((sum, i) => sum + (i.qty ?? 0), 0);
+    await sendOrderCancelledTelegramNotification({
+      code: snap.code,
+      customerName: snap.customer_name,
+      customerPhone: snap.customer_phone,
+      provinceCode: snap.province_code ?? null,
+      addressLine: snap.address_line ?? null,
+      notes: snap.notes ?? null,
+      total: snap.total,
+      itemCount,
+    });
+  }
 
   revalidatePath("/orders");
   revalidatePath("/dashboard");
