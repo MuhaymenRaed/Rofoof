@@ -11,6 +11,8 @@ import {
   getFandoms,
   getOffers,
   getCustomPricing,
+  getVolumeTiers,
+  getSiteSettings,
 } from "@/lib/data/catalog";
 import { CustomRequestModal } from "@/components/layout/custom-request-modal";
 import { Ticker } from "@/components/layout/ticker";
@@ -88,13 +90,24 @@ const noFlashScript = `
 `;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [products, announcement, categories, fandoms, offers, customPricing] = await Promise.all([
+  const [
+    products,
+    announcement,
+    categories,
+    fandoms,
+    offers,
+    customPricing,
+    volumeTiers,
+    siteSettings,
+  ] = await Promise.all([
     getProducts(),
     getAnnouncement(),
     getCategories(),
     getFandoms(),
     getOffers(),
     getCustomPricing(),
+    getVolumeTiers(),
+    getSiteSettings(),
   ]);
 
   return (
@@ -110,6 +123,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               categories={categories}
               fandoms={fandoms}
               offers={offers}
+              volumeTiers={volumeTiers}
+              siteSettings={siteSettings}
               customPricing={customPricing}
               initialAnnouncement={announcement}
             >

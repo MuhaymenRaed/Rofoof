@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Trash, Droplet, Photo } from "@/components/icons";
+import { X, Plus, Trash, Droplet, Photo, Cube } from "@/components/icons";
 import {
   canBeWaterproof,
   type CategoryInfo,
@@ -101,6 +101,10 @@ export function ProductEditorModal({
   const [nameEn, setNameEn] = useState("");
   const [price, setPrice] = useState("");
   const [discount, setDiscount] = useState("0");
+  const [discountFixed, setDiscountFixed] = useState("0");
+  /** percent vs a flat IQD amount off — the admin picks one */
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
+  const [volumePriced, setVolumePriced] = useState(false);
   const [stock, setStock] = useState("25");
   const [descAr, setDescAr] = useState("");
   const [descEn, setDescEn] = useState("");
@@ -136,6 +140,9 @@ export function ProductEditorModal({
     setNameEn(product?.nameEn ?? "");
     setPrice(product ? String(product.price) : "");
     setDiscount(String(product?.discountPercent ?? 0));
+    setDiscountFixed(String(product?.discountFixed ?? 0));
+    setDiscountMode((product?.discountFixed ?? 0) > 0 ? "fixed" : "percent");
+    setVolumePriced(product?.volumePriced ?? false);
     setStock(String(product?.stock ?? 25));
     setDescAr(product?.descAr ?? "");
     setDescEn(product?.descEn ?? "");
@@ -330,7 +337,11 @@ export function ProductEditorModal({
       setUploading(false);
 
       const priceNum = Number(price);
-      const discountNum = Math.min(90, Math.max(0, Number(discount) || 0));
+      // Only one discount mode is stored; the other is zeroed out.
+      const discountNum =
+        discountMode === "percent" ? Math.min(90, Math.max(0, Number(discount) || 0)) : 0;
+      const discountFixedNum =
+        discountMode === "fixed" ? Math.max(0, Number(discountFixed) || 0) : 0;
       const stockNum = Math.max(0, Number(stock) || 0);
       const surchargeNum = waterproofEligible ? Math.max(0, Number(surcharge) || 0) : 0;
       const isWaterproof = waterproofEligible ? waterproof : false;
@@ -359,6 +370,8 @@ export function ProductEditorModal({
         nameEn: nameEn.trim() || nameAr.trim(),
         price: priceNum,
         discountPercent: discountNum,
+        discountFixed: discountFixedNum,
+        volumePriced,
         stock: stockNum,
         descAr: descAr.trim(),
         descEn: descEn.trim(),
@@ -412,6 +425,8 @@ export function ProductEditorModal({
           isActive: true,
           stock: stockNum,
           discountPercent: discountNum,
+          discountFixed: discountFixedNum,
+          volumePriced,
           order: Date.now(),
           descAr: descAr.trim(),
           descEn: descEn.trim(),
@@ -493,6 +508,25 @@ export function ProductEditorModal({
               ))}
             </div>
           </div>
+
+          {/* Global by-count pricing (shared ladder across packages/categories) */}
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line-2 bg-surface-2/40 p-3">
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                <Cube size={16} className="text-brand" />
+                {t("dash.volumePriced")}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-ink-3">
+                {t("dash.volumePricedHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={volumePriced}
+              onChange={(e) => setVolumePriced(e.target.checked)}
+              className="h-4 w-4 shrink-0 accent-brand"
+            />
+          </label>
 
           {/* Images / package items */}
           <div>
@@ -611,14 +645,42 @@ export function ProductEditorModal({
               />
             </Field>
             <Field label={t("dash.fieldDiscount")}>
-              <input
-                type="number"
-                min={0}
-                max={90}
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
-                className="dash-input"
-              />
+              {/* percent OR a flat IQD amount off */}
+              <div className="mb-1 flex gap-1">
+                {(["percent", "fixed"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDiscountMode(m)}
+                    aria-pressed={discountMode === m}
+                    className={`tap flex-1 rounded-lg border py-1 text-[10px] font-bold transition ${
+                      discountMode === m
+                        ? "border-brand bg-brand text-white"
+                        : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+                    }`}
+                  >
+                    {m === "percent" ? "%" : t("dash.fixedAmount")}
+                  </button>
+                ))}
+              </div>
+              {discountMode === "percent" ? (
+                <input
+                  type="number"
+                  min={0}
+                  max={90}
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                  className="dash-input"
+                />
+              ) : (
+                <input
+                  type="number"
+                  min={0}
+                  value={discountFixed}
+                  onChange={(e) => setDiscountFixed(e.target.value)}
+                  className="dash-input"
+                />
+              )}
             </Field>
             <Field label={t("dash.fieldStock")}>
               <input

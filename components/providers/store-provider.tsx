@@ -18,8 +18,10 @@ import type {
   FandomInfo,
   Offer,
   Product,
+  SiteSettings,
+  VolumeTier,
 } from "@/lib/products";
-import { linePricing, type LinePricing } from "@/lib/pricing";
+import { linePricing, volumeUnitPrice, type LinePricing } from "@/lib/pricing";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -63,6 +65,10 @@ interface StoreContextValue {
   categories: CategoryInfo[];
   fandoms: FandomInfo[];
   offers: Offer[];
+  /** GLOBAL by-count price ladder, shared across packages/categories */
+  volumeTiers: VolumeTier[];
+  /** delivery fees + landing stats */
+  siteSettings: SiteSettings;
   getProduct: (id: string) => Product | undefined;
   categoryLabel: (code: string) => string;
   /** display-only pricing for a cart line (server recomputes at checkout) */
@@ -117,6 +123,8 @@ export function StoreProvider({
   categories,
   fandoms,
   offers,
+  volumeTiers,
+  siteSettings,
   customPricing,
   initialAnnouncement,
 }: {
@@ -125,6 +133,8 @@ export function StoreProvider({
   categories: CategoryInfo[];
   fandoms: FandomInfo[];
   offers: Offer[];
+  volumeTiers: VolumeTier[];
+  siteSettings: SiteSettings;
   customPricing: CustomPricing[];
   initialAnnouncement: AnnouncementSettings | null;
 }) {
@@ -344,16 +354,31 @@ export function StoreProvider({
 
   const setAnnouncementSettings = useCallback((next: AnnouncementSettings) => setAnn(next), []);
 
-  // Display-only pricing per line (tiers, item price, flash %, waterproof
-  // surcharge, bundle freebies). The place_order RPC recomputes at checkout.
+  // Total count of volume-priced pieces across the WHOLE cart. Mirrors the
+  // server, so items picked from different packages/categories accumulate into
+  // one shared tier (1 from pack A + 2 from pack B → the 3-piece price).
+  const volumeCount = useMemo(
+    () =>
+      cart.reduce((n, l) => {
+        const p = productMap.get(l.id);
+        return p?.volumePriced ? n + l.qty : n;
+      }, 0),
+    [cart, productMap],
+  );
+
+  // Display-only pricing per line (volume ladder, tiers, item price, flash %,
+  // fixed off, waterproof surcharge, bundle freebies). place_order recomputes.
   const pricingFor = useCallback(
     (line: CartLine): LinePricing => {
       const p = productMap.get(line.id);
       if (!p) return { unit: 0, free: 0, total: 0 };
       const item = line.itemId ? p.items.find((i) => i.id === line.itemId) ?? null : null;
-      return linePricing(p, line.qty, { item, waterproof: line.waterproof }, offers);
+      const volumeUnit = p.volumePriced
+        ? volumeUnitPrice(volumeCount, volumeTiers) ?? undefined
+        : undefined;
+      return linePricing(p, line.qty, { item, waterproof: line.waterproof, volumeUnit }, offers);
     },
-    [productMap, offers],
+    [productMap, offers, volumeCount, volumeTiers],
   );
 
   // Counts/totals span products AND queued custom requests (one piece per
@@ -387,6 +412,8 @@ export function StoreProvider({
     categories,
     fandoms,
     offers,
+    volumeTiers,
+    siteSettings,
     getProduct,
     categoryLabel,
     pricingFor,

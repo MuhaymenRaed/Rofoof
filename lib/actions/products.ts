@@ -22,7 +22,11 @@ const upsertProductSchema = z.object({
   descEn: z.string().trim().max(1000).optional().default(""),
   price: z.number().int().min(0).max(10_000_000),
   discountPercent: z.number().int().min(0).max(90).optional().default(0),
-  images: z.array(z.string().url()).max(30).optional().default([]),
+  /** flat IQD off — alternative to discountPercent (the better of the two wins) */
+  discountFixed: z.number().int().min(0).max(10_000_000).optional().default(0),
+  /** priced by the GLOBAL by-count ladder shared across the whole order */
+  volumePriced: z.boolean().optional().default(false),
+  images: z.array(z.string().url()).max(120).optional().default([]),
   color: z
     .string()
     .trim()
@@ -46,7 +50,7 @@ const upsertProductSchema = z.object({
         price: z.number().int().min(0).max(10_000_000).nullable().optional(),
       }),
     )
-    .max(30)
+    .max(120)
     .optional()
     .default([]),
   /** volume-pricing ladder for tiered products */
@@ -94,6 +98,8 @@ export async function upsertProductAction(
     description_en: p.descEn,
     price: p.price,
     discount_percent: p.discountPercent,
+    discount_fixed: p.discountFixed,
+    volume_priced: p.volumePriced,
     images: p.images,
     image_url: p.images[0] ?? null,
     color: p.color,

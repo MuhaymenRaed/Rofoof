@@ -16,6 +16,8 @@ import type {
   FandomInfo,
   Offer,
   Product,
+  SiteSettings,
+  VolumeTier,
 } from "@/lib/products";
 
 /**
@@ -156,6 +158,75 @@ export async function getCustomPricing(): Promise<CustomPricing[]> {
   } catch (error) {
     console.error("[catalog] getCustomPricing failed:", error);
     return [];
+  }
+}
+
+/**
+ * The GLOBAL by-count price ladder. Shared by every product flagged
+ * `volume_priced`, so items from different packages/categories accumulate into
+ * one count. Display only — place_order() re-resolves the tier at checkout.
+ */
+const cachedVolumeTiers = unstable_cache(
+  async (): Promise<VolumeTier[]> => {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase
+      .from("volume_tiers")
+      .select("min_qty, unit_price")
+      .order("min_qty", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((t) => ({ minQty: t.min_qty, unitPrice: t.unit_price }));
+  },
+  ["catalog:volume-tiers"],
+  { tags: [TAGS.settings], revalidate: 300 },
+);
+
+export async function getVolumeTiers(): Promise<VolumeTier[]> {
+  try {
+    return await cachedVolumeTiers();
+  } catch (error) {
+    console.error("[catalog] getVolumeTiers failed:", error);
+    return [];
+  }
+}
+
+const SITE_SETTINGS_FALLBACK: SiteSettings = {
+  deliveryFeeDefault: 5000,
+  deliveryFeeKarbala: 3000,
+  statFollowers: "16K",
+  statProducts: "75+",
+  statRating: "4.9",
+};
+
+const cachedSiteSettings = unstable_cache(
+  async (): Promise<SiteSettings> => {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase
+      .from("settings")
+      .select(
+        "delivery_fee_default, delivery_fee_karbala, stat_followers, stat_products, stat_rating",
+      )
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return SITE_SETTINGS_FALLBACK;
+    return {
+      deliveryFeeDefault: data.delivery_fee_default ?? SITE_SETTINGS_FALLBACK.deliveryFeeDefault,
+      deliveryFeeKarbala: data.delivery_fee_karbala ?? SITE_SETTINGS_FALLBACK.deliveryFeeKarbala,
+      statFollowers: data.stat_followers ?? SITE_SETTINGS_FALLBACK.statFollowers,
+      statProducts: data.stat_products ?? SITE_SETTINGS_FALLBACK.statProducts,
+      statRating: data.stat_rating ?? SITE_SETTINGS_FALLBACK.statRating,
+    };
+  },
+  ["catalog:site-settings"],
+  { tags: [TAGS.settings], revalidate: 300 },
+);
+
+export async function getSiteSettings(): Promise<SiteSettings> {
+  try {
+    return await cachedSiteSettings();
+  } catch (error) {
+    console.error("[catalog] getSiteSettings failed:", error);
+    return SITE_SETTINGS_FALLBACK;
   }
 }
 

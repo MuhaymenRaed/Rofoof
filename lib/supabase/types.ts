@@ -46,9 +46,15 @@ export interface Database {
           active: boolean;
           usage_limit: number | null;
           used_count: number;
+          per_user_limit: number | null;
+          target_user_ids: string[] | null;
+          product_ids: string[] | null;
+          title: string | null;
           starts_at: string | null;
           ends_at: string | null;
           created_at: string;
+          is_deleted: boolean;
+          deleted_at: string | null;
         };
         Insert: {
           code: string;
@@ -57,8 +63,38 @@ export interface Database {
           min_subtotal?: number;
           active?: boolean;
           usage_limit?: number | null;
+          per_user_limit?: number | null;
+          target_user_ids?: string[] | null;
+          product_ids?: string[] | null;
+          title?: string | null;
+          starts_at?: string | null;
+          ends_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["coupons"]["Insert"]>;
+        Relationships: [];
+      };
+      coupon_redemptions: {
+        Row: {
+          id: string;
+          coupon_code: string;
+          user_id: string | null;
+          order_code: string | null;
+          created_at: string;
+        };
+        Insert: { coupon_code: string; user_id?: string | null; order_code?: string | null };
+        Update: Partial<Database["public"]["Tables"]["coupon_redemptions"]["Insert"]>;
+        Relationships: [];
+      };
+      volume_tiers: {
+        Row: { min_qty: number; unit_price: number };
+        Insert: { min_qty: number; unit_price: number };
+        Update: Partial<{ min_qty: number; unit_price: number }>;
+        Relationships: [];
+      };
+      login_attempts: {
+        Row: { id: number; identifier: string; success: boolean; created_at: string };
+        Insert: { identifier: string; success?: boolean };
+        Update: Partial<{ identifier: string; success: boolean }>;
         Relationships: [];
       };
       profiles: {
@@ -101,6 +137,8 @@ export interface Database {
           is_active: boolean;
           stock: number;
           discount_percent: number;
+          discount_fixed: number;
+          volume_priced: boolean;
           kind: ProductKindDb;
           waterproof_surcharge: number;
           allow_custom_image: boolean;
@@ -127,6 +165,8 @@ export interface Database {
           is_active?: boolean;
           stock?: number;
           discount_percent?: number;
+          discount_fixed?: number;
+          volume_priced?: boolean;
           kind?: ProductKindDb;
           waterproof_surcharge?: number;
           allow_custom_image?: boolean;
@@ -338,6 +378,11 @@ export interface Database {
           announcement_en: string | null;
           announcement_active: boolean;
           promo_code: string | null;
+          delivery_fee_default: number;
+          delivery_fee_karbala: number;
+          stat_followers: string;
+          stat_products: string;
+          stat_rating: string;
           updated_at: string;
         };
         Insert: {
@@ -346,6 +391,11 @@ export interface Database {
           announcement_en?: string | null;
           announcement_active?: boolean;
           promo_code?: string | null;
+          delivery_fee_default?: number;
+          delivery_fee_karbala?: number;
+          stat_followers?: string;
+          stat_products?: string;
+          stat_rating?: string;
         };
         Update: Partial<Database["public"]["Tables"]["settings"]["Insert"]>;
         Relationships: [];

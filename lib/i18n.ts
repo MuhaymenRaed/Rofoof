@@ -441,6 +441,12 @@ export const dict = {
   "dash.itemPrice": { ar: "السعر", en: "Price" },
   "dash.bulkPrice": { ar: "سعر موحّد لكل الصور", en: "One price for all images" },
   "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
+  "dash.fixedAmount": { ar: "مبلغ", en: "Amount" },
+  "dash.volumePriced": { ar: "تسعير حسب العدد", en: "Price by count" },
+  "dash.volumePricedHint": {
+    ar: "يُحسب سعر القطعة من سلّم الأعداد العام مع بقية المنتجات في نفس الطلب",
+    en: "Unit price comes from the global count ladder, shared with other products in the same order",
+  },
   "dash.tiers": { ar: "سلّم أسعار الكمية", en: "Quantity price ladder" },
   "dash.tierMinQty": { ar: "من كمية", en: "From qty" },
   "dash.tierPrice": { ar: "سعر القطعة", en: "Unit price" },

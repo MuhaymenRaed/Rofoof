@@ -3,6 +3,7 @@ import {
   type Offer,
   type Product,
   type ProductItem,
+  type VolumeTier,
 } from "./products";
 
 /**
@@ -17,6 +18,35 @@ import {
 export interface LineSelection {
   item?: ProductItem | null;
   waterproof?: boolean;
+  /** override base unit for volume-priced products (global by-count tier) */
+  volumeUnit?: number;
+}
+
+/**
+ * Global by-count unit price: the greatest tier whose minQty ≤ count wins; a
+ * count below the smallest tier still gets the smallest tier's price. Returns
+ * null when there is no ladder or nothing counted.
+ */
+export function volumeUnitPrice(count: number, tiers: VolumeTier[]): number | null {
+  if (tiers.length === 0 || count <= 0) return null;
+  let best: number | null = null;
+  let bestMin = 0;
+  for (const t of tiers) {
+    if (t.minQty <= count && t.minQty >= bestMin) {
+      best = t.unitPrice;
+      bestMin = t.minQty;
+    }
+  }
+  if (best === null) {
+    const cheapestMin = [...tiers].sort((a, b) => a.minQty - b.minQty)[0];
+    best = cheapestMin.unitPrice;
+  }
+  return best;
+}
+
+/** Cheapest rung of the volume ladder — used for "from X" display. */
+export function cheapestVolumePrice(tiers: VolumeTier[]): number | null {
+  return tiers.length > 0 ? Math.min(...tiers.map((t) => t.unitPrice)) : null;
 }
 
 export function liveFlashOffer(product: Pick<Product, "id">, offers: Offer[]): Offer | undefined {
@@ -60,13 +90,19 @@ export function unitPriceFor(
   sel: LineSelection,
   offers: Offer[],
 ): number {
+  // base: volume tier (if provided) → per-product tier → item/product price
   let unit =
-    product.kind === "tiered"
-      ? tierUnitPrice(product, qty)
-      : sel.item?.price ?? product.price;
+    sel.volumeUnit != null
+      ? sel.volumeUnit
+      : product.kind === "tiered"
+        ? tierUnitPrice(product, qty)
+        : sel.item?.price ?? product.price;
 
+  // best (lowest) of percent-off (product/flash) vs product fixed-off
   const pct = percentOff(product, offers);
-  if (pct > 0) unit = Math.floor((unit * (100 - pct)) / 100);
+  const afterPct = pct > 0 ? Math.floor((unit * (100 - pct)) / 100) : unit;
+  const afterFixed = product.discountFixed > 0 ? Math.max(0, unit - product.discountFixed) : unit;
+  unit = Math.min(afterPct, afterFixed);
 
   if (sel.waterproof && product.waterproof) unit += product.waterproofSurcharge;
   return unit;

@@ -46,6 +46,26 @@ export interface PriceTier {
   unitPrice: number;
 }
 
+/** A rung of the GLOBAL by-count volume ladder (shared across all products). */
+export interface VolumeTier {
+  minQty: number;
+  unitPrice: number;
+}
+
+/** Store-wide config: delivery fees + the landing-page stat numbers. */
+export interface SiteSettings {
+  deliveryFeeDefault: number;
+  deliveryFeeKarbala: number;
+  statFollowers: string;
+  statProducts: string;
+  statRating: string;
+}
+
+/** Province-aware delivery fee (Karbala is cheaper); mirrors place_order(). */
+export function deliveryFeeFor(provinceCode: string | null | undefined, s: SiteSettings): number {
+  return provinceCode === "karbala" ? s.deliveryFeeKarbala : s.deliveryFeeDefault;
+}
+
 export type OfferKind = "bundle" | "cart_percent" | "cart_delivery" | "flash";
 
 /** A live promotion from the offers engine (RLS already filtered to live ones). */
@@ -102,6 +122,10 @@ export interface Product {
   stock?: number;
   /** 0–90; > 0 shows the sale UI and is charged server-side at checkout */
   discountPercent: number;
+  /** fixed IQD off (alternative to discountPercent; the better of the two wins) */
+  discountFixed: number;
+  /** priced by the GLOBAL volume ladder based on total count across the order */
+  volumePriced: boolean;
   /** for "newest" sorting & the "Just landed" rail (higher = newer) */
   order: number;
   descAr: string;
@@ -110,9 +134,14 @@ export interface Product {
 }
 
 /* ------------------------------ Pricing --------------------------------- */
-/** The price actually charged (mirrors the DB `effective_price` function). */
-export function effectivePrice(p: Pick<Product, "price" | "discountPercent">): number {
-  return p.discountPercent > 0 ? Math.floor((p.price * (100 - p.discountPercent)) / 100) : p.price;
+/** The price actually charged — best (lowest) of percent-off vs fixed-off. */
+export function effectivePrice(
+  p: Pick<Product, "price" | "discountPercent" | "discountFixed">,
+): number {
+  const afterPct =
+    p.discountPercent > 0 ? Math.floor((p.price * (100 - p.discountPercent)) / 100) : p.price;
+  const afterFixed = p.discountFixed > 0 ? Math.max(0, p.price - p.discountFixed) : p.price;
+  return Math.min(afterPct, afterFixed);
 }
 
 /** Base tier unit price for a quantity (greatest minQty ≤ qty wins). */

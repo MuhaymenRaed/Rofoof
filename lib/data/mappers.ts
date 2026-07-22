@@ -88,6 +88,8 @@ export function mapProduct(row: ProductRowWithFandoms): Product {
     isActive: row.is_active,
     stock: row.stock,
     discountPercent: row.discount_percent ?? 0,
+    discountFixed: row.discount_fixed ?? 0,
+    volumePriced: row.volume_priced ?? false,
     order: row.sort_order,
     descAr: row.description_ar,
     descEn: row.description_en,
