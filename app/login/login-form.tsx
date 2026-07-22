@@ -114,8 +114,11 @@ export function LoginForm() {
           }
           return;
         }
-        router.replace(next);
-        router.refresh();
+        // The session was established server-side (cookies), so no
+        // onAuthStateChange fires in this tab — do a full navigation so the
+        // auth provider re-reads the session instead of staying signed out.
+        window.location.assign(next);
+        return;
       } else {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
