@@ -1,11 +1,9 @@
-import { requireAdmin } from "@/lib/auth/dal";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
-// The dashboard is per-admin and always dynamic. The proxy performs an
-// optimistic redirect; this is the authoritative server-side gate.
-export const dynamic = "force-dynamic";
-
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin();
+// Static shell so the dashboard chrome prerenders and streams instantly under
+// Cache Components. Every page under /dashboard runs its own authoritative
+// requireAdmin() gate (and the proxy does an optimistic redirect), so moving
+// the check out of the layout doesn't weaken access control.
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return <DashboardShell>{children}</DashboardShell>;
 }

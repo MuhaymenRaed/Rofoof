@@ -15,6 +15,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Partial Prerendering: static shell served instantly, dynamic content
+  // streamed in. In Next 16 this is the `cacheComponents` flag (the old
+  // experimental.ppr / experimental_ppr were removed).
+  cacheComponents: true,
   // Don't advertise the framework in responses.
   poweredByHeader: false,
   images: {

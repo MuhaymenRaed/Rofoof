@@ -1,17 +1,29 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useStore } from "@/components/providers/store-provider";
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs";
 import { AnnouncementEditor } from "@/components/dashboard/announcement-editor";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { t, lang } = useStore();
-  const today = new Intl.DateTimeFormat(lang === "ar" ? "ar-IQ" : "en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date());
+
+  // Resolved after mount, never during render: this shell is prerendered, so
+  // reading the clock at render time would bake the BUILD date into the static
+  // HTML (and Cache Components rejects it outright).
+  const [today, setToday] = useState("");
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setToday(
+      new Intl.DateTimeFormat(lang === "ar" ? "ar-IQ" : "en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }).format(new Date()),
+    );
+  }, [lang]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">

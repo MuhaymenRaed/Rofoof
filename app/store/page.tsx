@@ -8,7 +8,6 @@ import StoreLoading from "./loading";
  * the server — that keeps the whole catalog page prerenderable and served
  * from cache rather than rendered per request.
  */
-export const revalidate = 300;
 
 export default function StorePage() {
   return (

@@ -7,7 +7,6 @@ import type { Product } from "@/lib/products";
 
 // ISR: storefront regenerates every 5 min, and instantly on admin edits
 // (revalidateTag("products")).
-export const revalidate = 300;
 
 export default async function HomePage() {
   const products = await getProducts();

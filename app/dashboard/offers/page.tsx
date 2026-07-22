@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAdminOffers, getAdminCoupons } from "@/lib/actions/offers";
 import { getSiteSettings } from "@/lib/data/catalog";
@@ -6,11 +7,10 @@ import { OffersView } from "@/components/dashboard/offers-view";
 import { CustomPricingEditor } from "@/components/dashboard/custom-pricing-editor";
 import { StoreConfigEditor } from "@/components/dashboard/store-config-editor";
 import { CouponsEditor } from "@/components/dashboard/coupons-editor";
+import DashboardLoading from "../loading";
 import type { CustomPricing, CustomType } from "@/lib/products";
 
-export const dynamic = "force-dynamic";
-
-export default async function DashboardOffersPage() {
+async function OffersContent() {
   await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const [offers, coupons, siteSettings, pricingRes] = await Promise.all([
@@ -33,5 +33,13 @@ export default async function DashboardOffersPage() {
       <CustomPricingEditor initialPricing={pricing} />
       <OffersView initialOffers={offers} />
     </>
+  );
+}
+
+export default function DashboardOffersPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <OffersContent />
+    </Suspense>
   );
 }

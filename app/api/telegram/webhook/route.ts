@@ -12,7 +12,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * we can reject forged calls to this public endpoint.
  */
 
-export const dynamic = "force-dynamic";
 
 interface TelegramChat {
   id: number;
