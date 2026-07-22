@@ -94,6 +94,7 @@ export function mapProduct(row: ProductRowWithFandoms): Product {
     discountFixed: row.discount_fixed ?? 0,
     volumePriced: row.volume_priced ?? false,
     order: row.sort_order,
+    createdAt: row.created_at,
     descAr: row.description_ar,
     descEn: row.description_en,
     tags: row.tags ?? [],

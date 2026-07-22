@@ -1,10 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
+import { TAGS } from "@/lib/data/tags";
 import {
   sendOrderTelegramNotification,
   sendOrderCancelledTelegramNotification,
@@ -88,6 +89,7 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
   });
 
+  revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
@@ -149,6 +151,7 @@ export async function placeCustomRequestAction(
     itemCount: v.images.length,
   });
 
+  revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
@@ -172,6 +175,7 @@ export async function updateOrderStatusAction(
 
   revalidatePath("/dashboard/orders");
   revalidatePath("/dashboard");
+  revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   return { ok: true };
 }
@@ -245,6 +249,7 @@ export async function cancelOrderAction(
     });
   }
 
+  revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
@@ -276,6 +281,7 @@ export async function updateManyOrderStatusesAction(
 
   revalidatePath("/dashboard/orders");
   revalidatePath("/dashboard");
+  revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   return { ok: failed.length === 0, failed };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   mapProduct,
   mapOffer,
@@ -261,6 +262,45 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   } catch (error) {
     console.error("[catalog] getSiteSettings failed:", error);
     return SITE_SETTINGS_FALLBACK;
+  }
+}
+
+/**
+ * Units sold per product id, aggregated from order_items — the real signal
+ * behind the "most ordered" rail. Reads with the service-role client because
+ * order_items isn't publicly readable; only the aggregated counts ever leave
+ * the server. Degrades to {} when the key is absent so the page still renders.
+ *
+ * Custom-request lines carry a null product_id and are skipped.
+ */
+const cachedBestSellers = unstable_cache(
+  async (): Promise<Record<string, number>> => {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return {};
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("order_items")
+      .select("product_id, qty")
+      .not("product_id", "is", null)
+      .limit(10000);
+    if (error) throw error;
+
+    const sold: Record<string, number> = {};
+    for (const row of data ?? []) {
+      if (!row.product_id) continue;
+      sold[row.product_id] = (sold[row.product_id] ?? 0) + (row.qty ?? 0);
+    }
+    return sold;
+  },
+  ["catalog:best-sellers"],
+  { tags: [TAGS.sales], revalidate: 300 },
+);
+
+export async function getBestSellerCounts(): Promise<Record<string, number>> {
+  try {
+    return await cachedBestSellers();
+  } catch (error) {
+    console.error("[catalog] getBestSellerCounts failed:", error);
+    return {};
   }
 }
 

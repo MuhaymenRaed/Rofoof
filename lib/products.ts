@@ -140,8 +140,10 @@ export interface Product {
   discountFixed: number;
   /** priced by the GLOBAL volume ladder based on total count across the order */
   volumePriced: boolean;
-  /** for "newest" sorting & the "Just landed" rail (higher = newer) */
+  /** admin's curated ordering (higher = shown first) */
   order: number;
+  /** ISO timestamp the row was created — drives the real "Just landed" rail */
+  createdAt: string;
   descAr: string;
   descEn: string;
   tags: string[];

@@ -494,6 +494,7 @@ export function ProductEditorModal({
           discountFixed: discountFixedNum,
           volumePriced,
           order: Date.now(),
+          createdAt: new Date().toISOString(),
           descAr: descAr.trim(),
           descEn: descEn.trim(),
           tags: [],

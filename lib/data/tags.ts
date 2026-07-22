@@ -5,4 +5,6 @@ export const TAGS = {
   fandoms: "fandoms",
   offers: "offers",
   settings: "settings",
+  /** units-sold aggregate — invalidated whenever an order is placed */
+  sales: "sales",
 } as const;
