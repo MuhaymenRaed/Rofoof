@@ -6,8 +6,19 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
-import { X, Package, Phone, MapPin, ChevronEnd, Droplet, Sparkles, Photo } from "@/components/icons";
+import {
+  X,
+  Package,
+  Phone,
+  MapPin,
+  ChevronEnd,
+  Droplet,
+  Sparkles,
+  Photo,
+  Download,
+} from "@/components/icons";
 import { formatPrice } from "@/lib/format";
+import { downloadImagesAsZip } from "@/lib/zip";
 import { provinceLabelKey } from "@/lib/provinces";
 import {
   statusStyle,
@@ -294,6 +305,27 @@ function OrderDetailsModal({
   const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
   const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
 
+  // Every buyer-uploaded image tied to this order (custom artwork + per-item
+  // poster uploads) — bundled by the admin-only "Download all" button.
+  const imageUrls = [
+    ...order.customImages,
+    ...order.items.map((it) => it.customImageUrl).filter((u): u is string => !!u),
+  ];
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(false);
+
+  async function handleDownloadAll() {
+    setDownloadError(false);
+    setDownloading(true);
+    try {
+      await downloadImagesAsZip(imageUrls, `${order.code}-images.zip`);
+    } catch {
+      setDownloadError(true);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -346,6 +378,26 @@ function OrderDetailsModal({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {/* Admin-only: download all of this order's images as one ZIP */}
+          {imageUrls.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={handleDownloadAll}
+                disabled={downloading}
+                className="tap flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
+              >
+                <Download size={16} />
+                {downloading ? t("dash.downloading") : `${t("dash.downloadAll")} (${imageUrls.length})`}
+              </button>
+              {downloadError && (
+                <p className="mt-1.5 text-center text-[11px] font-semibold text-red-500">
+                  {t("dash.downloadError")}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Full status control */}
           <div>
             <p className="mb-2 text-xs font-bold text-ink-2">{t("dash.setStatus")}</p>

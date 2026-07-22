@@ -500,6 +500,9 @@ export const dict = {
   "dash.itemsLabel": { ar: "القطع", en: "Items" },
   "dash.orderDetails": { ar: "تفاصيل الطلب", en: "Order details" },
   "dash.customerInfo": { ar: "بيانات الزبون", en: "Customer info" },
+  "dash.downloadAll": { ar: "تحميل كل الصور", en: "Download all images" },
+  "dash.downloading": { ar: "جارِ التحميل…", en: "Downloading…" },
+  "dash.downloadError": { ar: "تعذّر تحميل الصور", en: "Couldn't download the images" },
   "dash.setStatus": { ar: "حالة الطلب", en: "Order status" },
   "dash.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
