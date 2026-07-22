@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
@@ -78,17 +79,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// next-themes handles the theme before paint. We only set language/direction
-// here to avoid a flash of the wrong text direction.
-const noFlashScript = `
-(function () {
-  try {
-    var l = localStorage.getItem('rofoof.lang') || 'ar';
-    document.documentElement.lang = l;
-    document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
-  } catch (e) {}
-})();
-`;
+// next-themes handles the theme before paint; language/direction is applied by
+// /public/lang-init.js (loaded beforeInteractive in the body below).
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const [
@@ -115,10 +107,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html lang="ar" dir="rtl" className={`${cairo.variable} h-full`} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
-      </head>
       <body className="min-h-full antialiased">
+        {/* Loaded from /public and executed before hydration. Deliberately an
+            external file: an inline <script> rendered by a component is never
+            executed on a client render (React logs an error for it). */}
+        <Script src="/lang-init.js" strategy="beforeInteractive" />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <StoreProvider
