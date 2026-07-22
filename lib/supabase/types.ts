@@ -389,12 +389,6 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["order_items"]["Insert"]>;
         Relationships: [];
       };
-      order_status_events: {
-        Row: { id: string; order_id: string; status: OrderStatusDb; note: string | null; created_at: string };
-        Insert: { order_id: string; status: OrderStatusDb; note?: string | null };
-        Update: Partial<{ status: OrderStatusDb; note: string | null }>;
-        Relationships: [];
-      };
       favorites: {
         Row: { user_id: string; product_id: string; created_at: string };
         Insert: { user_id: string; product_id: string };
@@ -438,7 +432,6 @@ export interface Database {
       };
     };
     Functions: {
-      get_order_tracking: { Args: { p_code: string }; Returns: Json };
       cancel_order: { Args: { p_code: string }; Returns: boolean };
       preview_coupon: { Args: { p_code: string; p_subtotal: number }; Returns: Json };
       place_order: {
