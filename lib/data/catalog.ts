@@ -17,6 +17,7 @@ import type {
   Offer,
   Product,
   SiteSettings,
+  SubcategoryInfo,
   VolumeTier,
 } from "@/lib/products";
 
@@ -77,6 +78,39 @@ export async function getCategories(): Promise<CategoryInfo[]> {
     return await cachedCategories();
   } catch (error) {
     console.error("[catalog] getCategories failed:", error);
+    return [];
+  }
+}
+
+/**
+ * Bilingual subcategories — the second-level taxonomy nested under categories
+ * (Video Games → PS5, PC…). Drives the third store filter.
+ */
+const cachedSubcategories = unstable_cache(
+  async (): Promise<SubcategoryInfo[]> => {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase
+      .from("subcategories")
+      .select("code, category_code, name_ar, name_en")
+      .eq("is_deleted", false)
+      .order("sort_order", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((s) => ({
+      code: s.code,
+      categoryCode: s.category_code,
+      nameAr: s.name_ar,
+      nameEn: s.name_en,
+    }));
+  },
+  ["catalog:subcategories"],
+  { tags: [TAGS.categories], revalidate: 3600 },
+);
+
+export async function getSubcategories(): Promise<SubcategoryInfo[]> {
+  try {
+    return await cachedSubcategories();
+  } catch (error) {
+    console.error("[catalog] getSubcategories failed:", error);
     return [];
   }
 }

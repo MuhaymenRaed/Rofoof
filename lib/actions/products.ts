@@ -3,9 +3,11 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/dal";
 import { TAGS } from "@/lib/data/tags";
 import { getInventory, type InventoryPage } from "@/lib/data/dashboard";
+import type { SubcategoryInfo } from "@/lib/products";
 
 const upsertProductSchema = z.object({
   id: z
@@ -34,6 +36,8 @@ const upsertProductSchema = z.object({
     .optional()
     .default("#e8321a"),
   categories: z.array(z.string().trim().min(1).max(60)).min(1).max(8),
+  /** second-level taxonomy codes nested under the chosen categories */
+  subcategories: z.array(z.string().trim().min(1).max(60)).max(20).optional().default([]),
   fandoms: z.array(z.string().trim().min(1).max(60)).max(8).optional().default([]),
   waterproof: z.boolean().optional().default(false),
   waterproofSurcharge: z.number().int().min(0).max(100000).optional().default(0),
@@ -134,6 +138,20 @@ export async function upsertProductAction(
     p_codes: p.fandoms,
   });
   if (fanErr) return { ok: false, error: fanErr.message };
+
+  // Replace the subcategory set (service-role: gated by requireAdmin above).
+  const admin = createAdminClient();
+  const { error: subDelErr } = await admin
+    .from("product_subcategories")
+    .delete()
+    .eq("product_id", p.id);
+  if (subDelErr) return { ok: false, error: subDelErr.message };
+  if (p.subcategories.length > 0) {
+    const { error: subErr } = await admin
+      .from("product_subcategories")
+      .insert(p.subcategories.map((code) => ({ product_id: p.id, subcategory_code: code })));
+    if (subErr) return { ok: false, error: subErr.message };
+  }
 
   // Package contents: replace the item set (removed ones are soft-deleted so
   // order history keeps pointing at them).
@@ -242,6 +260,71 @@ export async function createCategoryAction(input: {
     ok: true,
     category: { code: c.code, nameAr: c.name_ar, nameEn: c.name_en, icon: c.icon },
   };
+}
+
+/* ----------------------------- Subcategories ---------------------------- */
+
+const createSubcategorySchema = z.object({
+  categoryCode: z.string().trim().min(1).max(60),
+  nameAr: z.string().trim().min(1).max(60),
+  nameEn: z.string().trim().min(1).max(60),
+});
+
+export type CreateSubcategoryResult =
+  | { ok: true; subcategory: SubcategoryInfo }
+  | { ok: false; error: string };
+
+/** Add a subcategory under a category (admin). Code is derived from the name. */
+export async function createSubcategoryAction(input: {
+  categoryCode: string;
+  nameAr: string;
+  nameEn: string;
+}): Promise<CreateSubcategoryResult> {
+  await requireAdmin();
+  const parsed = createSubcategorySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const { categoryCode, nameAr, nameEn } = parsed.data;
+
+  const slug =
+    nameEn
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .slice(0, 30) || `s${Date.now().toString(36)}`;
+  const code = `${categoryCode}-${slug}`.slice(0, 60);
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("subcategories").insert({
+    code,
+    category_code: categoryCode,
+    name_ar: nameAr,
+    name_en: nameEn,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.categories, "max");
+  revalidatePath("/store");
+  revalidatePath("/dashboard/inventory");
+  return { ok: true, subcategory: { code, categoryCode, nameAr, nameEn } };
+}
+
+/** Soft-delete a subcategory (admin); products keep their history rows. */
+export async function deleteSubcategoryAction(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("subcategories")
+    .update({ is_deleted: true })
+    .eq("code", code);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.categories, "max");
+  revalidatePath("/store");
+  revalidatePath("/dashboard/inventory");
+  return { ok: true };
 }
 
 /* ------------------------------- Fandoms -------------------------------- */

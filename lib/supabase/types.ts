@@ -202,6 +202,33 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["product_items"]["Insert"]>;
         Relationships: [];
       };
+      subcategories: {
+        Row: {
+          code: string;
+          category_code: string;
+          name_ar: string;
+          name_en: string;
+          sort_order: number;
+          is_deleted: boolean;
+          created_at: string;
+        };
+        Insert: {
+          code: string;
+          category_code: string;
+          name_ar: string;
+          name_en: string;
+          sort_order?: number;
+          is_deleted?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["subcategories"]["Insert"]>;
+        Relationships: [];
+      };
+      product_subcategories: {
+        Row: { product_id: string; subcategory_code: string };
+        Insert: { product_id: string; subcategory_code: string };
+        Update: Partial<{ product_id: string; subcategory_code: string }>;
+        Relationships: [];
+      };
       product_price_tiers: {
         Row: { product_id: string; min_qty: number; unit_price: number };
         Insert: { product_id: string; min_qty: number; unit_price: number };

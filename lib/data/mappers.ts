@@ -21,6 +21,7 @@ import type { OrderItemRow, OrderRow, ProductRow } from "@/lib/supabase/types";
  */
 export const PRODUCT_SELECT =
   "*, product_fandoms(fandom_code), product_categories(category_code), " +
+  "product_subcategories(subcategory_code), " +
   "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
   "product_price_tiers(min_qty, unit_price)";
 
@@ -28,6 +29,7 @@ export const PRODUCT_SELECT =
 export type ProductRowWithFandoms = ProductRow & {
   product_fandoms?: { fandom_code: string }[] | null;
   product_categories?: { category_code: string }[] | null;
+  product_subcategories?: { subcategory_code: string }[] | null;
   product_items?:
     | {
         id: string;
@@ -76,6 +78,7 @@ export function mapProduct(row: ProductRowWithFandoms): Product {
     color: row.color,
     category: (categories[0] ?? row.category_code) as Category,
     categories,
+    subcategories: (row.product_subcategories ?? []).map((s) => s.subcategory_code),
     fandoms: (row.product_fandoms ?? []).map((f) => f.fandom_code as Fandom),
     badge: (row.badge ?? undefined) as Badge | undefined,
     waterproof: row.waterproof,

@@ -12,12 +12,15 @@ import {
   type FandomInfo,
   type Product,
   type ProductKind,
+  type SubcategoryInfo,
 } from "@/lib/products";
 import {
   upsertProductAction,
   deleteProductAction,
   createCategoryAction,
   createFandomAction,
+  createSubcategoryAction,
+  deleteSubcategoryAction,
 } from "@/lib/actions/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp } from "@/lib/webp";
@@ -89,7 +92,13 @@ export function ProductEditorModal({
   /** pass a product to edit; omit to create */
   product?: Product | null;
 }) {
-  const { t, lang, categories: storeCategories, fandoms: storeFandoms } = useStore();
+  const {
+    t,
+    lang,
+    categories: storeCategories,
+    subcategories: storeSubcategories,
+    fandoms: storeFandoms,
+  } = useStore();
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -110,6 +119,13 @@ export function ProductEditorModal({
   const [descEn, setDescEn] = useState("");
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [extraCats, setExtraCats] = useState<CategoryInfo[]>([]);
+  const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
+  const [extraSubs, setExtraSubs] = useState<SubcategoryInfo[]>([]);
+  const [subFormOpen, setSubFormOpen] = useState(false);
+  const [subParent, setSubParent] = useState("");
+  const [subNameAr, setSubNameAr] = useState("");
+  const [subNameEn, setSubNameEn] = useState("");
+  const [subPending, setSubPending] = useState(false);
   const [selectedFandoms, setSelectedFandoms] = useState<string[]>([]);
   const [extraFandoms, setExtraFandoms] = useState<FandomInfo[]>([]);
   const [waterproof, setWaterproof] = useState(false);
@@ -147,6 +163,7 @@ export function ProductEditorModal({
     setDescAr(product?.descAr ?? "");
     setDescEn(product?.descEn ?? "");
     setSelectedCats(product?.categories?.length ? product.categories : []);
+    setSelectedSubs(product?.subcategories ?? []);
     setSelectedFandoms(product?.fandoms ?? []);
     setWaterproof(product?.waterproof ?? false);
     setSurcharge(String(product?.waterproofSurcharge ?? 0));
@@ -171,8 +188,10 @@ export function ProductEditorModal({
     );
     setBulkPrice("");
     setExtraCats([]);
+    setExtraSubs([]);
     setExtraFandoms([]);
     setCatFormOpen(false);
+    setSubFormOpen(false);
     setFanFormOpen(false);
     setConfirmingDelete(false);
     setError(null);
@@ -203,6 +222,9 @@ export function ProductEditorModal({
 
   const allCats = [...storeCategories, ...extraCats];
   const allFandoms = [...storeFandoms, ...extraFandoms];
+  // Only subcategories belonging to the categories this product is in.
+  const allSubs = [...storeSubcategories, ...extraSubs];
+  const visibleSubs = allSubs.filter((s) => selectedCats.includes(s.categoryCode));
   const waterproofEligible = canBeWaterproof(selectedCats);
   const customEligible = selectedCats.includes("posters");
   const isPackage = kind === "package";
@@ -250,6 +272,45 @@ export function ProductEditorModal({
     setSelectedFandoms((prev) =>
       prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
     );
+  }
+
+  function toggleSub(code: string) {
+    setSelectedSubs((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
+  }
+
+  async function addSubcategory() {
+    const parent = subParent || selectedCats[0];
+    if (!parent || !subNameAr.trim() || !subNameEn.trim()) return;
+    setSubPending(true);
+    const res = await createSubcategoryAction({
+      categoryCode: parent,
+      nameAr: subNameAr.trim(),
+      nameEn: subNameEn.trim(),
+    });
+    setSubPending(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setExtraSubs((prev) =>
+      prev.some((s) => s.code === res.subcategory.code) ? prev : [...prev, res.subcategory],
+    );
+    setSelectedSubs((prev) =>
+      prev.includes(res.subcategory.code) ? prev : [...prev, res.subcategory.code],
+    );
+    setSubNameAr("");
+    setSubNameEn("");
+    setSubFormOpen(false);
+  }
+
+  async function removeSubcategory(code: string) {
+    setExtraSubs((prev) => prev.filter((s) => s.code !== code));
+    setSelectedSubs((prev) => prev.filter((c) => c !== code));
+    const res = await deleteSubcategoryAction(code);
+    if (!res.ok) setError(res.error ?? t("checkout.error"));
+    else router.refresh();
   }
 
   async function addFandom() {
@@ -378,6 +439,10 @@ export function ProductEditorModal({
         images: finalRows.map((r) => r.url),
         color,
         categories: selectedCats,
+        // drop any subcategory whose parent category was unselected
+        subcategories: selectedSubs.filter((c) =>
+          visibleSubs.some((s) => s.code === c),
+        ),
         fandoms: selectedFandoms,
         waterproof: isWaterproof,
         waterproofSurcharge: surchargeNum,
@@ -408,6 +473,7 @@ export function ProductEditorModal({
           color,
           category: selectedCats[0] ?? "",
           categories: selectedCats,
+          subcategories: selectedSubs.filter((c) => visibleSubs.some((s) => s.code === c)),
           fandoms: selectedFandoms,
           waterproof: isWaterproof,
           waterproofSurcharge: surchargeNum,
@@ -826,6 +892,103 @@ export function ProductEditorModal({
               </div>
             )}
           </div>
+
+          {/* Subcategories — second level, nested under the chosen categories */}
+          {selectedCats.length > 0 && (
+            <div>
+              <span className="mb-1.5 block text-xs font-bold text-ink-2">
+                {t("dash.fieldSubcategories")}
+                <span className="ms-2 font-semibold text-ink-3">
+                  {t("dash.subcategoriesHint")}
+                </span>
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {visibleSubs.map((s) => {
+                  const on = selectedSubs.includes(s.code);
+                  return (
+                    <span
+                      key={s.code}
+                      className={`inline-flex items-center gap-1 rounded-xl border py-1.5 pe-1 ps-3 text-xs font-bold transition ${
+                        on
+                          ? "border-brand bg-brand text-white"
+                          : "border-line bg-surface text-ink-2"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSub(s.code)}
+                        aria-pressed={on}
+                        className="tap"
+                      >
+                        {lang === "ar" ? s.nameAr : s.nameEn}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSubcategory(s.code)}
+                        aria-label={t("offer.delete")}
+                        className="tap grid h-5 w-5 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100"
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubParent((v) => v || selectedCats[0]);
+                    setSubFormOpen((v) => !v);
+                  }}
+                  className="tap inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-3 py-1.5 text-xs font-bold text-ink-3 transition hover:border-brand hover:text-brand"
+                >
+                  <Plus size={13} />
+                  {t("dash.newSubcategory")}
+                </button>
+              </div>
+              {subFormOpen && (
+                <div className="mt-2 space-y-2 rounded-xl border border-line-2 bg-surface-2/50 p-3">
+                  <select
+                    value={subParent}
+                    onChange={(e) => setSubParent(e.target.value)}
+                    aria-label={t("dash.fieldCategories")}
+                    className="dash-input h-9 cursor-pointer"
+                  >
+                    {selectedCats.map((code) => {
+                      const c = allCats.find((x) => x.code === code);
+                      return (
+                        <option key={code} value={code}>
+                          {c ? (lang === "ar" ? c.nameAr : c.nameEn) : code}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={subNameAr}
+                      onChange={(e) => setSubNameAr(e.target.value)}
+                      placeholder={t("dash.catNameAr")}
+                      className="dash-input h-9 flex-1"
+                    />
+                    <input
+                      value={subNameEn}
+                      onChange={(e) => setSubNameEn(e.target.value)}
+                      placeholder={t("dash.catNameEn")}
+                      dir="ltr"
+                      className="dash-input h-9 flex-1 text-start"
+                    />
+                    <button
+                      type="button"
+                      onClick={addSubcategory}
+                      disabled={subPending || !subNameAr.trim() || !subNameEn.trim()}
+                      className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                    >
+                      {subPending ? "…" : t("dash.addCategory")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fandoms (multi, optional) */}
           <div>

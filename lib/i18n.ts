@@ -442,6 +442,10 @@ export const dict = {
   "dash.bulkPrice": { ar: "سعر موحّد لكل الصور", en: "One price for all images" },
   "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
   "dash.fixedAmount": { ar: "مبلغ", en: "Amount" },
+  "dash.fieldSubcategories": { ar: "التصنيفات الفرعية", en: "Subcategories" },
+  "dash.subcategoriesHint": { ar: "اختياري", en: "optional" },
+  "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
+  "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
   "dash.volumePriced": { ar: "تسعير حسب العدد", en: "Price by count" },
   "dash.volumePricedHint": {
     ar: "يُحسب سعر القطعة من سلّم الأعداد العام مع بقية المنتجات في نفس الطلب",

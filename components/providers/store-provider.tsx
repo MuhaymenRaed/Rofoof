@@ -19,6 +19,7 @@ import type {
   Offer,
   Product,
   SiteSettings,
+  SubcategoryInfo,
   VolumeTier,
 } from "@/lib/products";
 import { linePricing, volumeUnitPrice, type LinePricing } from "@/lib/pricing";
@@ -63,6 +64,8 @@ interface StoreContextValue {
   // catalog (fetched server-side, injected here)
   products: Product[];
   categories: CategoryInfo[];
+  /** second-level taxonomy nested under categories (third store filter) */
+  subcategories: SubcategoryInfo[];
   fandoms: FandomInfo[];
   offers: Offer[];
   /** GLOBAL by-count price ladder, shared across packages/categories */
@@ -121,6 +124,7 @@ export function StoreProvider({
   children,
   products,
   categories,
+  subcategories,
   fandoms,
   offers,
   volumeTiers,
@@ -131,6 +135,7 @@ export function StoreProvider({
   children: ReactNode;
   products: Product[];
   categories: CategoryInfo[];
+  subcategories: SubcategoryInfo[];
   fandoms: FandomInfo[];
   offers: Offer[];
   volumeTiers: VolumeTier[];
@@ -410,6 +415,7 @@ export function StoreProvider({
     t,
     products,
     categories,
+    subcategories,
     fandoms,
     offers,
     volumeTiers,

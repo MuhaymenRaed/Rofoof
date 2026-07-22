@@ -26,12 +26,13 @@ const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
 ];
 
 export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSel }) {
-  const { t, products } = useStore();
+  const { t, lang, products, subcategories } = useStore();
   const { isAdmin, ready } = useAuth();
   const router = useRouter();
 
   const [addOpen, setAddOpen] = useState(false);
   const [category, setCategory] = useState<CatSel>(initialCategory);
+  const [subcategory, setSubcategory] = useState<string>("all");
   const [fandom, setFandom] = useState<FandomSel>("all");
   const [waterproof, setWaterproof] = useState(false);
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
@@ -56,6 +57,7 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
     let list = products.filter((p) => {
       if (category !== "all" && !p.categories.includes(category) && p.category !== category)
         return false;
+      if (subcategory !== "all" && !p.subcategories.includes(subcategory)) return false;
       if (fandom !== "all" && !p.fandoms.includes(fandom)) return false;
       if (waterproof && !p.waterproof) return false;
       if (lowestPrice(p) > maxPrice) return false;
@@ -81,13 +83,29 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
       }
     });
     return list;
-  }, [products, category, fandom, waterproof, maxPrice, search, sort]);
+  }, [products, category, subcategory, fandom, waterproof, maxPrice, search, sort]);
+
+  // Subcategories of the active category (all of them on the "all" tab).
+  const visibleSubs = useMemo(
+    () => subcategories.filter((s) => category === "all" || s.categoryCode === category),
+    [subcategories, category],
+  );
+
+  // A subcategory only makes sense under its parent — drop it when the
+  // category changes or the chosen one is no longer on offer.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (subcategory !== "all" && !visibleSubs.some((s) => s.code === subcategory)) {
+      setSubcategory("all");
+    }
+  }, [visibleSubs, subcategory]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Reset to first page whenever the result set changes.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPage(1);
-  }, [category, fandom, waterproof, maxPrice, search, sort]);
+  }, [category, subcategory, fandom, waterproof, maxPrice, search, sort]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -174,6 +192,45 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
       <div className="mt-4">
         <CategoryChips active={category} onSelect={setCategory} />
       </div>
+
+      {/* Subcategory chips — the third filter, nested under the category */}
+      {visibleSubs.length > 0 && (
+        <div className="no-scrollbar mt-2 flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="shrink-0 text-[11px] font-bold text-ink-3">
+            {t("store.subcategory")}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSubcategory("all")}
+            aria-pressed={subcategory === "all"}
+            className={`tap shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-bold transition ${
+              subcategory === "all"
+                ? "border-brand bg-brand text-white"
+                : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+            }`}
+          >
+            {t("cat.all")}
+          </button>
+          {visibleSubs.map((s) => {
+            const on = subcategory === s.code;
+            return (
+              <button
+                key={s.code}
+                type="button"
+                onClick={() => setSubcategory(on ? "all" : s.code)}
+                aria-pressed={on}
+                className={`tap shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-bold transition ${
+                  on
+                    ? "border-brand bg-brand text-white"
+                    : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+                }`}
+              >
+                {lang === "ar" ? s.nameAr : s.nameEn}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Result count */}
       <p className="mt-4 text-xs font-semibold text-ink-3">

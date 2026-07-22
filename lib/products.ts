@@ -22,6 +22,18 @@ export interface FandomInfo {
 }
 
 /**
+ * A second-level taxonomy nested under a category (Video Games → PS5, PC…).
+ * Admin-managed like categories/fandoms, and drives the third store filter.
+ */
+export interface SubcategoryInfo {
+  code: string;
+  /** parent category code */
+  categoryCode: string;
+  nameAr: string;
+  nameEn: string;
+}
+
+/**
  * How the product behaves in the store:
  *  - standard: images are angles of ONE product; single price (Minecraft medals)
  *  - package:  images are DISTINCT items the buyer picks from, each with its
@@ -102,6 +114,8 @@ export interface Product {
   category: Category;
   /** all category codes the product belongs to */
   categories: string[];
+  /** subcategory codes (second-level taxonomy under the categories) */
+  subcategories: string[];
   fandoms: Fandom[];
   badge?: Badge;
   waterproof?: boolean;

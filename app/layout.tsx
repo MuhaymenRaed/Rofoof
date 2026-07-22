@@ -8,6 +8,7 @@ import {
   getProducts,
   getAnnouncement,
   getCategories,
+  getSubcategories,
   getFandoms,
   getOffers,
   getCustomPricing,
@@ -94,6 +95,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     products,
     announcement,
     categories,
+    subcategories,
     fandoms,
     offers,
     customPricing,
@@ -103,6 +105,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     getProducts(),
     getAnnouncement(),
     getCategories(),
+    getSubcategories(),
     getFandoms(),
     getOffers(),
     getCustomPricing(),
@@ -121,6 +124,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <StoreProvider
               products={products}
               categories={categories}
+              subcategories={subcategories}
               fandoms={fandoms}
               offers={offers}
               volumeTiers={volumeTiers}
