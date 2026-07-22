@@ -531,13 +531,13 @@ export const dict = {
   "custom.type.poster": { ar: "بوستر", en: "Poster" },
   "custom.images": { ar: "صورك", en: "Your images" },
   "custom.imagesHint": {
-    ar: "حتى 20 صورة، 10MB لكل صورة — كل صورة = قطعة",
-    en: "Up to 20 images, 10MB each — every image = one piece",
+    ar: "حتى 100 صورة، 20MB لكل صورة — كل صورة = قطعة",
+    en: "Up to 100 images, 20MB each — every image = one piece",
   },
   "custom.addImages": { ar: "أضف صورك", en: "Add your images" },
   "custom.tooBig": {
-    ar: "صورة أكبر من 10MB تم تجاهلها",
-    en: "An image over 10MB was skipped",
+    ar: "صورة أكبر من 20MB تم تجاهلها",
+    en: "An image over 20MB was skipped",
   },
   "custom.description": {
     ar: "وصف طلبك (اختياري)",

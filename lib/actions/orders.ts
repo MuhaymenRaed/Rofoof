@@ -16,9 +16,10 @@ import type { OrderStatusDb } from "@/lib/supabase/types";
 const placeOrderSchema = z.object({
   customerName: z.string().trim().min(2).max(80),
   customerPhone: z.string().trim().min(6).max(20),
-  provinceCode: z.string().trim().min(1).nullable().optional(),
-  addressLine: z.string().trim().max(200).nullable().optional(),
-  notes: z.string().trim().max(500).nullable().optional(),
+  // Province, full address and a note are strictly required at checkout.
+  provinceCode: z.string().trim().min(1),
+  addressLine: z.string().trim().min(3).max(200),
+  notes: z.string().trim().min(1).max(500),
   couponCode: z.string().trim().max(40).nullable().optional(),
   items: z
     .array(
@@ -98,14 +99,15 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
 const customRequestSchema = z.object({
   customerName: z.string().trim().min(2).max(80),
   customerPhone: z.string().trim().min(6).max(20),
-  provinceCode: z.string().trim().min(1).nullable().optional(),
-  addressLine: z.string().trim().max(200).nullable().optional(),
+  // Province and full address are strictly required at checkout.
+  provinceCode: z.string().trim().min(1),
+  addressLine: z.string().trim().min(3).max(200),
   type: z.enum(["brooch", "sticker", "poster"]),
   waterproof: z.boolean().optional().default(false),
   description: z.string().trim().max(1000).optional().default(""),
   // WebP artwork already uploaded to the public custom-artwork bucket; the
   // RPC re-validates the prefix and recomputes the price server-side.
-  images: z.array(z.string().url().max(500)).min(1).max(20),
+  images: z.array(z.string().url().max(500)).min(1).max(100),
 });
 
 export type CustomRequestInput = z.input<typeof customRequestSchema>;

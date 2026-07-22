@@ -10,7 +10,7 @@ import { formatPrice } from "@/lib/format";
 import { tierUnitPrice, type Product } from "@/lib/products";
 import { bundleOfferFor, freeUnitsFor, linePricing, liveFlashOffer, unitPriceFor } from "@/lib/pricing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp } from "@/lib/webp";
+import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -119,6 +119,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
+    if (f.size > MAX_UPLOAD_BYTES) return; // 20MB cap per image
     setUploadingCustom(true);
     // Re-encode to WebP in the browser so the bucket only stores compact files.
     const webp = await toWebp(f);

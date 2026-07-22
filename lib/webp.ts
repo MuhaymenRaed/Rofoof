@@ -7,7 +7,7 @@
  * originals — typically a 3–10× space saving with no server work.
  */
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB per source image
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB per source image
 /** Longest edge kept at print-friendly resolution. */
 const MAX_DIMENSION = 4096;
 const WEBP_QUALITY = 0.85;

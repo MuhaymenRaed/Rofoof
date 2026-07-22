@@ -10,7 +10,7 @@ import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/pr
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
 
-const MAX_IMAGES = 20;
+const MAX_IMAGES = 100;
 const TYPES: CustomType[] = ["brooch", "sticker", "poster"];
 
 interface Artwork {

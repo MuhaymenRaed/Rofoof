@@ -85,8 +85,14 @@ export function CartDrawer() {
   }, [step, user]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // An order cannot be placed without a name, phone and province (location).
-  const canCheckout = name.trim() !== "" && phone.trim() !== "" && province !== "";
+  // An order needs a name, phone, province, full address AND a note — all
+  // strictly required before checkout is allowed.
+  const canCheckout =
+    name.trim() !== "" &&
+    phone.trim() !== "" &&
+    province !== "" &&
+    address.trim() !== "" &&
+    note.trim() !== "";
 
   // Display-only cart-level offers preview (the server recomputes at checkout;
   // it also picks the BEST single money discount if a coupon beats this one).
@@ -96,7 +102,7 @@ export function CartDrawer() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !province) return;
+    if (!name.trim() || !phone.trim() || !province || !address.trim() || !note.trim()) return;
     setPending(true);
     setError(false);
 
@@ -104,7 +110,7 @@ export function CartDrawer() {
       customerName: name,
       customerPhone: phone,
       provinceCode: province,
-      addressLine: address || null,
+      addressLine: address.trim(),
     };
     const codes: string[] = [];
 
@@ -114,7 +120,7 @@ export function CartDrawer() {
     if (cart.length > 0) {
       const res = await placeOrderAction({
         ...contact,
-        notes: note || null,
+        notes: note.trim(),
         items: cart.map((l) => ({
           productId: l.id,
           itemId: l.itemId ?? null,
@@ -301,6 +307,7 @@ export function CartDrawer() {
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  required
                   className="dash-input"
                 />
               </Field>
@@ -308,6 +315,7 @@ export function CartDrawer() {
                 <input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
+                  required
                   className="dash-input"
                 />
               </Field>
