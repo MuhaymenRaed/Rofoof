@@ -11,7 +11,6 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const INSTALLED_KEY = "rofoof.pwa.installed"; // localStorage — permanent
 const DISMISSED_KEY = "rofoof.pwa.dismissed"; // sessionStorage — this visit only
 
 function isStandalone(): boolean {
@@ -23,8 +22,12 @@ function isStandalone(): boolean {
 }
 
 function isIosSafari(): boolean {
-  const ua = window.navigator.userAgent;
-  const iOS = /iPad|iPhone|iPod/.test(ua);
+  const nav = window.navigator;
+  const ua = nav.userAgent;
+  // iPadOS 13+ Safari reports a desktop (Macintosh) UA, so also detect an iPad
+  // by its touch capability — otherwise the hint stays hidden on iPads.
+  const iOS =
+    /iPad|iPhone|iPod/.test(ua) || (nav.platform === "MacIntel" && nav.maxTouchPoints > 1);
   // Exclude in-app browsers that can't add to home screen
   const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
   return iOS && safari;
@@ -33,15 +36,17 @@ function isIosSafari(): boolean {
 /**
  * Slim, dismissible "install the app" bar pinned to the top of the page.
  *
- * Shown once per visit until the user actually installs:
- *  - dismissing writes to sessionStorage, so it stays gone for this visit but
- *    politely returns on the next one;
- *  - installing (or opening the installed app) writes to localStorage and it
- *    never appears again.
+ * Shown once per visit until the app is actually installed — and it comes
+ * BACK if the user later uninstalls. We never persist an "installed" flag;
+ * instead we key off live signals: the bar is hidden only while the site is
+ * actually running as an installed app (display-mode: standalone / iOS
+ * navigator.standalone), which naturally flips back once the app is removed.
+ * Dismissing writes to sessionStorage, so it stays gone for this visit but
+ * politely returns on the next one.
  *
- * Chrome/Edge/Android get the real install prompt via `beforeinstallprompt`;
- * iOS Safari has no such API, so it gets a short "Share → Add to Home Screen"
- * hint instead.
+ * Chrome/Edge/Android get the real install prompt via `beforeinstallprompt`
+ * (which the browser re-fires after an uninstall); iOS/iPadOS Safari has no
+ * such API, so it gets a short "Share → Add to Home Screen" hint instead.
  */
 export function InstallPrompt() {
   const { t } = useStore();
@@ -57,25 +62,19 @@ export function InstallPrompt() {
       });
     }
 
-    // Already installed, or already dismissed this visit → stay quiet.
-    let alreadyInstalled = false;
+    // Running as the installed app right now → stay quiet. This is a live
+    // signal (not a stored flag), so the bar returns automatically if the app
+    // is later uninstalled and the site is opened in a normal tab again.
+    if (isStandalone()) return;
+
+    // Dismissed for this visit only.
     let dismissed = false;
     try {
-      alreadyInstalled = localStorage.getItem(INSTALLED_KEY) === "1";
       dismissed = sessionStorage.getItem(DISMISSED_KEY) === "1";
     } catch {
       /* storage blocked (private mode) — fall through and just show once */
     }
-
-    if (isStandalone()) {
-      try {
-        localStorage.setItem(INSTALLED_KEY, "1");
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    if (alreadyInstalled || dismissed) return;
+    if (dismissed) return;
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault(); // suppress the browser's own mini-infobar
@@ -83,11 +82,6 @@ export function InstallPrompt() {
       setVisible(true);
     };
     const onInstalled = () => {
-      try {
-        localStorage.setItem(INSTALLED_KEY, "1");
-      } catch {
-        /* ignore */
-      }
       setVisible(false);
       setDeferred(null);
     };
@@ -127,7 +121,7 @@ export function InstallPrompt() {
     const { outcome } = await deferred.userChoice;
     setDeferred(null);
     if (outcome === "accepted") {
-      setVisible(false); // `appinstalled` will persist the permanent flag
+      setVisible(false); // `appinstalled` also fires; next launches are standalone
     } else {
       dismiss(); // treated as "not now" — comes back next visit
     }
