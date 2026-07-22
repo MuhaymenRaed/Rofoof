@@ -442,6 +442,14 @@ export const dict = {
   "dash.bulkPrice": { ar: "سعر موحّد لكل الصور", en: "One price for all images" },
   "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
   "dash.fixedAmount": { ar: "مبلغ", en: "Amount" },
+  "auth.lockedOut": {
+    ar: "محاولات كثيرة فاشلة — الحساب مقفل مؤقتاً",
+    en: "Too many failed attempts — this account is temporarily locked",
+  },
+  "auth.minutes": { ar: "دقيقة", en: "minutes" },
+  "auth.badEmail": { ar: "صيغة الإيميل غير صحيحة", en: "That email doesn't look valid" },
+  "auth.badName": { ar: "الاسم قصير جداً", en: "Please enter your full name" },
+  "auth.badPhone": { ar: "صيغة رقم الهاتف غير صحيحة", en: "That phone number doesn't look valid" },
   "dash.deliveryFees": { ar: "أجور التوصيل", en: "Delivery fees" },
   "dash.deliveryFeesHint": {
     ar: "تُحتسب تلقائياً على كل طلب حسب المحافظة",

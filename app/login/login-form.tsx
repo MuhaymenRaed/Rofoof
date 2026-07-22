@@ -7,6 +7,7 @@ import { useStore } from "@/components/providers/store-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { safeNextPath } from "@/lib/safe-redirect";
+import { signInAction } from "@/lib/actions/auth";
 import { Sparkles } from "@/components/icons";
 import type { DictKey } from "@/lib/i18n";
 import type { AuthError } from "@supabase/supabase-js";
@@ -72,15 +73,45 @@ export function LoginForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
+
+    // Stricter signup validation before we bother the server.
+    if (mode === "signup") {
+      if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email.trim())) {
+        setError(t("auth.badEmail"));
+        return;
+      }
+      if (name.trim().length < 2) {
+        setError(t("auth.badName"));
+        return;
+      }
+      if (password.length < 8) {
+        setError(t("auth.weakPassword"));
+        return;
+      }
+      if (phone.trim() && !/^[+\d][\d\s-]{6,19}$/.test(phone.trim())) {
+        setError(t("auth.badPhone"));
+        return;
+      }
+    }
+
     setPending(true);
     setError(null);
     setInfo(null);
 
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) {
-          setError(t(authErrorKey(error, "signin")));
+        // Server-side so the brute-force counter can't be bypassed.
+        const res = await signInAction(email.trim(), password);
+        if (!res.ok) {
+          if (res.error === "locked") {
+            setError(
+              `${t("auth.lockedOut")} (${res.retryAfterMinutes} ${t("auth.minutes")})`,
+            );
+          } else if (res.error === "unconfirmed") {
+            setError(t("auth.emailNotConfirmed"));
+          } else {
+            setError(t("auth.invalidCreds"));
+          }
           return;
         }
         router.replace(next);
