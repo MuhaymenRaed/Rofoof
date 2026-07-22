@@ -437,6 +437,7 @@ export interface Database {
     Functions: {
       get_order_tracking: { Args: { p_code: string }; Returns: Json };
       cancel_order: { Args: { p_code: string }; Returns: boolean };
+      preview_coupon: { Args: { p_code: string; p_subtotal: number }; Returns: Json };
       place_order: {
         Args: {
           p_customer_name: string;

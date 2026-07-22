@@ -446,6 +446,18 @@ export const dict = {
   "dash.subcategoriesHint": { ar: "اختياري", en: "optional" },
   "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
+  "cart.coupon": { ar: "كود الخصم", en: "Discount code" },
+  "cart.couponApply": { ar: "تطبيق", en: "Apply" },
+  "cart.couponRemove": { ar: "إزالة", en: "Remove" },
+  "cart.couponInvalid": { ar: "الكود غير صالح", en: "Invalid code" },
+  "cart.couponExpired": { ar: "انتهت صلاحية الكود", en: "This code has expired" },
+  "cart.couponMin": { ar: "لم تصل للحد الأدنى للطلب", en: "Order total is below the minimum" },
+  "cart.couponUsed": { ar: "تم استهلاك هذا الكود", en: "This code has been used up" },
+  "cart.couponLogin": { ar: "سجّل الدخول لاستخدام هذا الكود", en: "Sign in to use this code" },
+  "cart.couponScoped": {
+    ar: "يطبَّق على منتجات محددة — يُحتسب النهائي عند الإتمام",
+    en: "Applies to selected products — final amount is set at checkout",
+  },
   "dash.volumePriced": { ar: "تسعير حسب العدد", en: "Price by count" },
   "dash.volumePricedHint": {
     ar: "يُحسب سعر القطعة من سلّم الأعداد العام مع بقية المنتجات في نفس الطلب",

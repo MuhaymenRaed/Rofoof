@@ -19,14 +19,34 @@ import {
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
-import { CUSTOM_ORDER_COLOR, CUSTOM_TYPE_LABEL } from "@/lib/products";
+import { CUSTOM_ORDER_COLOR, CUSTOM_TYPE_LABEL, deliveryFeeFor } from "@/lib/products";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { placeOrderAction, placeCustomRequestAction } from "@/lib/actions/orders";
+import { previewCouponAction, type CouponPreview } from "@/lib/actions/coupons";
 import { updateProfileAction } from "@/lib/actions/profile";
 import { whatsappMessageUrl } from "@/lib/contact";
+import type { DictKey } from "@/lib/i18n";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 type Step = "cart" | "form" | "done";
+
+/** Map a preview_coupon rejection reason to a friendly message. */
+function couponMessage(p: CouponPreview): DictKey {
+  switch (p.reason) {
+    case "expired":
+    case "not_started":
+      return "cart.couponExpired";
+    case "min_subtotal":
+      return "cart.couponMin";
+    case "usage_limit":
+    case "per_user_limit":
+      return "cart.couponUsed";
+    case "login_required":
+      return "cart.couponLogin";
+    default:
+      return "cart.couponInvalid";
+  }
+}
 
 export function CartDrawer() {
   const {
@@ -43,6 +63,7 @@ export function CartDrawer() {
     getProduct,
     pricingFor,
     offers,
+    siteSettings,
     lang,
     t,
   } = useStore();
@@ -57,6 +78,10 @@ export function CartDrawer() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
   const [orderCode, setOrderCode] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<CouponPreview | null>(null);
+  const [couponPending, setCouponPending] = useState(false);
+  const [couponMsg, setCouponMsg] = useState<DictKey | null>(null);
 
   useEffect(() => {
     if (!cartOpen) return;
@@ -94,11 +119,66 @@ export function CartDrawer() {
     address.trim() !== "" &&
     note.trim() !== "";
 
-  // Display-only cart-level offers preview (the server recomputes at checkout;
-  // it also picks the BEST single money discount if a coupon beats this one).
+  // Display-only preview; place_order() recomputes everything at checkout and
+  // likewise applies only the BEST single money discount (offer vs coupon).
   const cartDiscount = cartDiscountFor(cartSubtotal, offers);
   const deliveryOffer = deliveryOfferFor(cartSubtotal, offers);
-  const previewTotal = Math.max(cartSubtotal - (cartDiscount?.amount ?? 0), 0);
+  const couponDiscount = coupon?.valid ? coupon.discount ?? 0 : 0;
+  const moneyDiscount = Math.max(cartDiscount?.amount ?? 0, couponDiscount);
+  const couponWins = couponDiscount > (cartDiscount?.amount ?? 0);
+
+  // Delivery: province rule (Karbala cheaper), beaten by a cheaper offer.
+  // Before the province is picked we fall back to the saved profile value.
+  const deliveryProvince = province || user?.provinceCode || "";
+  const baseDelivery = deliveryFeeFor(deliveryProvince, siteSettings);
+  const deliveryFee =
+    deliveryOffer?.deliveryFee != null
+      ? Math.min(baseDelivery, deliveryOffer.deliveryFee)
+      : baseDelivery;
+
+  const previewTotal = Math.max(cartSubtotal - moneyDiscount, 0) + deliveryFee;
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code || couponPending) return;
+    setCouponPending(true);
+    const res = await previewCouponAction(code, cartSubtotal);
+    setCouponPending(false);
+    if (res.valid) {
+      setCoupon(res);
+      setCouponMsg(null);
+    } else {
+      setCoupon(null);
+      setCouponMsg(couponMessage(res));
+    }
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponMsg(null);
+    setCouponInput("");
+  }
+
+  // Editing the cart changes the subtotal, which can change (or invalidate)
+  // the coupon — re-check it so the shown discount is never stale.
+  useEffect(() => {
+    const code = coupon?.code;
+    if (!code) return;
+    let active = true;
+    void (async () => {
+      const res = await previewCouponAction(code, cartSubtotal);
+      if (!active) return;
+      if (res.valid) setCoupon(res);
+      else {
+        setCoupon(null);
+        setCouponMsg(couponMessage(res));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // re-run on subtotal changes only; `coupon.code` is stable while applied
+  }, [cartSubtotal, coupon?.code]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,6 +201,7 @@ export function CartDrawer() {
       const res = await placeOrderAction({
         ...contact,
         notes: note.trim(),
+        couponCode: coupon?.valid ? coupon.code ?? null : null,
         items: cart.map((l) => ({
           productId: l.id,
           itemId: l.itemId ?? null,
@@ -328,15 +409,25 @@ export function CartDrawer() {
             </div>
 
             <div className="border-t border-line-2 px-5 py-4">
-              {cartDiscount && (
+              {moneyDiscount > 0 && (
                 <div className="mb-2 flex items-center justify-between text-xs font-bold text-emerald-600">
                   <span className="flex items-center gap-1.5">
                     <Percent size={12} />
-                    {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}
+                    {couponWins
+                      ? coupon?.code
+                      : lang === "ar"
+                        ? cartDiscount?.offer.titleAr
+                        : cartDiscount?.offer.titleEn}
                   </span>
-                  <span>-{formatPrice(cartDiscount.amount, lang)}</span>
+                  <span>-{formatPrice(moneyDiscount, lang)}</span>
                 </div>
               )}
+              <div className="mb-2 flex items-center justify-between text-xs text-ink-2">
+                <span>{t("cart.delivery")}</span>
+                <span className="font-bold">
+                  {deliveryFee === 0 ? t("cart.freeDelivery") : formatPrice(deliveryFee, lang)}
+                </span>
+              </div>
               <div className="mb-3 flex items-center justify-between">
                 <span className="font-bold text-ink">{t("cart.total")}</span>
                 <span className="text-lg font-black text-brand">
@@ -517,30 +608,84 @@ export function CartDrawer() {
             </div>
 
             <div className="border-t border-line-2 px-5 py-4">
+              {/* Discount code */}
+              <div className="mb-3">
+                {coupon?.valid ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+                    <Percent size={13} className="shrink-0 text-emerald-600" />
+                    <span dir="ltr" className="flex-1 truncate text-xs font-black text-emerald-600">
+                      {coupon.code}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={removeCoupon}
+                      className="tap text-[11px] font-bold text-ink-3 transition hover:text-red-500"
+                    >
+                      {t("cart.couponRemove")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      placeholder={t("cart.coupon")}
+                      aria-label={t("cart.coupon")}
+                      dir="ltr"
+                      className="dash-input h-9 flex-1 text-start"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={couponPending || couponInput.trim() === ""}
+                      className="tap shrink-0 rounded-xl bg-surface-2 px-4 text-xs font-bold text-ink-2 transition hover:bg-brand hover:text-white disabled:opacity-50"
+                    >
+                      {couponPending ? "…" : t("cart.couponApply")}
+                    </button>
+                  </div>
+                )}
+                {couponMsg && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">{t(couponMsg)}</p>
+                )}
+                {coupon?.valid && coupon.scoped && (
+                  <p className="mt-1.5 text-[11px] font-semibold text-ink-3">
+                    {t("cart.couponScoped")}
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-1.5 text-sm">
                 <div className="flex items-center justify-between text-ink-2">
                   <span>{t("cart.subtotal")}</span>
                   <span className="font-bold text-ink">{formatPrice(cartSubtotal, lang)}</span>
                 </div>
-                {cartDiscount && (
+                {moneyDiscount > 0 && (
                   <div className="flex items-center justify-between text-emerald-600">
                     <span className="flex items-center gap-1.5 text-xs font-bold">
                       <Percent size={12} />
-                      {lang === "ar" ? cartDiscount.offer.titleAr : cartDiscount.offer.titleEn}
+                      {couponWins
+                        ? coupon?.code
+                        : lang === "ar"
+                          ? cartDiscount?.offer.titleAr
+                          : cartDiscount?.offer.titleEn}
                     </span>
-                    <span className="font-bold">-{formatPrice(cartDiscount.amount, lang)}</span>
+                    <span className="font-bold">-{formatPrice(moneyDiscount, lang)}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between text-ink-2">
                   <span>{t("cart.delivery")}</span>
-                  {deliveryOffer ? (
+                  {deliveryFee === 0 ? (
                     <span className="text-xs font-bold text-emerald-600">
-                      {deliveryOffer.deliveryFee === 0
-                        ? t("cart.freeDelivery")
-                        : formatPrice(deliveryOffer.deliveryFee ?? 0, lang)}
+                      {t("cart.freeDelivery")}
                     </span>
                   ) : (
-                    <span className="text-xs text-ink-3">{t("cart.deliveryNote")}</span>
+                    <span
+                      className={`font-bold ${
+                        deliveryOffer ? "text-emerald-600" : "text-ink"
+                      }`}
+                    >
+                      {formatPrice(deliveryFee, lang)}
+                    </span>
                   )}
                 </div>
               </div>
