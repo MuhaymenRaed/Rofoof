@@ -83,7 +83,9 @@ export function ProductEditorModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSaved?: () => void;
+  /** called after a successful save; on CREATE it receives the new product so
+   *  the caller can show it optimistically. */
+  onSaved?: (created?: Product) => void;
   /** pass a product to edit; omit to create */
   product?: Product | null;
 }) {
@@ -327,45 +329,98 @@ export function ProductEditorModal({
       }
       setUploading(false);
 
+      const priceNum = Number(price);
+      const discountNum = Math.min(90, Math.max(0, Number(discount) || 0));
+      const stockNum = Math.max(0, Number(stock) || 0);
+      const surchargeNum = waterproofEligible ? Math.max(0, Number(surcharge) || 0) : 0;
+      const isWaterproof = waterproofEligible ? waterproof : false;
+      const allowsCustom = customEligible ? allowCustom : false;
+      const color =
+        product?.color ?? PALETTE[Math.abs((nameAr.length + nameEn.length) % PALETTE.length)];
+      const itemsPayload = isPackage
+        ? finalRows.map((r) => ({
+            id: r.itemId,
+            imageUrl: r.url,
+            price: r.price.trim() === "" ? null : Math.max(0, Number(r.price) || 0),
+          }))
+        : [];
+      const tiersPayload = isTiered
+        ? tiers
+            .map((tr) => ({
+              minQty: Math.max(1, Number(tr.minQty) || 1),
+              unitPrice: Math.max(0, Number(tr.unitPrice) || 0),
+            }))
+            .filter((tr, idx, arr) => arr.findIndex((x) => x.minQty === tr.minQty) === idx)
+        : [];
+
       const res = await upsertProductAction({
         id,
         nameAr: nameAr.trim(),
         nameEn: nameEn.trim() || nameAr.trim(),
-        price: Number(price),
-        discountPercent: Math.min(90, Math.max(0, Number(discount) || 0)),
-        stock: Math.max(0, Number(stock) || 0),
+        price: priceNum,
+        discountPercent: discountNum,
+        stock: stockNum,
         descAr: descAr.trim(),
         descEn: descEn.trim(),
         images: finalRows.map((r) => r.url),
-        color: product?.color ?? PALETTE[Math.abs((nameAr.length + nameEn.length) % PALETTE.length)],
+        color,
         categories: selectedCats,
         fandoms: selectedFandoms,
-        waterproof: waterproofEligible ? waterproof : false,
-        waterproofSurcharge: waterproofEligible ? Math.max(0, Number(surcharge) || 0) : 0,
-        allowCustomImage: customEligible ? allowCustom : false,
+        waterproof: isWaterproof,
+        waterproofSurcharge: surchargeNum,
+        allowCustomImage: allowsCustom,
         kind,
-        items: isPackage
-          ? finalRows.map((r) => ({
-              id: r.itemId,
-              imageUrl: r.url,
-              price: r.price.trim() === "" ? null : Math.max(0, Number(r.price) || 0),
-            }))
-          : [],
-        tiers: isTiered
-          ? tiers
-              .map((tr) => ({
-                minQty: Math.max(1, Number(tr.minQty) || 1),
-                unitPrice: Math.max(0, Number(tr.unitPrice) || 0),
-              }))
-              .filter((tr, idx, arr) => arr.findIndex((x) => x.minQty === tr.minQty) === idx)
-          : [],
+        items: itemsPayload,
+        tiers: tiersPayload,
         isUpdate: isEdit,
       });
       if (!res.ok) {
         setError(res.error ?? t("checkout.error"));
         return;
       }
-      onSaved?.();
+
+      // Optimistic create: hand back a fully-built product so the list can show
+      // it instantly; router.refresh() then reconciles with the DB.
+      if (!isEdit) {
+        const created: Product = {
+          id,
+          nameAr: nameAr.trim(),
+          nameEn: nameEn.trim() || nameAr.trim(),
+          subAr: "",
+          subEn: "",
+          price: priceNum,
+          emoji: "🛍️",
+          image: finalRows[0]?.url,
+          images: finalRows.map((r) => r.url),
+          color,
+          category: selectedCats[0] ?? "",
+          categories: selectedCats,
+          fandoms: selectedFandoms,
+          waterproof: isWaterproof,
+          waterproofSurcharge: surchargeNum,
+          allowCustomImage: allowsCustom,
+          kind,
+          items: itemsPayload.map((it) => ({
+            id: it.id ?? crypto.randomUUID(),
+            imageUrl: it.imageUrl,
+            nameAr: "",
+            nameEn: "",
+            price: it.price,
+          })),
+          tiers: tiersPayload,
+          soldOut: false,
+          isActive: true,
+          stock: stockNum,
+          discountPercent: discountNum,
+          order: Date.now(),
+          descAr: descAr.trim(),
+          descEn: descEn.trim(),
+          tags: [],
+        };
+        onSaved?.(created);
+      } else {
+        onSaved?.();
+      }
       router.refresh();
       onClose();
     });

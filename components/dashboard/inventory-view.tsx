@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { ProductMedia } from "@/components/ui/product-media";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
@@ -20,7 +19,6 @@ export function InventoryView({
   initialHasMore: boolean;
 }) {
   const { t, lang, categoryLabel } = useStore();
-  const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [, startTransition] = useTransition();
@@ -129,7 +127,11 @@ export function InventoryView({
           setModalOpen(false);
           setEditing(null);
         }}
-        onSaved={() => router.refresh()}
+        onSaved={(created) => {
+          // Optimistically show a newly-created product at the top instantly;
+          // the editor also calls router.refresh() to reconcile with the DB.
+          if (created) setList((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+        }}
       />
     </section>
   );
