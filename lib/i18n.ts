@@ -439,6 +439,8 @@ export const dict = {
     en: "Each image is a distinct item — set its price or leave empty to inherit",
   },
   "dash.itemPrice": { ar: "السعر", en: "Price" },
+  "dash.bulkPrice": { ar: "سعر موحّد لكل الصور", en: "One price for all images" },
+  "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
   "dash.tiers": { ar: "سلّم أسعار الكمية", en: "Quantity price ladder" },
   "dash.tierMinQty": { ar: "من كمية", en: "From qty" },
   "dash.tierPrice": { ar: "سعر القطعة", en: "Unit price" },

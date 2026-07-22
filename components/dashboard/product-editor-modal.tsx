@@ -24,7 +24,13 @@ import { toWebp } from "@/lib/webp";
 import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
-const MAX_IMAGES = 30;
+
+/** Per-category image caps — sticker packs carry many designs, posters fewer. */
+function imageCapFor(categoryCodes: string[]): number {
+  if (categoryCodes.includes("stickers")) return 120;
+  if (categoryCodes.includes("posters")) return 50;
+  return 100;
+}
 
 const KINDS: { id: ProductKind; key: DictKey }[] = [
   { id: "standard", key: "dash.kind.standard" },
@@ -104,6 +110,7 @@ export function ProductEditorModal({
   const [surcharge, setSurcharge] = useState("0");
   const [allowCustom, setAllowCustom] = useState(false);
   const [rows, setRows] = useState<ImageRow[]>([]);
+  const [bulkPrice, setBulkPrice] = useState("");
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [catNameAr, setCatNameAr] = useState("");
@@ -153,6 +160,7 @@ export function ProductEditorModal({
         ? product.tiers.map((tr) => ({ minQty: String(tr.minQty), unitPrice: String(tr.unitPrice) }))
         : DEFAULT_TIERS,
     );
+    setBulkPrice("");
     setExtraCats([]);
     setExtraFandoms([]);
     setCatFormOpen(false);
@@ -190,11 +198,12 @@ export function ProductEditorModal({
   const customEligible = selectedCats.includes("posters");
   const isPackage = kind === "package";
   const isTiered = kind === "tiered";
+  const maxImages = imageCapFor(selectedCats);
 
   function pickImages(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
     if (picked.length === 0) return;
-    const room = Math.max(0, MAX_IMAGES - rows.length);
+    const room = Math.max(0, maxImages - rows.length);
     const accepted = picked.slice(0, room);
     setRows((prev) => [
       ...prev,
@@ -213,6 +222,13 @@ export function ProductEditorModal({
 
   function setRowPrice(i: number, value: string) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, price: value } : r)));
+  }
+
+  /** Bulk-apply one price to every image/item slot at once. */
+  function applyBulkPrice() {
+    const v = bulkPrice.trim();
+    if (v === "") return;
+    setRows((prev) => prev.map((r) => ({ ...r, price: v })));
   }
 
   function toggleCat(code: string) {
@@ -428,7 +444,7 @@ export function ProductEditorModal({
             <span className="mb-1.5 block text-xs font-bold text-ink-2">
               {t("dash.image")}
               <span className="ms-2 font-semibold text-ink-3">
-                {rows.length}/{MAX_IMAGES}
+                {rows.length}/{maxImages}
               </span>
             </span>
             {isPackage && <p className="mb-2 text-[11px] text-ink-3">{t("dash.packageHint")}</p>}
@@ -479,7 +495,7 @@ export function ProductEditorModal({
                   )}
                 </div>
               ))}
-              {rows.length < MAX_IMAGES && (
+              {rows.length < maxImages && (
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
@@ -490,6 +506,28 @@ export function ProductEditorModal({
                 </button>
               )}
             </div>
+            {/* Bulk price: type once, apply to every image/item at once */}
+            {isPackage && rows.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={bulkPrice}
+                  onChange={(e) => setBulkPrice(e.target.value)}
+                  placeholder={t("dash.bulkPrice")}
+                  aria-label={t("dash.bulkPrice")}
+                  className="dash-input h-9 flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={applyBulkPrice}
+                  disabled={bulkPrice.trim() === ""}
+                  className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {t("dash.applyToAll")}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Names */}

@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
 import { CustomOrderCard } from "@/components/store/custom-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
-import { Search, Sliders, X, ChevronEnd } from "@/components/icons";
+import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
+import { Search, Sliders, X, ChevronEnd, Plus } from "@/components/icons";
 import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
+import { fuzzyMatch } from "@/lib/search";
 import type { DictKey } from "@/lib/i18n";
 
 type CatSel = string;
@@ -23,7 +27,10 @@ const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
 
 export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSel }) {
   const { t, products } = useStore();
+  const { isAdmin, ready } = useAuth();
+  const router = useRouter();
 
+  const [addOpen, setAddOpen] = useState(false);
   const [category, setCategory] = useState<CatSel>(initialCategory);
   const [fandom, setFandom] = useState<FandomSel>("all");
   const [waterproof, setWaterproof] = useState(false);
@@ -45,7 +52,7 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
   }
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     let list = products.filter((p) => {
       if (category !== "all" && !p.categories.includes(category) && p.category !== category)
         return false;
@@ -53,8 +60,9 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
       if (waterproof && !p.waterproof) return false;
       if (lowestPrice(p) > maxPrice) return false;
       if (q) {
-        const haystack = `${p.nameAr} ${p.nameEn} ${p.subAr} ${p.subEn} ${p.tags.join(" ")}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
+        // Fuzzy, case-insensitive, AR/EN-aware match over names, subs & tags.
+        const haystack = `${p.nameAr} ${p.nameEn} ${p.subAr} ${p.subEn} ${p.tags.join(" ")}`;
+        if (!fuzzyMatch(q, haystack)) return false;
       }
       return true;
     });
@@ -148,6 +156,20 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
         </button>
       </div>
 
+      {/* Admin shortcut: add a product without leaving the store */}
+      {ready && isAdmin && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="tap inline-flex items-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+          >
+            <Plus size={17} />
+            {t("dash.newProduct")}
+          </button>
+        </div>
+      )}
+
       {/* Category chips */}
       <div className="mt-4">
         <CategoryChips active={category} onSelect={setCategory} />
@@ -233,6 +255,14 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
           </div>
         </aside>
       </div>
+
+      {ready && isAdmin && (
+        <ProductEditorModal
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          onSaved={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }
