@@ -68,7 +68,8 @@ export function StoreView({ initialCategory = "all" }: { initialCategory?: CatSe
         case "newest":
           return b.order - a.order;
         default:
-          return b.reviews - a.reviews;
+          // "Popular" = the admin's curated ordering (sort_order desc).
+          return b.order - a.order;
       }
     });
     return list;

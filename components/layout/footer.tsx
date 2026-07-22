@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
+import { PolicyModal } from "@/components/layout/policy-modal";
 import { Instagram, Whatsapp, MapPin, Phone, Truck } from "@/components/icons";
 import {
   WHATSAPP_URL,
@@ -18,14 +20,16 @@ const SHOP_LINKS: { href: string; key: DictKey }[] = [
   { href: "/favorites", key: "nav.favorites" },
 ];
 
+// All three open the single Policy modal (returns/exchange + shipping).
 const HELP_LINKS: DictKey[] = [
-  "footer.faq",
+  "footer.policies",
   "footer.returns",
   "footer.shipping",
 ];
 
 export function Footer() {
   const { t } = useStore();
+  const [policyOpen, setPolicyOpen] = useState(false);
   const year = 2026;
 
   return (
@@ -97,12 +101,13 @@ export function Footer() {
             <ul className="space-y-2.5">
               {HELP_LINKS.map((k) => (
                 <li key={k}>
-                  <a
-                    href="#"
+                  <button
+                    type="button"
+                    onClick={() => setPolicyOpen(true)}
                     className="tap text-[13px] font-medium text-ink-2 transition hover:text-brand"
                   >
                     {t(k)}
-                  </a>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -144,6 +149,8 @@ export function Footer() {
           </p>
         </div>
       </div>
+
+      <PolicyModal open={policyOpen} onClose={() => setPolicyOpen(false)} />
     </footer>
   );
 }

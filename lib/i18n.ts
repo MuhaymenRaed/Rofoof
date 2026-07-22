@@ -103,7 +103,6 @@ export const dict = {
     ar: "اكتب هنا أي نص أو تعليمات خاصة…",
     en: "Write any custom text or instructions…",
   },
-  "product.reviews": { ar: "تقييم", en: "reviews" },
   "product.quantity": { ar: "الكمية", en: "Quantity" },
   "product.related": { ar: "منتجات مشابهة", en: "You may also like" },
 
@@ -208,7 +207,7 @@ export const dict = {
     ar: "جميع الحقوق محفوظة Qcode",
     en: "All rights reserved Qcode",
   },
-  "footer.faq": { ar: "الأسئلة الشائعة", en: "FAQ" },
+  "footer.policies": { ar: "السياسات", en: "Policies" },
   "footer.returns": { ar: "الإرجاع والاستبدال", en: "Returns" },
   "footer.shipping": { ar: "الشحن والتوصيل", en: "Shipping" },
 

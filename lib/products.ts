@@ -102,8 +102,6 @@ export interface Product {
   stock?: number;
   /** 0–90; > 0 shows the sale UI and is charged server-side at checkout */
   discountPercent: number;
-  rating: number;
-  reviews: number;
   /** for "newest" sorting & the "Just landed" rail (higher = newer) */
   order: number;
   descAr: string;

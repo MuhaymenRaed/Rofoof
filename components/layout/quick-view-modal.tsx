@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { X, Heart, Cart, Check, Truck, Droplet, Plus, Minus, Zap, Gift } from "@/components/icons";
-import { Stars } from "@/components/ui/stars";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
@@ -250,10 +249,6 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
         <h2 className="text-xl font-black leading-tight text-ink">{name}</h2>
         <p className="mt-0.5 text-sm text-ink-3">{sub}</p>
-
-        <div className="mt-3">
-          <Stars rating={product.rating} reviews={product.reviews} />
-        </div>
 
         {/* Live offer notes */}
         {(flash || bundle) && (

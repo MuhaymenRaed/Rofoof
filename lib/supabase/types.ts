@@ -104,8 +104,6 @@ export interface Database {
           kind: ProductKindDb;
           waterproof_surcharge: number;
           allow_custom_image: boolean;
-          rating: number;
-          reviews_count: number;
           sort_order: number;
         } & Timestamps;
         Insert: {
@@ -350,20 +348,6 @@ export interface Database {
           promo_code?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["settings"]["Insert"]>;
-        Relationships: [];
-      };
-      reviews: {
-        Row: {
-          id: string;
-          product_id: string;
-          user_id: string;
-          rating: number;
-          title: string | null;
-          body: string | null;
-          created_at: string;
-        };
-        Insert: { product_id: string; user_id: string; rating: number; title?: string | null; body?: string | null };
-        Update: Partial<Database["public"]["Tables"]["reviews"]["Insert"]>;
         Relationships: [];
       };
     };

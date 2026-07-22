@@ -6,7 +6,7 @@ import { useStore } from "@/components/providers/store-provider";
 import { ProductMedia } from "@/components/ui/product-media";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { Pencil } from "@/components/dashboard/dash-icons";
-import { Plus, Star } from "@/components/icons";
+import { Plus } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { effectivePrice, type Product } from "@/lib/products";
 import { usePaginatedList } from "@/lib/hooks/use-paginated-list";
@@ -79,9 +79,6 @@ export function InventoryView({
                       {categoryLabel(code)}
                     </span>
                   ))}
-                  <span className="flex items-center gap-0.5 text-[11px] font-bold text-amber-500">
-                    <Star size={12} filled /> {p.rating.toFixed(1)}
-                  </span>
                   {p.discountPercent > 0 && (
                     <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold text-brand">
                       -{p.discountPercent}%
