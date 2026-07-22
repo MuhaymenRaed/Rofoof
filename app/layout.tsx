@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
+import { LangScript } from "@/components/layout/lang-script";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { StoreProvider } from "@/components/providers/store-provider";
@@ -107,11 +107,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html lang="ar" dir="rtl" className={`${cairo.variable} h-full`} suppressHydrationWarning>
+      <head>
+        {/* Runs during <head> parsing — before the body paints — so English
+            visitors never flash RTL. Memoized so it never re-renders client-side. */}
+        <LangScript />
+      </head>
       <body className="min-h-full antialiased">
-        {/* Loaded from /public and executed before hydration. Deliberately an
-            external file: an inline <script> rendered by a component is never
-            executed on a client render (React logs an error for it). */}
-        <Script src="/lang-init.js" strategy="beforeInteractive" />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <StoreProvider
