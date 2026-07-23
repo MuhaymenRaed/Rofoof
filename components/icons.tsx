@@ -161,6 +161,14 @@ export const Hexagon = (p: IconProps) => (
   </Base>
 );
 
+export const Info = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5" />
+    <path d="M12 8h.01" />
+  </Base>
+);
+
 export const Download = (p: IconProps) => (
   <Base {...p}>
     <path d="M12 3v12" />

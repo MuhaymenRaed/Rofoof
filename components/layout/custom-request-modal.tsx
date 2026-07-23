@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Cart, Droplet, Sparkles, CUSTOM_TYPE_ICON } from "@/components/icons";
+import { X, Plus, Cart, Droplet, Sparkles, Info, CUSTOM_TYPE_ICON } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -225,6 +225,25 @@ function RequestForm({ onClose }: { onClose: () => void }) {
             </span>
           </p>
           <p className="mt-0.5 text-[11px] text-ink-3">{t("custom.imagesHint")}</p>
+
+          {/* Stickers/brooches are cut per design, so a sheet with several
+              designs in one image can't be produced — say so before uploading. */}
+          {(type === "sticker" || type === "brooch") && (
+            <p
+              className="mt-2 flex items-start gap-2 rounded-xl border p-2.5 text-[11px] font-semibold leading-relaxed"
+              style={{
+                borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 35%, transparent)`,
+                background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 8%, var(--surface))`,
+                color: CUSTOM_ORDER_COLOR,
+              }}
+            >
+              <Info size={14} className="mt-0.5 shrink-0" />
+              <span>
+                {type === "sticker" ? t("custom.oneStickerPerImage") : t("custom.oneBroochPerImage")}
+              </span>
+            </p>
+          )}
+
           <input
             ref={fileRef}
             type="file"

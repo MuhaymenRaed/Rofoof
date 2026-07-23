@@ -653,6 +653,14 @@ export const dict = {
     ar: "حتى 100 صورة، 20MB لكل صورة — كل صورة = قطعة",
     en: "Up to 100 images, 20MB each — every image = one piece",
   },
+  "custom.oneStickerPerImage": {
+    ar: "كل صورة = ستكر واحد فقط. لا تضع أكثر من ستكر داخل نفس الصورة — ارفع كل تصميم بصورة منفصلة.",
+    en: "Each image is one sticker only. Don't put several stickers in the same image — upload each design as its own image.",
+  },
+  "custom.oneBroochPerImage": {
+    ar: "كل صورة = بروش واحد فقط. لا تضع أكثر من بروش داخل نفس الصورة — ارفع كل تصميم بصورة منفصلة.",
+    en: "Each image is one brooch only. Don't put several brooches in the same image — upload each design as its own image.",
+  },
   "custom.addImages": { ar: "أضف صورك", en: "Add your images" },
   "custom.tooBig": {
     ar: "صورة أكبر من 20MB تم تجاهلها",
