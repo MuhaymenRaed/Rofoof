@@ -233,3 +233,22 @@
 @utility tap {
   -webkit-tap-highlight-color: transparent;
 }
+
+/**
+ * Controls that fade in on hover (wishlist, admin edit…). Touch devices have
+ * no hover state, so they'd otherwise be permanently invisible — keep them
+ * always visible there and only hide-until-hover on real pointer devices.
+ */
+.reveal-on-hover {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reveal-on-hover {
+    opacity: 0;
+  }
+  .group:hover .reveal-on-hover,
+  .reveal-on-hover:focus-visible {
+    opacity: 1;
+  }
+}

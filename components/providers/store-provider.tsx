@@ -150,6 +150,9 @@ export function StoreProvider({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customRequests, setCustomRequests] = useState<CustomCartRequest[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
+  // Latest wishlist without making every consumer re-subscribe — lets the DB
+  // sync read current state without living inside a state updater.
+  const wishlistRef = useRef<string[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
@@ -202,6 +205,7 @@ export function StoreProvider({
     } catch {}
   }, [customRequests]);
   useEffect(() => {
+    wishlistRef.current = wishlist;
     try {
       localStorage.setItem(LS.wish, JSON.stringify(wishlist));
     } catch {}
@@ -243,22 +247,40 @@ export function StoreProvider({
 
     let active = true;
     (async () => {
-      const { data } = await supabase.from("favorites").select("product_id");
+      // favorites uses soft delete — un-hearted rows stay behind as is_deleted.
+      const { data, error } = await supabase
+        .from("favorites")
+        .select("product_id")
+        .eq("user_id", userId)
+        .eq("is_deleted", false);
+      if (error) {
+        // Never silent: a rejected read/write here is exactly why favorites
+        // could look saved until the next reload.
+        console.error("[favorites] load failed:", error.message);
+        return;
+      }
       if (!active || !data) return;
+
       const remote = data.map((r) => r.product_id);
-      setWishlist((local) => {
-        // Only trust locally-stored picks if this is a fresh guest→user
-        // login; a user→user transition means `local` belongs to someone else.
-        const guestPicks = previousUserId ? [] : local;
-        const union = Array.from(new Set([...guestPicks, ...remote]));
-        const missing = guestPicks.filter((id) => !remote.includes(id));
-        if (missing.length > 0) {
-          void supabase
-            .from("favorites")
-            .upsert(missing.map((id) => ({ user_id: userId, product_id: id })));
-        }
-        return union;
-      });
+      // Only trust locally-stored picks on a fresh guest→user login; a
+      // user→user transition means they belong to someone else.
+      const guestPicks = previousUserId ? [] : wishlistRef.current;
+      const missing = guestPicks.filter((id) => !remote.includes(id));
+      setWishlist(Array.from(new Set([...guestPicks, ...remote])));
+
+      if (missing.length > 0) {
+        const { error: upErr } = await supabase
+          .from("favorites")
+          .upsert(
+            missing.map((id) => ({
+              user_id: userId,
+              product_id: id,
+              is_deleted: false,
+              deleted_at: null,
+            })),
+          );
+        if (upErr) console.error("[favorites] merging guest picks failed:", upErr.message);
+      }
     })();
     return () => {
       active = false;
@@ -336,16 +358,27 @@ export function StoreProvider({
     (id: string) => {
       setWishlist((prev) => {
         const has = prev.includes(id);
-        // mirror to the DB for signed-in users (best effort)
-        if (userId) {
-          if (has) {
-            void supabase.from("favorites").delete().eq("user_id", userId).eq("product_id", id);
-          } else {
-            void supabase.from("favorites").upsert({ user_id: userId, product_id: id });
-          }
-        }
         return has ? prev.filter((w) => w !== id) : [...prev, id];
       });
+
+      // Mirror to the DB outside the state updater (updaters must stay pure —
+      // React can invoke them twice), and surface failures instead of hiding them.
+      if (!userId) return;
+      const wasWished = wishlistRef.current.includes(id);
+      void (async () => {
+        // Soft delete on remove, and un-delete on re-add (the row may already
+        // exist from a previous un-heart).
+        const { error } = wasWished
+          ? await supabase
+              .from("favorites")
+              .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+              .eq("user_id", userId)
+              .eq("product_id", id)
+          : await supabase
+              .from("favorites")
+              .upsert({ user_id: userId, product_id: id, is_deleted: false, deleted_at: null });
+        if (error) console.error("[favorites] sync failed:", error.message);
+      })();
     },
     [userId, supabase],
   );

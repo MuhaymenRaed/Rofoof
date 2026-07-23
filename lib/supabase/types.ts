@@ -390,9 +390,25 @@ export interface Database {
         Relationships: [];
       };
       favorites: {
-        Row: { user_id: string; product_id: string; created_at: string };
-        Insert: { user_id: string; product_id: string };
-        Update: Partial<{ user_id: string; product_id: string }>;
+        Row: {
+          user_id: string;
+          product_id: string;
+          created_at: string;
+          is_deleted: boolean;
+          deleted_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          product_id: string;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
+        };
+        Update: Partial<{
+          user_id: string;
+          product_id: string;
+          is_deleted: boolean;
+          deleted_at: string | null;
+        }>;
         Relationships: [];
       };
       settings: {

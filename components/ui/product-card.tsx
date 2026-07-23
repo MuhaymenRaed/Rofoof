@@ -96,7 +96,7 @@ export function ProductCard({
         className={`tap absolute top-2 start-2 grid h-8 w-8 place-items-center rounded-full border transition ${
           wished
             ? "border-brand bg-brand text-white"
-            : "border-line-2 bg-surface/90 text-ink-2 opacity-0 backdrop-blur group-hover:opacity-100 hover:border-brand hover:text-brand"
+            : "reveal-on-hover border-line-2 bg-surface/90 text-ink-2 backdrop-blur hover:border-brand hover:text-brand"
         }`}
       >
         <Heart size={15} filled={wished} />
@@ -108,7 +108,7 @@ export function ProductCard({
           type="button"
           onClick={() => setEditorOpen(true)}
           aria-label={t("dash.editProduct")}
-          className="tap absolute top-11 start-2 grid h-8 w-8 place-items-center rounded-full border border-line-2 bg-surface/90 text-ink-2 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:border-brand hover:text-brand"
+          className="reveal-on-hover tap absolute top-11 start-2 grid h-8 w-8 place-items-center rounded-full border border-line-2 bg-surface/90 text-ink-2 backdrop-blur transition hover:border-brand hover:text-brand"
         >
           <Pencil size={14} />
         </button>
