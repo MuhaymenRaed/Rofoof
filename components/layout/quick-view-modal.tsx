@@ -421,7 +421,8 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             <p className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2">
               {t("product.tierTable")}
             </p>
-            <div className="flex divide-x divide-line-2 rtl:divide-x-reverse">
+            {/* Scrolls instead of cramping when the admin adds many rungs */}
+            <div className="no-scrollbar flex divide-x divide-line-2 overflow-x-auto rtl:divide-x-reverse">
               {[...volumeTiers]
                 .sort((a, b) => a.minQty - b.minQty)
                 .map((tier) => {
@@ -429,7 +430,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                   return (
                     <div
                       key={tier.minQty}
-                      className={`flex-1 px-2 py-2 text-center transition ${active ? "bg-brand-soft" : ""}`}
+                      className={`min-w-16 flex-1 shrink-0 px-2 py-2 text-center transition ${active ? "bg-brand-soft" : ""}`}
                     >
                       <p className="text-[11px] font-bold text-ink-3">{tier.minQty}+</p>
                       <p className={`text-[12px] font-black ${active ? "text-brand" : "text-ink"}`}>

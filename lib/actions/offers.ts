@@ -285,6 +285,49 @@ export async function deleteCouponAction(code: string): Promise<{ ok: boolean; e
   return { ok: true };
 }
 
+/* --------------------------- Volume tiers ------------------------------- */
+
+const volumeTiersSchema = z.object({
+  tiers: z
+    .array(
+      z.object({
+        minQty: z.number().int().min(1).max(999),
+        unitPrice: z.number().int().min(0).max(10_000_000),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
+
+/**
+ * Replace the GLOBAL by-count ladder. It's shared by every volume-priced
+ * product (that's what makes the count carry across packages/categories), so
+ * editing it from any product modal edits the one ladder.
+ */
+export async function updateVolumeTiersAction(input: {
+  tiers: { minQty: number; unitPrice: number }[];
+}): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = volumeTiersSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  // One row per minQty, ascending — the pricing lookup assumes both.
+  const rows = Array.from(new Map(parsed.data.tiers.map((t) => [t.minQty, t])).values())
+    .sort((a, b) => a.minQty - b.minQty)
+    .map((t) => ({ min_qty: t.minQty, unit_price: t.unitPrice }));
+
+  const supabase = createAdminClient();
+  const { error: delErr } = await supabase.from("volume_tiers").delete().gte("min_qty", 0);
+  if (delErr) return { ok: false, error: delErr.message };
+  const { error } = await supabase.from("volume_tiers").insert(rows);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.settings, "max");
+  revalidatePath("/");
+  revalidatePath("/store");
+  return { ok: true };
+}
+
 /* ------------------- Delivery fees & landing-page stats ------------------ */
 
 const deliverySchema = z.object({

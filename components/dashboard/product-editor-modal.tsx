@@ -22,6 +22,7 @@ import {
   createSubcategoryAction,
   deleteSubcategoryAction,
 } from "@/lib/actions/products";
+import { updateVolumeTiersAction } from "@/lib/actions/offers";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp } from "@/lib/webp";
 import type { DictKey } from "@/lib/i18n";
@@ -98,6 +99,7 @@ export function ProductEditorModal({
     categories: storeCategories,
     subcategories: storeSubcategories,
     fandoms: storeFandoms,
+    volumeTiers: storeVolumeTiers,
   } = useStore();
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
@@ -114,6 +116,11 @@ export function ProductEditorModal({
   /** percent vs a flat IQD amount off — the admin picks one */
   const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
   const [volumePriced, setVolumePriced] = useState(false);
+  // The shared by-count ladder (global, not per product) — edited here so the
+  // admin can tune it right where they turn volume pricing on.
+  const [volTiers, setVolTiers] = useState<{ minQty: string; unitPrice: string }[]>([]);
+  const [volSaving, setVolSaving] = useState(false);
+  const [volSaved, setVolSaved] = useState(false);
   const [stock, setStock] = useState("25");
   const [descAr, setDescAr] = useState("");
   const [descEn, setDescEn] = useState("");
@@ -159,6 +166,15 @@ export function ProductEditorModal({
     setDiscountFixed(String(product?.discountFixed ?? 0));
     setDiscountMode((product?.discountFixed ?? 0) > 0 ? "fixed" : "percent");
     setVolumePriced(product?.volumePriced ?? false);
+    setVolTiers(
+      storeVolumeTiers.length > 0
+        ? storeVolumeTiers.map((tr) => ({
+            minQty: String(tr.minQty),
+            unitPrice: String(tr.unitPrice),
+          }))
+        : [{ minQty: "1", unitPrice: "" }],
+    );
+    setVolSaved(false);
     setStock(String(product?.stock ?? 25));
     setDescAr(product?.descAr ?? "");
     setDescEn(product?.descEn ?? "");
@@ -195,7 +211,7 @@ export function ProductEditorModal({
     setFanFormOpen(false);
     setConfirmingDelete(false);
     setError(null);
-  }, [open, product]);
+  }, [open, product, storeVolumeTiers]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -253,6 +269,31 @@ export function ProductEditorModal({
 
   function setRowPrice(i: number, value: string) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, price: value } : r)));
+  }
+
+  function setVolTier(i: number, field: "minQty" | "unitPrice", value: string) {
+    setVolTiers((prev) => prev.map((tr, idx) => (idx === i ? { ...tr, [field]: value } : tr)));
+  }
+
+  async function saveVolumeTiers() {
+    setVolSaving(true);
+    setError(null);
+    const res = await updateVolumeTiersAction({
+      tiers: volTiers
+        .map((tr) => ({
+          minQty: Math.max(1, Number(tr.minQty) || 1),
+          unitPrice: Math.max(0, Number(tr.unitPrice) || 0),
+        }))
+        .filter((tr, idx, arr) => arr.findIndex((x) => x.minQty === tr.minQty) === idx),
+    });
+    setVolSaving(false);
+    if (!res.ok) {
+      setError(res.error ?? t("checkout.error"));
+      return;
+    }
+    setVolSaved(true);
+    setTimeout(() => setVolSaved(false), 1500);
+    router.refresh();
   }
 
   /** Bulk-apply one price to every image/item slot at once. */
@@ -594,6 +635,83 @@ export function ProductEditorModal({
               className="h-4 w-4 shrink-0 accent-brand"
             />
           </label>
+
+          {/* The shared by-count ladder. Any number of rungs is fine — the
+              storefront renders however many exist. */}
+          {volumePriced && (
+            <div className="rounded-xl border border-line-2 bg-surface-2/40 p-3">
+              <p className="text-xs font-bold text-ink-2">{t("dash.volumeLadder")}</p>
+              <p className="mb-2 mt-0.5 text-[11px] leading-snug text-ink-3">
+                {t("dash.volumeLadderHint")}
+              </p>
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_2rem] gap-2 text-[10px] font-bold text-ink-3">
+                  <span>{t("dash.tierMinQty")}</span>
+                  <span>{t("dash.tierPrice")}</span>
+                  <span />
+                </div>
+                {volTiers.map((tr, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_2rem] items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={tr.minQty}
+                      onChange={(e) => setVolTier(i, "minQty", e.target.value)}
+                      aria-label={t("dash.tierMinQty")}
+                      className="dash-input h-9"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      value={tr.unitPrice}
+                      onChange={(e) => setVolTier(i, "unitPrice", e.target.value)}
+                      aria-label={t("dash.tierPrice")}
+                      className="dash-input h-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVolTiers((prev) => prev.filter((_, idx) => idx !== i))}
+                      disabled={volTiers.length <= 1}
+                      aria-label={t("offer.delete")}
+                      className="tap grid h-8 w-8 place-items-center rounded-lg text-ink-3 transition hover:bg-red-500/10 hover:text-red-500 disabled:opacity-30"
+                    >
+                      <Trash size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {volTiers.length < 12 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVolTiers((prev) => [
+                        ...prev,
+                        {
+                          minQty: String((Number(prev[prev.length - 1]?.minQty) || prev.length) + 1),
+                          unitPrice: "",
+                        },
+                      ])
+                    }
+                    className="tap inline-flex items-center gap-1 rounded-xl border border-dashed border-line px-3 py-1.5 text-xs font-bold text-ink-3 transition hover:border-brand hover:text-brand"
+                  >
+                    <Plus size={13} />
+                    {t("dash.addTier")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={saveVolumeTiers}
+                  disabled={volSaving}
+                  className="tap ms-auto inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {volSaved ? t("profile.saved") : volSaving ? "…" : t("dash.saveLadder")}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Images / package items */}
           <div>

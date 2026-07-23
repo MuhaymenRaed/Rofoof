@@ -539,6 +539,12 @@ export const dict = {
     en: "Applies to selected products — final amount is set at checkout",
   },
   "dash.volumePriced": { ar: "تسعير حسب العدد", en: "Price by count" },
+  "dash.volumeLadder": { ar: "سلّم الأعداد", en: "Count ladder" },
+  "dash.volumeLadderHint": {
+    ar: "سلّم مشترك بين كل المنتجات المسعّرة حسب العدد — أضف أو احذف الدرجات كما تشاء",
+    en: "Shared by every count-priced product — add or remove rungs freely",
+  },
+  "dash.saveLadder": { ar: "حفظ السلّم", en: "Save ladder" },
   "dash.volumePricedHint": {
     ar: "يُحسب سعر القطعة من سلّم الأعداد العام مع بقية المنتجات في نفس الطلب",
     en: "Unit price comes from the global count ladder, shared with other products in the same order",
