@@ -26,14 +26,44 @@ export interface Database {
         Relationships: [];
       };
       categories: {
-        Row: { code: string; name_ar: string; name_en: string; icon: string; sort_order: number };
-        Insert: { code: string; name_ar: string; name_en: string; icon?: string; sort_order?: number };
+        Row: {
+          code: string;
+          name_ar: string;
+          name_en: string;
+          icon: string;
+          sort_order: number;
+          is_deleted: boolean;
+          deleted_at: string | null;
+        };
+        Insert: {
+          code: string;
+          name_ar: string;
+          name_en: string;
+          icon?: string;
+          sort_order?: number;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: [];
       };
       fandoms: {
-        Row: { code: string; name_ar: string; name_en: string; sort_order: number };
-        Insert: { code: string; name_ar: string; name_en: string; sort_order?: number };
+        Row: {
+          code: string;
+          name_ar: string;
+          name_en: string;
+          sort_order: number;
+          is_deleted: boolean;
+          deleted_at: string | null;
+        };
+        Insert: {
+          code: string;
+          name_ar: string;
+          name_en: string;
+          sort_order?: number;
+          is_deleted?: boolean;
+          deleted_at?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["fandoms"]["Insert"]>;
         Relationships: [];
       };

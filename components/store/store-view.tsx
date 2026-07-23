@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/ui/product-card";
 import { CustomOrderCard } from "@/components/store/custom-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
+import { FilterManagerModal } from "@/components/store/filter-manager-modal";
 import { Search, Sliders, X, ChevronEnd, Plus } from "@/components/icons";
 import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
@@ -34,6 +35,7 @@ export function StoreView() {
   const catParam = searchParams.get("cat")?.trim() || "all";
 
   const [addOpen, setAddOpen] = useState(false);
+  const [filtersManagerOpen, setFiltersManagerOpen] = useState(false);
   const [category, setCategory] = useState<CatSel>(catParam);
 
   // Follow later URL changes (e.g. a category link elsewhere on the site).
@@ -196,6 +198,14 @@ export function StoreView() {
             <Plus size={17} />
             {t("dash.newProduct")}
           </button>
+          <button
+            type="button"
+            onClick={() => setFiltersManagerOpen(true)}
+            className="tap inline-flex items-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+          >
+            <Sliders size={17} />
+            {t("store.manageFilters")}
+          </button>
         </div>
       )}
 
@@ -325,11 +335,17 @@ export function StoreView() {
       </div>
 
       {ready && isAdmin && (
-        <ProductEditorModal
-          open={addOpen}
-          onClose={() => setAddOpen(false)}
-          onSaved={() => router.refresh()}
-        />
+        <>
+          <ProductEditorModal
+            open={addOpen}
+            onClose={() => setAddOpen(false)}
+            onSaved={() => router.refresh()}
+          />
+          <FilterManagerModal
+            open={filtersManagerOpen}
+            onClose={() => setFiltersManagerOpen(false)}
+          />
+        </>
       )}
     </div>
   );

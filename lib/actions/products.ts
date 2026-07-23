@@ -327,6 +327,28 @@ export async function deleteSubcategoryAction(
   return { ok: true };
 }
 
+/**
+ * Retire a category. Soft delete so historical orders keep resolving, and the
+ * product_categories links are left alone — a category with no products simply
+ * stops appearing in the chips.
+ */
+export async function deleteCategoryAction(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("categories")
+    .update({ is_deleted: true })
+    .eq("code", code);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.categories, "max");
+  revalidatePath("/");
+  revalidatePath("/store");
+  return { ok: true };
+}
+
 /* ------------------------------- Fandoms -------------------------------- */
 
 export type CreateFandomResult =
@@ -362,4 +384,21 @@ export async function createFandomAction(input: {
 
   const f = data as { code: string; name_ar: string; name_en: string };
   return { ok: true, fandom: { code: f.code, nameAr: f.name_ar, nameEn: f.name_en } };
+}
+
+/** Retire a fandom (soft delete — see deleteCategoryAction). */
+export async function deleteFandomAction(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("fandoms")
+    .update({ is_deleted: true })
+    .eq("code", code);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.fandoms, "max");
+  revalidatePath("/store");
+  return { ok: true };
 }

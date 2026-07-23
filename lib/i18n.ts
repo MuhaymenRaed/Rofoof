@@ -514,6 +514,11 @@ export const dict = {
   "dash.subcategoriesHint": { ar: "اختياري", en: "optional" },
   "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
+  "store.manageFilters": { ar: "إدارة الفلاتر", en: "Manage filters" },
+  "store.manageFiltersHint": {
+    ar: "الحذف لا يمسح المنتجات — التصنيف يختفي من الفلاتر فقط",
+    en: "Deleting never removes products — the entry just stops appearing in the filters",
+  },
   "cart.coupon": { ar: "كود الخصم", en: "Discount code" },
   "cart.couponApply": { ar: "تطبيق", en: "Apply" },
   "cart.couponRemove": { ar: "إزالة", en: "Remove" },
