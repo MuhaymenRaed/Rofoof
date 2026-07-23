@@ -12,7 +12,7 @@ export function Hero() {
   const STATS = [
     { num: siteSettings.statFollowers, key: "stat.followers" as const },
     { num: siteSettings.statProducts, key: "stat.products" as const },
-    { num: siteSettings.statRating, key: "stat.rating" as const },
+    { num: siteSettings.statRating, key: "stat.sales" as const },
   ];
 
   return (

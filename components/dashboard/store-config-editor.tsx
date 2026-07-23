@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { Truck, Check } from "@/components/icons";
-import { updateDeliveryFeesAction, updateLandingStatsAction } from "@/lib/actions/offers";
+import {
+  updateDeliveryFeesAction,
+  updateLandingStatsAction,
+} from "@/lib/actions/offers";
 import type { SiteSettings } from "@/lib/products";
 
 /**
@@ -16,8 +19,12 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const [feeDefault, setFeeDefault] = useState(String(initial.deliveryFeeDefault));
-  const [feeKarbala, setFeeKarbala] = useState(String(initial.deliveryFeeKarbala));
+  const [feeDefault, setFeeDefault] = useState(
+    String(initial.deliveryFeeDefault),
+  );
+  const [feeKarbala, setFeeKarbala] = useState(
+    String(initial.deliveryFeeKarbala),
+  );
   const [followers, setFollowers] = useState(initial.statFollowers);
   const [productsStat, setProductsStat] = useState(initial.statProducts);
   const [rating, setRating] = useState(initial.statRating);
@@ -67,7 +74,9 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
           <Truck size={16} className="text-brand" />
           {t("dash.deliveryFees")}
         </h2>
-        <p className="mt-1 text-[11px] text-ink-3">{t("dash.deliveryFeesHint")}</p>
+        <p className="mt-1 text-[11px] text-ink-3">
+          {t("dash.deliveryFeesHint")}
+        </p>
         <div className="mt-3 grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-ink-2">
@@ -107,8 +116,12 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
 
       {/* Landing stats */}
       <div className="rounded-2xl border border-line-2 bg-surface p-5 card-shadow">
-        <h2 className="text-sm font-extrabold text-ink">{t("dash.landingStats")}</h2>
-        <p className="mt-1 text-[11px] text-ink-3">{t("dash.landingStatsHint")}</p>
+        <h2 className="text-sm font-extrabold text-ink">
+          {t("dash.landingStats")}
+        </h2>
+        <p className="mt-1 text-[11px] text-ink-3">
+          {t("dash.landingStatsHint")}
+        </p>
         <div className="mt-3 grid grid-cols-3 gap-3">
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-ink-2">
@@ -121,7 +134,9 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("stat.products")}</span>
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">
+              {t("stat.products")}
+            </span>
             <input
               value={productsStat}
               onChange={(e) => setProductsStat(e.target.value)}
@@ -129,7 +144,9 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("stat.rating")}</span>
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">
+              {t("stat.sales")}
+            </span>
             <input
               value={rating}
               onChange={(e) => setRating(e.target.value)}

@@ -110,14 +110,13 @@ export function CartDrawer() {
   }, [step, user]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // An order needs a name, phone, province, full address AND a note — all
-  // strictly required before checkout is allowed.
+  // An order needs a name, phone, province and a full address. The note is
+  // the only optional field.
   const canCheckout =
     name.trim() !== "" &&
     phone.trim() !== "" &&
     province !== "" &&
-    address.trim() !== "" &&
-    note.trim() !== "";
+    address.trim() !== "";
 
   // Display-only preview; place_order() recomputes everything at checkout and
   // likewise applies only the BEST single money discount (offer vs coupon).
@@ -182,7 +181,7 @@ export function CartDrawer() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !province || !address.trim() || !note.trim()) return;
+    if (!name.trim() || !phone.trim() || !province || !address.trim()) return;
     setPending(true);
     setError(false);
 
@@ -200,7 +199,7 @@ export function CartDrawer() {
     if (cart.length > 0) {
       const res = await placeOrderAction({
         ...contact,
-        notes: note.trim(),
+        notes: note.trim() || null,
         couponCode: coupon?.valid ? coupon.code ?? null : null,
         items: cart.map((l) => ({
           productId: l.id,
@@ -396,7 +395,6 @@ export function CartDrawer() {
                 <input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  required
                   className="dash-input"
                 />
               </Field>

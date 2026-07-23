@@ -43,7 +43,7 @@ export const dict = {
   "hero.track": { ar: "تتبّع طلبك", en: "Track order" },
   "stat.followers": { ar: "متابع", en: "Followers" },
   "stat.products": { ar: "منتج", en: "Products" },
-  "stat.rating": { ar: "تقييم", en: "Rating" },
+  "stat.sales": { ar: "المبيعات", en: "Sales" },
 
   // Sections
   "section.bestsellers": { ar: "الأكثر طلباً", en: "Best sellers" },
@@ -169,7 +169,10 @@ export const dict = {
   "orders.cancelYes": { ar: "نعم، ألغِ الطلب", en: "Yes, cancel it" },
   "orders.cancelNo": { ar: "تراجع", en: "Keep order" },
   "orders.cancelling": { ar: "جارٍ الإلغاء…", en: "Cancelling…" },
-  "orders.cancelError": { ar: "تعذّر إلغاء الطلب، حاول مرة أخرى", en: "Couldn't cancel the order, try again" },
+  "orders.cancelError": {
+    ar: "تعذّر إلغاء الطلب، حاول مرة أخرى",
+    en: "Couldn't cancel the order, try again",
+  },
 
   // Favorites page
   "fav.title": { ar: "المفضلة", en: "Favorites" },
@@ -443,7 +446,10 @@ export const dict = {
     en: "Each image is a distinct item — set its price or leave empty to inherit",
   },
   "dash.itemPrice": { ar: "السعر", en: "Price" },
-  "dash.bulkPrice": { ar: "سعر موحّد لكل الصور", en: "One price for all images" },
+  "dash.bulkPrice": {
+    ar: "سعر موحّد لكل الصور",
+    en: "One price for all images",
+  },
   "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
   "dash.fixedAmount": { ar: "مبلغ", en: "Amount" },
   "currency.iqd": { ar: "د.ع", en: "IQD" },
@@ -456,9 +462,15 @@ export const dict = {
     en: "Too many failed attempts — this account is temporarily locked",
   },
   "auth.minutes": { ar: "دقيقة", en: "minutes" },
-  "auth.badEmail": { ar: "صيغة الإيميل غير صحيحة", en: "That email doesn't look valid" },
+  "auth.badEmail": {
+    ar: "صيغة الإيميل غير صحيحة",
+    en: "That email doesn't look valid",
+  },
   "auth.badName": { ar: "الاسم قصير جداً", en: "Please enter your full name" },
-  "auth.badPhone": { ar: "صيغة رقم الهاتف غير صحيحة", en: "That phone number doesn't look valid" },
+  "auth.badPhone": {
+    ar: "صيغة رقم الهاتف غير صحيحة",
+    en: "That phone number doesn't look valid",
+  },
   "dash.deliveryFees": { ar: "أجور التوصيل", en: "Delivery fees" },
   "dash.deliveryFeesHint": {
     ar: "تُحتسب تلقائياً على كل طلب حسب المحافظة",
@@ -466,7 +478,10 @@ export const dict = {
   },
   "dash.feeKarbala": { ar: "كربلاء", en: "Karbala" },
   "dash.feeOther": { ar: "باقي المحافظات", en: "Other provinces" },
-  "dash.landingStats": { ar: "أرقام الصفحة الرئيسية", en: "Landing page stats" },
+  "dash.landingStats": {
+    ar: "أرقام الصفحة الرئيسية",
+    en: "Landing page stats",
+  },
   "dash.landingStatsHint": {
     ar: "تظهر في أعلى الصفحة الرئيسية",
     en: "Shown at the top of the home page",
@@ -503,10 +518,22 @@ export const dict = {
   "cart.couponApply": { ar: "تطبيق", en: "Apply" },
   "cart.couponRemove": { ar: "إزالة", en: "Remove" },
   "cart.couponInvalid": { ar: "الكود غير صالح", en: "Invalid code" },
-  "cart.couponExpired": { ar: "انتهت صلاحية الكود", en: "This code has expired" },
-  "cart.couponMin": { ar: "لم تصل للحد الأدنى للطلب", en: "Order total is below the minimum" },
-  "cart.couponUsed": { ar: "تم استهلاك هذا الكود", en: "This code has been used up" },
-  "cart.couponLogin": { ar: "سجّل الدخول لاستخدام هذا الكود", en: "Sign in to use this code" },
+  "cart.couponExpired": {
+    ar: "انتهت صلاحية الكود",
+    en: "This code has expired",
+  },
+  "cart.couponMin": {
+    ar: "لم تصل للحد الأدنى للطلب",
+    en: "Order total is below the minimum",
+  },
+  "cart.couponUsed": {
+    ar: "تم استهلاك هذا الكود",
+    en: "This code has been used up",
+  },
+  "cart.couponLogin": {
+    ar: "سجّل الدخول لاستخدام هذا الكود",
+    en: "Sign in to use this code",
+  },
   "cart.couponScoped": {
     ar: "يطبَّق على منتجات محددة — يُحتسب النهائي عند الإتمام",
     en: "Applies to selected products — final amount is set at checkout",
@@ -577,7 +604,10 @@ export const dict = {
   "dash.customerInfo": { ar: "بيانات الزبون", en: "Customer info" },
   "dash.downloadAll": { ar: "تحميل كل الصور", en: "Download all images" },
   "dash.downloading": { ar: "جارِ التحميل…", en: "Downloading…" },
-  "dash.downloadError": { ar: "تعذّر تحميل الصور", en: "Couldn't download the images" },
+  "dash.downloadError": {
+    ar: "تعذّر تحميل الصور",
+    en: "Couldn't download the images",
+  },
   "dash.setStatus": { ar: "حالة الطلب", en: "Order status" },
   "dash.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
@@ -702,12 +732,14 @@ export const dict = {
   "checkout.phone": { ar: "رقم الهاتف", en: "Phone number" },
   "checkout.province": { ar: "المحافظة", en: "Province" },
   "checkout.selectProvince": { ar: "اختر المحافظة", en: "Select a province" },
-  "checkout.address": { ar: "العنوان (اختياري)", en: "Address (optional)" },
+  "aria.prev": { ar: "السابق", en: "Previous" },
+  "aria.next": { ar: "التالي", en: "Next" },
+  "checkout.address": { ar: "العنوان", en: "Address" },
   "checkout.note": { ar: "ملاحظة (اختياري)", en: "Note (optional)" },
   "checkout.confirm": { ar: "تأكيد الطلب", en: "Place order" },
   "checkout.required": {
-    ar: "الاسم ورقم الهاتف والمحافظة مطلوبة لإتمام الطلب",
-    en: "Name, phone and province are required to place an order",
+    ar: "الاسم ورقم الهاتف والمحافظة والعنوان مطلوبة لإتمام الطلب",
+    en: "Name, phone, province and address are required to place an order",
   },
   "checkout.placing": { ar: "جارٍ الإرسال…", en: "Placing…" },
   "checkout.back": { ar: "رجوع للسلة", en: "Back to cart" },

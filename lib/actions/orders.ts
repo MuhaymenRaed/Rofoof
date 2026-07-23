@@ -17,10 +17,10 @@ import type { OrderStatusDb } from "@/lib/supabase/types";
 const placeOrderSchema = z.object({
   customerName: z.string().trim().min(2).max(80),
   customerPhone: z.string().trim().min(6).max(20),
-  // Province, full address and a note are strictly required at checkout.
+  // Province and a full address are required at checkout; the note is not.
   provinceCode: z.string().trim().min(1),
   addressLine: z.string().trim().min(3).max(200),
-  notes: z.string().trim().min(1).max(500),
+  notes: z.string().trim().max(500).nullable().optional(),
   couponCode: z.string().trim().max(40).nullable().optional(),
   items: z
     .array(

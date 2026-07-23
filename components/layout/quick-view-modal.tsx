@@ -3,7 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Heart, Cart, Check, Truck, Droplet, Plus, Minus, Zap, Gift } from "@/components/icons";
+import {
+  X,
+  Heart,
+  Cart,
+  Check,
+  Truck,
+  Droplet,
+  Plus,
+  Minus,
+  Zap,
+  Gift,
+  ChevronEnd,
+} from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Lightbox } from "@/components/ui/lightbox";
 import { Countdown } from "@/components/ui/countdown";
@@ -184,6 +196,12 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     ? product.items.map((it) => it.imageUrl).filter(Boolean)
     : product.images;
 
+  /** Move through the gallery with wrap-around (arrow controls). */
+  function stepGallery(delta: number) {
+    const n = product.images.length;
+    if (n > 1) setGalleryIndex((i) => (i + delta + n) % n);
+  }
+
   function openViewer(src: string | undefined) {
     if (!src) return;
     const i = viewerImages.indexOf(src);
@@ -228,21 +246,15 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           <span className="text-[120px] drop-shadow-sm">{product.emoji}</span>
         )}
         {galleryThumbs && (
-          <div className="no-scrollbar absolute inset-x-0 bottom-0 z-10 flex gap-2 overflow-x-auto bg-linear-to-t from-black/45 to-transparent p-3">
-            {product.images.map((src, i) => (
-              <button
-                key={src}
-                type="button"
-                onClick={() => setGalleryIndex(i)}
-                aria-label={name}
-                className={`tap h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${
-                  galleryIndex === i ? "border-white" : "border-white/40 hover:border-white/70"
-                }`}
-              >
-                <Image src={src} alt="" width={48} height={48} className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
+          <>
+            <GalleryArrow side="start" onClick={() => stepGallery(-1)} label={t("aria.prev")} />
+            <GalleryArrow side="end" onClick={() => stepGallery(1)} label={t("aria.next")} />
+            <GalleryDots
+              count={product.images.length}
+              index={galleryIndex}
+              onIndex={setGalleryIndex}
+            />
+          </>
         )}
         {product.soldOut && (
           <span className="absolute bottom-5 z-20 rounded-full bg-ink px-4 py-2 text-xs font-bold text-surface">
@@ -256,29 +268,27 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         {/* mobile media */}
         {mainImage ? (
           <div className="mb-4 md:hidden">
-            <div
-              onClick={() => openViewer(mainImage)}
-              className="relative h-44 cursor-zoom-in overflow-hidden rounded-2xl"
-            >
-              <Image src={mainImage} alt={name} fill sizes="100vw" className="object-cover" />
+            <div className="relative h-44 overflow-hidden rounded-2xl">
+              <button
+                type="button"
+                onClick={() => openViewer(mainImage)}
+                aria-label={name}
+                className="tap absolute inset-0 cursor-zoom-in"
+              >
+                <Image src={mainImage} alt={name} fill sizes="100vw" className="object-cover" />
+              </button>
+              {galleryThumbs && (
+                <>
+                  <GalleryArrow side="start" onClick={() => stepGallery(-1)} label={t("aria.prev")} />
+                  <GalleryArrow side="end" onClick={() => stepGallery(1)} label={t("aria.next")} />
+                  <GalleryDots
+                    count={product.images.length}
+                    index={galleryIndex}
+                    onIndex={setGalleryIndex}
+                  />
+                </>
+              )}
             </div>
-            {galleryThumbs && (
-              <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
-                {product.images.map((src, i) => (
-                  <button
-                    key={src}
-                    type="button"
-                    onClick={() => setGalleryIndex(i)}
-                    aria-label={name}
-                    className={`tap h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition ${
-                      galleryIndex === i ? "border-brand" : "border-line"
-                    }`}
-                  >
-                    <Image src={src} alt="" width={48} height={48} className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         ) : (
           <div
@@ -593,6 +603,63 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           alt={name}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Gallery arrow. Always visible (never hover-only) and sized for a thumb —
+ * paging with arrows beats a thumbnail strip on a phone.
+ */
+function GalleryArrow({
+  side,
+  onClick,
+  label,
+}: {
+  side: "start" | "end";
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`tap absolute top-1/2 z-20 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/70 ${
+        side === "start" ? "start-2" : "end-2"
+      }`}
+    >
+      <span className={side === "start" ? "ltr:rotate-180" : "rtl:rotate-180"}>
+        <ChevronEnd size={18} />
+      </span>
+    </button>
+  );
+}
+
+/** Position indicator; tapping a dot jumps straight to that image. */
+function GalleryDots({
+  count,
+  index,
+  onIndex,
+}: {
+  count: number;
+  index: number;
+  onIndex: (i: number) => void;
+}) {
+  return (
+    <div className="absolute inset-x-0 bottom-2 z-20 flex justify-center gap-1.5">
+      {Array.from({ length: count }).map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onIndex(i)}
+          aria-label={`${i + 1}`}
+          aria-current={i === index}
+          className={`tap h-1.5 rounded-full transition-all ${
+            i === index ? "w-4 bg-white" : "w-1.5 bg-white/55 hover:bg-white/80"
+          }`}
+        />
+      ))}
     </div>
   );
 }
