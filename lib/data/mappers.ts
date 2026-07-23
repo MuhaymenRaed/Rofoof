@@ -149,6 +149,7 @@ export function mapOrder(row: OrderRowWithItems): Order {
     offerNote: row.offer_note ?? undefined,
     items: (row.order_items ?? []).map((i) => ({
       productId: i.product_id ?? "",
+      itemId: i.item_id ?? undefined,
       qty: i.qty,
       freeQty: i.free_qty ?? 0,
       unitPrice: i.unit_price,

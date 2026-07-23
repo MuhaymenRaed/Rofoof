@@ -446,6 +446,11 @@ export const dict = {
   "dash.bulkPrice": { ar: "سعر موحّد لكل الصور", en: "One price for all images" },
   "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
   "dash.fixedAmount": { ar: "مبلغ", en: "Amount" },
+  "currency.iqd": { ar: "د.ع", en: "IQD" },
+  "dash.discountHint": {
+    ar: "اختر نسبة مئوية أو مبلغ ثابت — يُطبَّق الأفضل للزبون",
+    en: "Pick a percentage or a flat amount — the better one for the customer wins",
+  },
   "auth.lockedOut": {
     ar: "محاولات كثيرة فاشلة — الحساب مقفل مؤقتاً",
     en: "Too many failed attempts — this account is temporarily locked",

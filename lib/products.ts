@@ -240,6 +240,8 @@ export type OrderStatus = "review" | "accepted" | "shipped" | "delivered";
 
 export interface OrderItem {
   productId: string;
+  /** the specific package design chosen, when the product is a package */
+  itemId?: string;
   qty: number;
   /** bundle freebies included in qty but not charged */
   freeQty: number;

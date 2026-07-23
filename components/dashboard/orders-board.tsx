@@ -301,16 +301,26 @@ function OrderDetailsModal({
   onClose: () => void;
   onSetStatus: (next: OrderStatus) => void;
 }) {
-  const { t, lang } = useStore();
+  const { t, lang, getProduct } = useStore();
   const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
   const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
 
-  // Every buyer-uploaded image tied to this order (custom artwork + per-item
-  // poster uploads) — bundled by the admin-only "Download all" button.
-  const imageUrls = [
-    ...order.customImages,
-    ...order.items.map((it) => it.customImageUrl).filter((u): u is string => !!u),
-  ];
+  /** The artwork to print for one line: buyer upload → chosen design → cover. */
+  function itemImage(it: Order["items"][number]): string | undefined {
+    if (it.customImageUrl) return it.customImageUrl;
+    const p = getProduct(it.productId);
+    if (!p) return undefined;
+    return (it.itemId ? p.items.find((x) => x.id === it.itemId)?.imageUrl : undefined) ?? p.image;
+  }
+
+  // Everything the admin needs to produce this order: custom artwork, buyer
+  // uploads, and the specific designs chosen from a package.
+  const imageUrls = Array.from(
+    new Set([
+      ...order.customImages,
+      ...order.items.map(itemImage).filter((u): u is string => !!u),
+    ]),
+  );
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
 
@@ -493,9 +503,16 @@ function OrderDetailsModal({
               return (
                 <li
                   key={i}
-                  className="flex items-center gap-2 rounded-xl border border-line-2 px-3 py-2.5 text-[13px]"
+                  className="flex items-center gap-2.5 rounded-xl border border-line-2 px-3 py-2.5 text-[13px]"
                 >
-                  <Package size={13} className="shrink-0 text-ink-3" />
+                  {/* The design to print, so the admin sees it without opening links */}
+                  {itemImage(it) ? (
+                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line-2">
+                      <Image src={itemImage(it)!} alt="" fill sizes="40px" className="object-cover" />
+                    </span>
+                  ) : (
+                    <Package size={13} className="shrink-0 text-ink-3" />
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold text-ink">
                       {itemName}

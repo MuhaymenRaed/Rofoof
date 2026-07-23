@@ -700,7 +700,7 @@ export function ProductEditorModal({
           </Field>
 
           {/* Price / discount / stock */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Field label={t("dash.fieldPrice")}>
               <input
                 type="number"
@@ -711,44 +711,6 @@ export function ProductEditorModal({
                 required
               />
             </Field>
-            <Field label={t("dash.fieldDiscount")}>
-              {/* percent OR a flat IQD amount off */}
-              <div className="mb-1 flex gap-1">
-                {(["percent", "fixed"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setDiscountMode(m)}
-                    aria-pressed={discountMode === m}
-                    className={`tap flex-1 rounded-lg border py-1 text-[10px] font-bold transition ${
-                      discountMode === m
-                        ? "border-brand bg-brand text-white"
-                        : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
-                    }`}
-                  >
-                    {m === "percent" ? "%" : t("dash.fixedAmount")}
-                  </button>
-                ))}
-              </div>
-              {discountMode === "percent" ? (
-                <input
-                  type="number"
-                  min={0}
-                  max={90}
-                  value={discount}
-                  onChange={(e) => setDiscount(e.target.value)}
-                  className="dash-input"
-                />
-              ) : (
-                <input
-                  type="number"
-                  min={0}
-                  value={discountFixed}
-                  onChange={(e) => setDiscountFixed(e.target.value)}
-                  className="dash-input"
-                />
-              )}
-            </Field>
             <Field label={t("dash.fieldStock")}>
               <input
                 type="number"
@@ -758,6 +720,52 @@ export function ProductEditorModal({
                 className="dash-input"
               />
             </Field>
+          </div>
+
+          {/* Discount — a segmented control picks the unit, so the value field
+              gets a full row instead of being squeezed into a 3-up grid. */}
+          <div>
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">
+              {t("dash.fieldDiscount")}
+            </span>
+            <div className="flex items-stretch gap-2">
+              <div className="flex shrink-0 rounded-xl border border-line bg-surface-2 p-1">
+                {(["percent", "fixed"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDiscountMode(m)}
+                    aria-pressed={discountMode === m}
+                    className={`tap rounded-lg px-3.5 py-1.5 text-[11px] font-bold transition ${
+                      discountMode === m
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-ink-2 hover:text-brand"
+                    }`}
+                  >
+                    {m === "percent" ? "%" : t("dash.fixedAmount")}
+                  </button>
+                ))}
+              </div>
+              <div className="relative flex-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={discountMode === "percent" ? 90 : undefined}
+                  value={discountMode === "percent" ? discount : discountFixed}
+                  onChange={(e) =>
+                    discountMode === "percent"
+                      ? setDiscount(e.target.value)
+                      : setDiscountFixed(e.target.value)
+                  }
+                  aria-label={t("dash.fieldDiscount")}
+                  className="dash-input pe-12"
+                />
+                <span className="pointer-events-none absolute inset-y-0 end-3.5 grid place-items-center text-[11px] font-bold text-ink-3">
+                  {discountMode === "percent" ? "%" : t("currency.iqd")}
+                </span>
+              </div>
+            </div>
+            <p className="mt-1.5 text-[11px] text-ink-3">{t("dash.discountHint")}</p>
           </div>
 
           {/* Tiered: volume price ladder */}
