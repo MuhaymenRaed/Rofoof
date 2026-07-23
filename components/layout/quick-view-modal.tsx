@@ -9,7 +9,14 @@ import { Lightbox } from "@/components/ui/lightbox";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
 import { tierUnitPrice, type Product } from "@/lib/products";
-import { bundleOfferFor, freeUnitsFor, linePricing, liveFlashOffer, unitPriceFor } from "@/lib/pricing";
+import {
+  bundleOfferFor,
+  freeUnitsFor,
+  linePricing,
+  liveFlashOffer,
+  unitPriceFor,
+  volumeUnitPrice,
+} from "@/lib/pricing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
 
@@ -40,7 +47,7 @@ export function QuickViewModal() {
 }
 
 function Content({ product, onClose }: { product: Product; onClose: () => void }) {
-  const { lang, t, addToCart, openCart, isWished, toggleWish, offers } = useStore();
+  const { lang, t, addToCart, openCart, isWished, toggleWish, offers, volumeTiers } = useStore();
   const supabase = createSupabaseBrowserClient();
   const customFileRef = useRef<HTMLInputElement>(null);
 
@@ -72,13 +79,24 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const bundle = bundleOfferFor(product, offers);
 
   // Package: price/quantity summed across every chosen item.
+  // Volume-priced products share ONE by-count ladder: the unit price falls as
+  // more designs are picked, so resolve the count first, then the tier price.
+  const selectedCount = isPackage
+    ? product.items.reduce((s, it) => s + (selections[it.id] ?? 0), 0)
+    : qty;
+  const volumeUnit = product.volumePriced
+    ? volumeUnitPrice(selectedCount, volumeTiers) ?? undefined
+    : undefined;
+
   const packageLines = isPackage
     ? product.items
         .filter((it) => (selections[it.id] ?? 0) > 0)
         .map((it) => {
           const q = selections[it.id] ?? 0;
-          const p = linePricing(product, q, { item: it, waterproof }, offers);
-          const baseUnit = (it.price ?? product.price) + (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
+          const p = linePricing(product, q, { item: it, waterproof, volumeUnit }, offers);
+          const baseUnit =
+            (volumeUnit ?? it.price ?? product.price) +
+            (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
           return { item: it, qty: q, ...p, baseTotal: baseUnit * Math.max(q - p.free, 0) };
         })
     : [];
@@ -88,7 +106,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const packageFree = packageLines.reduce((s, l) => s + l.free, 0);
 
   // Standard/tiered pricing.
-  const unit = unitPriceFor(product, qty, { waterproof }, offers);
+  const unit = unitPriceFor(product, qty, { waterproof, volumeUnit }, offers);
   const free = freeUnitsFor(product, qty, offers);
   const lineTotal = unit * Math.max(qty - free, 0);
   const stdBaseUnit =
@@ -311,7 +329,9 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 const q = selections[it.id] ?? 0;
                 const on = q > 0;
                 const itemName = lang === "ar" ? it.nameAr : it.nameEn;
-                const itemPrice = it.price ?? product.price;
+                // Volume-priced: every design costs the current tier price,
+                // which drops as the buyer picks more.
+                const itemPrice = volumeUnit ?? it.price ?? product.price;
                 return (
                   <div
                     key={it.id}
@@ -385,6 +405,33 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         )}
 
         {/* Tiered: volume price ladder */}
+        {/* Shared by-count ladder — highlights the rung the buyer is on now */}
+        {product.volumePriced && volumeTiers.length > 0 && (
+          <div className="mt-4 overflow-hidden rounded-xl border border-line-2">
+            <p className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2">
+              {t("product.tierTable")}
+            </p>
+            <div className="flex divide-x divide-line-2 rtl:divide-x-reverse">
+              {[...volumeTiers]
+                .sort((a, b) => a.minQty - b.minQty)
+                .map((tier) => {
+                  const active = volumeUnit === tier.unitPrice;
+                  return (
+                    <div
+                      key={tier.minQty}
+                      className={`flex-1 px-2 py-2 text-center transition ${active ? "bg-brand-soft" : ""}`}
+                    >
+                      <p className="text-[11px] font-bold text-ink-3">{tier.minQty}+</p>
+                      <p className={`text-[12px] font-black ${active ? "text-brand" : "text-ink"}`}>
+                        {tier.unitPrice.toLocaleString("en-US")}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
         {isTiered && (
           <div className="mt-4 overflow-hidden rounded-xl border border-line-2">
             <p className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2">
