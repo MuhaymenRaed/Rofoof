@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import { X, Heart, Cart, Check, Truck, Droplet, Plus, Minus, Zap, Gift } from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
+import { Lightbox } from "@/components/ui/lightbox";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
 import { tierUnitPrice, type Product } from "@/lib/products";
@@ -59,6 +60,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const [customUrl, setCustomUrl] = useState<string | null>(null);
   const [uploadingCustom, setUploadingCustom] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const name = lang === "ar" ? product.nameAr : product.nameEn;
   const sub = lang === "ar" ? product.subAr : product.subEn;
@@ -159,6 +161,17 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
   const galleryThumbs = !isPackage && product.images.length > 1;
 
+  // Images the lightbox can page through: the package designs, or the gallery.
+  const viewerImages = isPackage
+    ? product.items.map((it) => it.imageUrl).filter(Boolean)
+    : product.images;
+
+  function openViewer(src: string | undefined) {
+    if (!src) return;
+    const i = viewerImages.indexOf(src);
+    setLightboxIndex(i >= 0 ? i : 0);
+  }
+
   return (
     <div
       role="dialog"
@@ -185,7 +198,14 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
       >
         <span className="absolute inset-y-0 start-0 z-10 w-1" style={{ background: "var(--c)" }} />
         {mainImage ? (
-          <Image src={mainImage} alt={name} fill sizes="384px" className="object-cover" />
+          <button
+            type="button"
+            onClick={() => openViewer(mainImage)}
+            aria-label={name}
+            className="tap absolute inset-0 cursor-zoom-in"
+          >
+            <Image src={mainImage} alt={name} fill sizes="384px" className="object-cover" />
+          </button>
         ) : (
           <span className="text-[120px] drop-shadow-sm">{product.emoji}</span>
         )}
@@ -218,7 +238,10 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         {/* mobile media */}
         {mainImage ? (
           <div className="mb-4 md:hidden">
-            <div className="relative h-44 overflow-hidden rounded-2xl">
+            <div
+              onClick={() => openViewer(mainImage)}
+              className="relative h-44 cursor-zoom-in overflow-hidden rounded-2xl"
+            >
               <Image src={mainImage} alt={name} fill sizes="100vw" className="object-cover" />
             </div>
             {galleryThumbs && (
@@ -513,6 +536,16 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           </button>
         </div>
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={viewerImages}
+          index={lightboxIndex}
+          onIndex={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          alt={name}
+        />
+      )}
     </div>
   );
 }

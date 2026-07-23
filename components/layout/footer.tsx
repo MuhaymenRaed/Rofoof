@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { PolicyModal } from "@/components/layout/policy-modal";
+import { PolicyModal, type PolicySection } from "@/components/layout/policy-modal";
 import { Instagram, Whatsapp, MapPin, Phone, Truck } from "@/components/icons";
 import {
   WHATSAPP_URL,
@@ -20,16 +20,16 @@ const SHOP_LINKS: { href: string; key: DictKey }[] = [
   { href: "/favorites", key: "nav.favorites" },
 ];
 
-// All three open the single Policy modal (returns/exchange + shipping).
-const HELP_LINKS: DictKey[] = [
-  "footer.policies",
-  "footer.returns",
-  "footer.shipping",
+// Each link opens the Policy modal scoped to its own section.
+const HELP_LINKS: { key: DictKey; section: PolicySection }[] = [
+  { key: "footer.policies", section: "all" },
+  { key: "footer.returns", section: "returns" },
+  { key: "footer.shipping", section: "shipping" },
 ];
 
 export function Footer() {
   const { t } = useStore();
-  const [policyOpen, setPolicyOpen] = useState(false);
+  const [policySection, setPolicySection] = useState<PolicySection | null>(null);
   const year = 2026;
 
   return (
@@ -99,14 +99,14 @@ export function Footer() {
               {t("footer.help")}
             </h3>
             <ul className="space-y-2.5">
-              {HELP_LINKS.map((k) => (
-                <li key={k}>
+              {HELP_LINKS.map((l) => (
+                <li key={l.key}>
                   <button
                     type="button"
-                    onClick={() => setPolicyOpen(true)}
+                    onClick={() => setPolicySection(l.section)}
                     className="tap text-[13px] font-medium text-ink-2 transition hover:text-brand"
                   >
-                    {t(k)}
+                    {t(l.key)}
                   </button>
                 </li>
               ))}
@@ -150,7 +150,11 @@ export function Footer() {
         </div>
       </div>
 
-      <PolicyModal open={policyOpen} onClose={() => setPolicyOpen(false)} />
+      <PolicyModal
+        open={policySection !== null}
+        section={policySection ?? "all"}
+        onClose={() => setPolicySection(null)}
+      />
     </footer>
   );
 }

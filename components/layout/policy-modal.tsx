@@ -22,7 +22,18 @@ const SHIPPING_LINES = [
   "احيانًا تتوفر خصومات على التوصيل على حسب قيمة الطلب او العروض",
 ];
 
-export function PolicyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Which part of the policy the footer link asked for. */
+export type PolicySection = "all" | "returns" | "shipping";
+
+export function PolicyModal({
+  open,
+  onClose,
+  section = "all",
+}: {
+  open: boolean;
+  onClose: () => void;
+  section?: PolicySection;
+}) {
   const { t } = useStore();
 
   useEffect(() => {
@@ -61,28 +72,38 @@ export function PolicyModal({ open, onClose }: { open: boolean; onClose: () => v
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand text-white shadow-lg">
               <Truck size={20} />
             </span>
-            <h2 className="text-lg font-black text-ink">{t("footer.policies")}</h2>
+            <h2 className="text-lg font-black text-ink">
+              {section === "returns"
+                ? t("footer.returns")
+                : section === "shipping"
+                  ? t("footer.shipping")
+                  : t("footer.policies")}
+            </h2>
           </div>
         </div>
 
         {/* Body — Arabic copy shown verbatim (RTL) */}
         <div dir="rtl" className="flex-1 space-y-5 overflow-y-auto p-6 text-right">
-          <section>
-            <h3 className="mb-1.5 text-sm font-black text-brand">{RETURN_TITLE}</h3>
-            <p className="text-[13.5px] leading-relaxed text-ink-2">{RETURN_BODY}</p>
-          </section>
-          <div className="h-px bg-line-2" />
-          <section>
-            <h3 className="mb-1.5 text-sm font-black text-brand">{SHIPPING_TITLE}</h3>
-            <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
-              {SHIPPING_LINES.map((line) => (
-                <li key={line} className="flex gap-2">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand/60" />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {section !== "shipping" && (
+            <section>
+              <h3 className="mb-1.5 text-sm font-black text-brand">{RETURN_TITLE}</h3>
+              <p className="text-[13.5px] leading-relaxed text-ink-2">{RETURN_BODY}</p>
+            </section>
+          )}
+          {section === "all" && <div className="h-px bg-line-2" />}
+          {section !== "returns" && (
+            <section>
+              <h3 className="mb-1.5 text-sm font-black text-brand">{SHIPPING_TITLE}</h3>
+              <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
+                {SHIPPING_LINES.map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand/60" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       </div>
     </div>
