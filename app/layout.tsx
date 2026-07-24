@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
 import { LangScript } from "@/components/layout/lang-script";
+import { JsonLd } from "@/components/seo/json-ld";
+import { organizationSchema, webSiteSchema } from "@/lib/seo";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { StoreProvider } from "@/components/providers/store-provider";
@@ -43,10 +45,33 @@ export const metadata: Metadata = {
     template: "%s · رفوف",
   },
   description:
-    "متجر رفوف للستكرات والبروشات والميداليات والبوسترات صناعة عراقية — توصيل لجميع محافظات العراق.",
+    "متجر رفوف (rofoof) للستكرات والبروشات والميداليات والبوسترات صناعة عراقية — توصيل لجميع محافظات العراق. رفوف · rofoof · roufouf.",
   applicationName: "رفوف · rofoof",
-  keywords: ["رفوف", "rofoof", "ستكرات", "بروشات", "ميداليات", "بوسترات", "العراق", "stickers", "Iraq"],
-  authors: [{ name: "rofoof.iq" }],
+  keywords: [
+    "رفوف",
+    "rofoof",
+    "روفوف",
+    "rofof",
+    "rufoof",
+    "roufouf",
+    "rofoof العراق",
+    "rofoof iraq",
+    "ستكرات",
+    "بروشات",
+    "ميداليات",
+    "بوسترات",
+    "ستكرات العراق",
+    "stickers Iraq",
+    "medals",
+    "brooches",
+    "posters",
+    "العراق",
+  ],
+  authors: [{ name: "rofoof" }],
+  alternates: {
+    canonical: "/",
+    languages: { "ar-IQ": "/", en: "/" },
+  },
   openGraph: {
     type: "website",
     siteName: "رفوف · rofoof",
@@ -113,6 +138,14 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {/* Runs during <head> parsing — before the body paints — so English
             visitors never flash RTL. Memoized so it never re-renders client-side. */}
         <LangScript />
+        {/* Structured data: maps brand spellings/translations to one entity.
+            Rendered from this Server Component and sanitized against XSS. */}
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@graph": [organizationSchema(SITE_URL), webSiteSchema(SITE_URL)],
+          }}
+        />
       </head>
       <body className="min-h-full antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>

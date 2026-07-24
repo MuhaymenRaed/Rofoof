@@ -13,6 +13,7 @@ import { FilterManagerModal } from "@/components/store/filter-manager-modal";
 import { Search, Sliders, X, ChevronEnd, Plus } from "@/components/icons";
 import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { DictKey } from "@/lib/i18n";
 
 type CatSel = string;
@@ -54,6 +55,29 @@ export function StoreView() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
 
+  // DB-side typo-tolerant match ids (Postgres pg_trgm). Augments the instant
+  // client fuzzy match so nothing is ever slower or missing — the client result
+  // shows immediately and the RPC fills in extra matches when it returns.
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [dbMatchIds, setDbMatchIds] = useState<Set<string> | null>(null);
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const q = search.trim();
+    setDbMatchIds(null); // reset instantly; client fuzzy covers the gap
+    if (q.length < 2) return;
+    let active = true;
+    const id = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("search_products", { search_term: q });
+      if (!active || error || !data) return;
+      setDbMatchIds(new Set((data as { id: string }[]).map((r) => r.id)));
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(id);
+    };
+  }, [search, supabase]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const PAGE_SIZE = 8;
 
   const hasActiveFilters =
@@ -75,9 +99,10 @@ export function StoreView() {
       if (waterproof && !p.waterproof) return false;
       if (lowestPrice(p) > maxPrice) return false;
       if (q) {
-        // Fuzzy, case-insensitive, AR/EN-aware match over names, subs & tags.
+        // Match if EITHER the instant client fuzzy matcher OR the Postgres
+        // trigram RPC accepts it — the DB catches typos the client misses.
         const haystack = `${p.nameAr} ${p.nameEn} ${p.subAr} ${p.subEn} ${p.tags.join(" ")}`;
-        if (!fuzzyMatch(q, haystack)) return false;
+        if (!fuzzyMatch(q, haystack) && !dbMatchIds?.has(p.id)) return false;
       }
       return true;
     });
@@ -96,7 +121,7 @@ export function StoreView() {
       }
     });
     return list;
-  }, [products, category, subcategory, fandom, waterproof, maxPrice, search, sort]);
+  }, [products, category, subcategory, fandom, waterproof, maxPrice, search, sort, dbMatchIds]);
 
   // Subcategories of the active category (all of them on the "all" tab).
   const visibleSubs = useMemo(

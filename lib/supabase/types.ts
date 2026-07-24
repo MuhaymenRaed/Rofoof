@@ -480,6 +480,10 @@ export interface Database {
     Functions: {
       cancel_order: { Args: { p_code: string }; Returns: boolean };
       preview_coupon: { Args: { p_code: string; p_subtotal: number }; Returns: Json };
+      search_products: {
+        Args: { search_term: string; match_limit?: number };
+        Returns: { id: string; score: number }[];
+      };
       place_order: {
         Args: {
           p_customer_name: string;
