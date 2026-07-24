@@ -18,7 +18,7 @@ export function AccountMenu() {
     return (
       <Link
         href="/login"
-        className="tap rounded-full border border-line bg-surface-2 px-3.5 py-1.5 text-[11px] font-bold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
+        className="tap shrink-0 whitespace-nowrap rounded-full border border-line bg-surface-2 px-3.5 py-1.5 text-[11px] font-bold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
       >
         {t("auth.login")}
       </Link>

@@ -32,7 +32,9 @@ const cairo = Cairo({
   display: "swap",
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://rofoof.iq";
+// Canonical origin for metadata/OG/canonical URLs. www is the Production host
+// (rofoof.net 308-redirects to it). Override per-env with NEXT_PUBLIC_SITE_URL.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.rofoof.net";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

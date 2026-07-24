@@ -36,10 +36,11 @@ function imageCapFor(categoryCodes: string[]): number {
   return 100;
 }
 
+// Two product shapes. "By-count" pricing is NOT a third type — it's the
+// inline `volume_priced` option below, available on both of these.
 const KINDS: { id: ProductKind; key: DictKey }[] = [
   { id: "standard", key: "dash.kind.standard" },
   { id: "package", key: "dash.kind.package" },
-  { id: "tiered", key: "dash.kind.tiered" },
 ];
 
 const DEFAULT_TIERS = [
@@ -158,14 +159,17 @@ export function ProductEditorModal({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
-    setKind(product?.kind ?? "standard");
+    // "tiered" is no longer a selectable type — it's folded into the inline
+    // count-pricing option, so a legacy tiered product opens as a standard
+    // product with count pricing switched on.
+    setKind(product?.kind === "tiered" ? "standard" : product?.kind ?? "standard");
     setNameAr(product?.nameAr ?? "");
     setNameEn(product?.nameEn ?? "");
     setPrice(product ? String(product.price) : "");
     setDiscount(String(product?.discountPercent ?? 0));
     setDiscountFixed(String(product?.discountFixed ?? 0));
     setDiscountMode((product?.discountFixed ?? 0) > 0 ? "fixed" : "percent");
-    setVolumePriced(product?.volumePriced ?? false);
+    setVolumePriced(product?.volumePriced || product?.kind === "tiered");
     setVolTiers(
       storeVolumeTiers.length > 0
         ? storeVolumeTiers.map((tr) => ({
@@ -598,7 +602,7 @@ export function ProductEditorModal({
           {/* Kind — drives the rest of the form */}
           <div>
             <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("dash.kind")}</span>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {KINDS.map((k) => (
                 <button
                   key={k.id}
