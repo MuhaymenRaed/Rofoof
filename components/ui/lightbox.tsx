@@ -26,9 +26,11 @@ export function Lightbox({
   const count = images.length;
   const touchX = useRef<number | null>(null);
 
+  // Bounded (no wrap): clamp to the first/last image so the ends are real ends.
   const go = useCallback(
     (delta: number) => {
-      if (count > 1) onIndex((index + delta + count) % count);
+      const next = index + delta;
+      if (next >= 0 && next < count) onIndex(next);
     },
     [index, count, onIndex],
   );
@@ -101,35 +103,39 @@ export function Lightbox({
           />
         </div>
 
-        {count > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                go(-1);
-              }}
-              aria-label="previous"
-              className="tap absolute start-3 grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
-            >
-              <span className="ltr:rotate-180">
-                <ChevronEnd size={20} />
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                go(1);
-              }}
-              aria-label="next"
-              className="tap absolute end-3 grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
-            >
-              <span className="rtl:rotate-180">
-                <ChevronEnd size={20} />
-              </span>
-            </button>
-          </>
+        {/* Previous — hidden on the first image (no wrap). Arrow points outward
+            toward the inline-start edge in both LTR and RTL. */}
+        {index > 0 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              go(-1);
+            }}
+            aria-label="previous"
+            className="tap absolute start-3 grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
+          >
+            <span className="rtl:rotate-180">
+              <ChevronEnd size={20} />
+            </span>
+          </button>
+        )}
+        {/* Next — hidden on the last image. Arrow points outward toward the
+            inline-end edge in both directions. */}
+        {index < count - 1 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              go(1);
+            }}
+            aria-label="next"
+            className="tap absolute end-3 grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
+          >
+            <span className="ltr:rotate-180">
+              <ChevronEnd size={20} />
+            </span>
+          </button>
         )}
       </div>
 

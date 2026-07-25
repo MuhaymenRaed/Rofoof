@@ -78,50 +78,61 @@ export function CustomPricingEditor({ initialPricing }: { initialPricing: Custom
           const Icon = CUSTOM_TYPE_ICON[row.kind];
           const waterproofable = row.kind !== "brooch";
           return (
-            <div key={row.kind} className="flex flex-wrap items-end gap-3 p-4 sm:px-5">
-              <span className="flex min-w-24 items-center gap-2 pb-2.5 text-sm font-bold text-ink">
-                <Icon size={17} />
-                {lang === "ar" ? meta.ar : meta.en}
-              </span>
-
-              <label className="block flex-1 basis-32">
-                <span className="mb-1.5 block text-[11px] font-bold text-ink-3">
-                  {t("custom.perPiece")}
+            <div key={row.kind} className="p-4 sm:px-5">
+              <div className="mb-2.5 flex items-center gap-2 text-sm font-bold text-ink">
+                <span
+                  className="grid h-6 w-6 place-items-center rounded-md text-white"
+                  style={{ background: CUSTOM_ORDER_COLOR }}
+                >
+                  <Icon size={13} />
                 </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={row.unitPrice}
-                  onChange={(e) => setField(row.kind, "unitPrice", e.target.value)}
-                  className="dash-input h-10"
-                />
-              </label>
+                {lang === "ar" ? meta.ar : meta.en}
+              </div>
 
-              {waterproofable && (
-                <label className="block flex-1 basis-32">
+              <div
+                className={`grid gap-3 sm:items-end ${
+                  waterproofable ? "sm:grid-cols-[1fr_1fr_auto]" : "sm:grid-cols-[1fr_auto]"
+                }`}
+              >
+                <label className="block">
                   <span className="mb-1.5 block text-[11px] font-bold text-ink-3">
-                    {t("dash.surcharge")}
+                    {t("custom.perPiece")}
                   </span>
                   <input
                     type="number"
                     min={0}
-                    value={row.waterproofExtra}
-                    onChange={(e) => setField(row.kind, "waterproofExtra", e.target.value)}
+                    value={row.unitPrice}
+                    onChange={(e) => setField(row.kind, "unitPrice", e.target.value)}
                     className="dash-input h-10"
                   />
                 </label>
-              )}
 
-              <button
-                type="button"
-                onClick={() => save(row.kind)}
-                disabled={pending}
-                className="tap inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
-                style={{ background: savedKind === row.kind ? "#22c55e" : CUSTOM_ORDER_COLOR }}
-              >
-                {savedKind === row.kind ? <Check size={14} /> : null}
-                {savedKind === row.kind ? t("dash.saved") : t("dash.saveChanges")}
-              </button>
+                {waterproofable && (
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-bold text-ink-3">
+                      {t("dash.surcharge")}
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={row.waterproofExtra}
+                      onChange={(e) => setField(row.kind, "waterproofExtra", e.target.value)}
+                      className="dash-input h-10"
+                    />
+                  </label>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => save(row.kind)}
+                  disabled={pending}
+                  className="tap flex h-10 w-full items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
+                  style={{ background: savedKind === row.kind ? "#22c55e" : CUSTOM_ORDER_COLOR }}
+                >
+                  {savedKind === row.kind ? <Check size={14} /> : null}
+                  {savedKind === row.kind ? t("dash.saved") : t("dash.saveChanges")}
+                </button>
+              </div>
             </div>
           );
         })}

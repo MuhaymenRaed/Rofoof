@@ -193,7 +193,7 @@ export function hasVariablePrice(p: Product): boolean {
   return false;
 }
 
-export const MAX_PRICE = 25000;
+export const MAX_PRICE = 100000;
 
 /** Category codes that can be waterproof (paper/vinyl products). */
 export const WATERPROOF_CATEGORIES = ["stickers", "posters"];

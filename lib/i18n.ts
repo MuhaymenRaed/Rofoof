@@ -514,6 +514,10 @@ export const dict = {
   "dash.subcategoriesHint": { ar: "اختياري", en: "optional" },
   "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
+  "store.subHint": {
+    ar: "هذه الفئة فيها تصنيفات فرعية — اضغط الزر لعرضها",
+    en: "This category has subfilters — press the button to show them",
+  },
   "store.manageFilters": { ar: "إدارة الفلاتر", en: "Manage filters" },
   "store.manageFiltersHint": {
     ar: "الحذف لا يمسح المنتجات — التصنيف يختفي من الفلاتر فقط",

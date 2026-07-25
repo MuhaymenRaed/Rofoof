@@ -10,7 +10,7 @@ import { CustomOrderCard } from "@/components/store/custom-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { FilterManagerModal } from "@/components/store/filter-manager-modal";
-import { Search, Sliders, X, ChevronEnd, Plus } from "@/components/icons";
+import { Search, Sliders, X, ChevronEnd, Plus, Check } from "@/components/icons";
 import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -53,6 +53,7 @@ export function StoreView() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<Sort>("popular");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [subMenuOpen, setSubMenuOpen] = useState(false);
   const [page, setPage] = useState(1);
 
   // DB-side typo-tolerant match ids (Postgres pg_trgm). Augments the instant
@@ -128,6 +129,8 @@ export function StoreView() {
     () => subcategories.filter((s) => category === "all" || s.categoryCode === category),
     [subcategories, category],
   );
+  const activeSub = visibleSubs.find((s) => s.code === subcategory);
+  const activeSubLabel = activeSub ? (lang === "ar" ? activeSub.nameAr : activeSub.nameEn) : null;
 
   // A subcategory only makes sense under its parent — drop it when the
   // category changes or the chosen one is no longer on offer.
@@ -143,6 +146,7 @@ export function StoreView() {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPage(1);
+    setSubMenuOpen(false);
   }, [category, subcategory, fandom, waterproof, maxPrice, search, sort]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -212,13 +216,13 @@ export function StoreView() {
         </button>
       </div>
 
-      {/* Admin shortcut: add a product without leaving the store */}
+      {/* Admin shortcuts — two equal buttons on phones, inline-right on desktop */}
       {ready && isAdmin && (
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="tap inline-flex items-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+            className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
           >
             <Plus size={17} />
             {t("dash.newProduct")}
@@ -226,7 +230,7 @@ export function StoreView() {
           <button
             type="button"
             onClick={() => setFiltersManagerOpen(true)}
-            className="tap inline-flex items-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+            className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
           >
             <Sliders size={17} />
             {t("store.manageFilters")}
@@ -239,42 +243,65 @@ export function StoreView() {
         <CategoryChips active={category} onSelect={setCategory} />
       </div>
 
-      {/* Subcategory chips — the third filter, nested under the category */}
+      {/* Subcategory — the third filter, as a dropdown attached under the
+          category chips. Only appears for a category that has subfilters; the
+          + button reveals them, and a small note explains it. */}
       {visibleSubs.length > 0 && (
-        <div className="no-scrollbar mt-2 flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="shrink-0 text-[11px] font-bold text-ink-3">
-            {t("store.subcategory")}
-          </span>
-          <button
-            type="button"
-            onClick={() => setSubcategory("all")}
-            aria-pressed={subcategory === "all"}
-            className={`tap shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-bold transition ${
-              subcategory === "all"
-                ? "border-brand bg-brand text-white"
-                : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
-            }`}
-          >
-            {t("cat.all")}
-          </button>
-          {visibleSubs.map((s) => {
-            const on = subcategory === s.code;
-            return (
-              <button
-                key={s.code}
-                type="button"
-                onClick={() => setSubcategory(on ? "all" : s.code)}
-                aria-pressed={on}
-                className={`tap shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-bold transition ${
-                  on
-                    ? "border-brand bg-brand text-white"
-                    : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
-                }`}
-              >
-                {lang === "ar" ? s.nameAr : s.nameEn}
-              </button>
-            );
-          })}
+        <div className="mt-3">
+          <div className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => setSubMenuOpen((v) => !v)}
+              aria-expanded={subMenuOpen}
+              className={`tap inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                subcategory !== "all" || subMenuOpen
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+              }`}
+            >
+              <Plus
+                size={15}
+                className={`transition-transform duration-200 ${subMenuOpen ? "rotate-45" : ""}`}
+              />
+              {activeSubLabel ?? t("store.subcategory")}
+              {subcategory !== "all" && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
+            </button>
+
+            {subMenuOpen && (
+              <>
+                {/* click-away layer */}
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  onClick={() => setSubMenuOpen(false)}
+                  className="fixed inset-0 z-20 cursor-default"
+                />
+                <div className="absolute z-30 mt-2 max-h-64 min-w-[210px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
+                  <SubItem
+                    label={t("cat.all")}
+                    on={subcategory === "all"}
+                    onClick={() => {
+                      setSubcategory("all");
+                      setSubMenuOpen(false);
+                    }}
+                  />
+                  {visibleSubs.map((s) => (
+                    <SubItem
+                      key={s.code}
+                      label={lang === "ar" ? s.nameAr : s.nameEn}
+                      on={subcategory === s.code}
+                      onClick={() => {
+                        setSubcategory(s.code);
+                        setSubMenuOpen(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
         </div>
       )}
 
@@ -373,6 +400,23 @@ export function StoreView() {
         </>
       )}
     </div>
+  );
+}
+
+/** One row in the subcategory dropdown. */
+function SubItem({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`tap flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-start text-xs font-bold transition ${
+        on ? "bg-brand text-white" : "text-ink-2 hover:bg-surface-2 hover:text-brand"
+      }`}
+    >
+      {label}
+      {on && <Check size={14} className="shrink-0" />}
+    </button>
   );
 }
 
