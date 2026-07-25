@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { CategoryChips } from "@/components/ui/category-chips";
+import { CategoryIcon } from "@/components/ui/category-icon";
 import { ProductCard } from "@/components/ui/product-card";
 import { CustomOrderCard } from "@/components/store/custom-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { FilterManagerModal } from "@/components/store/filter-manager-modal";
 import { Search, Sliders, X, ChevronEnd, Plus, Check } from "@/components/icons";
-import { MAX_PRICE, lowestPrice, type Fandom } from "@/lib/products";
+import { MAX_PRICE, lowestPrice, type Fandom, type SubcategoryInfo } from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { DictKey } from "@/lib/i18n";
@@ -28,7 +28,7 @@ const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
 ];
 
 export function StoreView() {
-  const { t, lang, products, subcategories } = useStore();
+  const { t, lang, products, categories, subcategories } = useStore();
   const { isAdmin, ready } = useAuth();
   const router = useRouter();
   // Read from the URL here (not on the server) so /store stays prerenderable.
@@ -53,7 +53,7 @@ export function StoreView() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<Sort>("popular");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [subMenuOpen, setSubMenuOpen] = useState(false);
+  const [subMenuFor, setSubMenuFor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
   // DB-side typo-tolerant match ids (Postgres pg_trgm). Augments the instant
@@ -129,8 +129,24 @@ export function StoreView() {
     () => subcategories.filter((s) => category === "all" || s.categoryCode === category),
     [subcategories, category],
   );
-  const activeSub = visibleSubs.find((s) => s.code === subcategory);
-  const activeSubLabel = activeSub ? (lang === "ar" ? activeSub.nameAr : activeSub.nameEn) : null;
+  // Subcategories grouped by their parent category → drives the per-chip menu.
+  const subsByCat = useMemo(() => {
+    const m = new Map<string, SubcategoryInfo[]>();
+    for (const s of subcategories) {
+      const arr = m.get(s.categoryCode) ?? [];
+      arr.push(s);
+      m.set(s.categoryCode, arr);
+    }
+    return m;
+  }, [subcategories]);
+  const catChips = [
+    { code: "all", label: t("cat.all"), icon: "grid" },
+    ...categories.map((c) => ({
+      code: c.code,
+      label: lang === "ar" ? c.nameAr : c.nameEn,
+      icon: c.icon,
+    })),
+  ];
 
   // A subcategory only makes sense under its parent — drop it when the
   // category changes or the chosen one is no longer on offer.
@@ -146,7 +162,7 @@ export function StoreView() {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPage(1);
-    setSubMenuOpen(false);
+    setSubMenuFor(null);
   }, [category, subcategory, fandom, waterproof, maxPrice, search, sort]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -238,71 +254,101 @@ export function StoreView() {
         </div>
       )}
 
-      {/* Category chips */}
-      <div className="mt-4">
-        <CategoryChips active={category} onSelect={setCategory} />
-      </div>
-
-      {/* Subcategory — the third filter, as a dropdown attached under the
-          category chips. Only appears for a category that has subfilters; the
-          + button reveals them, and a small note explains it. */}
-      {visibleSubs.length > 0 && (
-        <div className="mt-3">
-          <div className="relative inline-block">
-            <button
-              type="button"
-              onClick={() => setSubMenuOpen((v) => !v)}
-              aria-expanded={subMenuOpen}
-              className={`tap inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                subcategory !== "all" || subMenuOpen
-                  ? "border-brand bg-brand-soft text-brand"
-                  : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
-              }`}
-            >
-              <Plus
-                size={15}
-                className={`transition-transform duration-200 ${subMenuOpen ? "rotate-45" : ""}`}
-              />
-              {activeSubLabel ?? t("store.subcategory")}
-              {subcategory !== "all" && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
-            </button>
-
-            {subMenuOpen && (
-              <>
-                {/* click-away layer */}
+      {/* Category chips — a chip that has subfilters carries a + that opens its
+          subcategory dropdown, merged into one control (no separate button).
+          The row wraps (not scrolls) so the dropdown is never clipped. */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {catChips.map((c) => {
+          const isActive = category === c.code;
+          const subs = subsByCat.get(c.code) ?? [];
+          const menuOpen = subMenuFor === c.code;
+          return (
+            <div key={c.code} className="relative">
+              <div
+                className={`flex items-stretch overflow-hidden rounded-xl border transition ${
+                  isActive || menuOpen
+                    ? "border-brand bg-brand-soft text-brand"
+                    : "border-line bg-surface text-ink-2 hover:border-brand hover:bg-brand-soft hover:text-brand"
+                }`}
+              >
                 <button
                   type="button"
-                  aria-hidden
-                  tabIndex={-1}
-                  onClick={() => setSubMenuOpen(false)}
-                  className="fixed inset-0 z-20 cursor-default"
-                />
-                <div className="absolute z-30 mt-2 max-h-64 min-w-[210px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
-                  <SubItem
-                    label={t("cat.all")}
-                    on={subcategory === "all"}
+                  onClick={() => {
+                    setCategory(c.code);
+                    setSubMenuFor(null);
+                  }}
+                  className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
+                >
+                  <CategoryIcon name={c.icon} size={15} />
+                  {c.label}
+                  {isActive && subcategory !== "all" && subs.length > 0 && (
+                    <span className="ms-0.5 rounded-md bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
+                      {lang === "ar"
+                        ? subs.find((s) => s.code === subcategory)?.nameAr
+                        : subs.find((s) => s.code === subcategory)?.nameEn}
+                    </span>
+                  )}
+                </button>
+                {subs.length > 0 && (
+                  <button
+                    type="button"
                     onClick={() => {
-                      setSubcategory("all");
-                      setSubMenuOpen(false);
+                      setCategory(c.code);
+                      setSubMenuFor(menuOpen ? null : c.code);
                     }}
+                    aria-label={t("store.subcategory")}
+                    aria-expanded={menuOpen}
+                    className="tap grid w-8 place-items-center border-s border-line-2"
+                  >
+                    <Plus
+                      size={14}
+                      className={`transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {menuOpen && subs.length > 0 && (
+                <>
+                  {/* click-away layer */}
+                  <button
+                    type="button"
+                    aria-hidden
+                    tabIndex={-1}
+                    onClick={() => setSubMenuFor(null)}
+                    className="fixed inset-0 z-20 cursor-default"
                   />
-                  {visibleSubs.map((s) => (
+                  <div className="absolute z-30 mt-2 max-h-64 min-w-[190px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
                     <SubItem
-                      key={s.code}
-                      label={lang === "ar" ? s.nameAr : s.nameEn}
-                      on={subcategory === s.code}
+                      label={t("cat.all")}
+                      on={subcategory === "all"}
                       onClick={() => {
-                        setSubcategory(s.code);
-                        setSubMenuOpen(false);
+                        setSubcategory("all");
+                        setSubMenuFor(null);
                       }}
                     />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
-        </div>
+                    {subs.map((s) => (
+                      <SubItem
+                        key={s.code}
+                        label={lang === "ar" ? s.nameAr : s.nameEn}
+                        on={subcategory === s.code}
+                        onClick={() => {
+                          setSubcategory(s.code);
+                          setSubMenuFor(null);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Hint: which chips carry subfilters */}
+      {subcategories.length > 0 && (
+        <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
       )}
 
       {/* Result count */}

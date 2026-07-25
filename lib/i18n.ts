@@ -515,8 +515,8 @@ export const dict = {
   "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
   "store.subHint": {
-    ar: "هذه الفئة فيها تصنيفات فرعية — اضغط الزر لعرضها",
-    en: "This category has subfilters — press the button to show them",
+    ar: "الفئات التي عليها + فيها تصنيفات فرعية — اضغط + لعرضها",
+    en: "Categories marked with + have subfilters — press + to show them",
   },
   "store.manageFilters": { ar: "إدارة الفلاتر", en: "Manage filters" },
   "store.manageFiltersHint": {
