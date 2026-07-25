@@ -84,6 +84,7 @@ export function ProductEditorModal({
   open,
   onClose,
   onSaved,
+  onDeleted,
   product,
 }: {
   open: boolean;
@@ -91,6 +92,8 @@ export function ProductEditorModal({
   /** called after a successful save; on CREATE it receives the new product so
    *  the caller can show it optimistically. */
   onSaved?: (created?: Product) => void;
+  /** called with the product id when it's deleted — remove it optimistically */
+  onDeleted?: (id: string) => void;
   /** pass a product to edit; omit to create */
   product?: Product | null;
 }) {
@@ -559,15 +562,14 @@ export function ProductEditorModal({
       setConfirmingDelete(true);
       return;
     }
+    const id = product.id;
+    // Optimistic: drop it from the list and close now. router.refresh() then
+    // reconciles — a rare failure simply re-lists the product.
+    onDeleted?.(id);
+    onClose();
     startTransition(async () => {
-      const res = await deleteProductAction(product.id);
-      if (!res.ok) {
-        setError(res.error ?? t("checkout.error"));
-        return;
-      }
-      onSaved?.();
+      await deleteProductAction(id);
       router.refresh();
-      onClose();
     });
   }
 

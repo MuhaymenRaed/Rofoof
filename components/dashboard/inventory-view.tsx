@@ -132,6 +132,7 @@ export function InventoryView({
           // the editor also calls router.refresh() to reconcile with the DB.
           if (created) setList((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
         }}
+        onDeleted={(id) => setList((prev) => prev.filter((p) => p.id !== id))}
       />
     </section>
   );

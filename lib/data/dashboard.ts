@@ -262,6 +262,7 @@ export async function getInventory(offset = 0, limit = 30): Promise<InventoryPag
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
+    .eq("is_deleted", false) // deleted products are soft-deleted; never list them
     .order("sort_order", { ascending: false })
     .range(offset, offset + limit);
 

@@ -174,6 +174,8 @@ export interface Database {
           waterproof_surcharge: number;
           allow_custom_image: boolean;
           sort_order: number;
+          is_deleted: boolean;
+          deleted_at: string | null;
         } & Timestamps;
         Insert: {
           id: string;
