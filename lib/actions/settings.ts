@@ -34,3 +34,34 @@ export async function updateAnnouncementAction(
   revalidatePath("/");
   return { ok: true };
 }
+
+/* ------------------------- Featured section title ----------------------- */
+
+const featuredTitleSchema = z.object({
+  ar: z.string().trim().min(1).max(60),
+  en: z.string().trim().min(1).max(60),
+});
+
+export type FeaturedTitleInput = z.infer<typeof featuredTitleSchema>;
+
+/** Rename the homepage "featured picks" showcase section (admin). */
+export async function updateFeaturedTitleAction(
+  input: FeaturedTitleInput,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = featuredTitleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("settings").upsert({
+    id: true,
+    featured_title_ar: parsed.data.ar,
+    featured_title_en: parsed.data.en,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.settings, "max");
+  revalidatePath("/");
+  revalidatePath("/dashboard/featured");
+  return { ok: true };
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -79,7 +79,16 @@ export function StoreView() {
   }, [search, supabase]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const PAGE_SIZE = 8;
+  // Per-page count: default 20 on phones, 32 on large screens, and the shopper
+  // can override it. Once they pick, we stop auto-adjusting.
+  const [pageSize, setPageSize] = useState(20);
+  const pickedPageSize = useRef(false);
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (pickedPageSize.current) return;
+    setPageSize(window.matchMedia("(min-width: 1024px)").matches ? 32 : 20);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const hasActiveFilters =
     fandom !== "all" || waterproof || maxPrice < MAX_PRICE;
@@ -163,12 +172,12 @@ export function StoreView() {
   useEffect(() => {
     setPage(1);
     setSubMenuFor(null);
-  }, [category, subcategory, fandom, waterproof, maxPrice, search, sort]);
+  }, [category, subcategory, fandom, waterproof, maxPrice, search, sort, pageSize]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = Math.min(page, totalPages);
-  const pageItems = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const pageItems = filtered.slice((current - 1) * pageSize, current * pageSize);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
@@ -351,10 +360,29 @@ export function StoreView() {
         <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
       )}
 
-      {/* Result count */}
-      <p className="mt-4 text-xs font-semibold text-ink-3">
-        {filtered.length} {t("store.results")}
-      </p>
+      {/* Result count + per-page selector */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-ink-3">
+          {filtered.length} {t("store.results")}
+        </p>
+        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-3">
+          {t("store.perPage")}
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              pickedPageSize.current = true;
+              setPageSize(Number(e.target.value));
+            }}
+            className="tap cursor-pointer rounded-lg border border-line bg-surface px-2 py-1 text-xs font-bold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
+          >
+            {[20, 32, 48, 96].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {/* Content */}
       <div className="mt-3 flex gap-5">

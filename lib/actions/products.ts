@@ -69,6 +69,8 @@ const upsertProductSchema = z.object({
     .optional()
     .default([]),
   stock: z.number().int().min(0).max(100000).optional().default(0),
+  /** shown in the homepage "featured picks" showcase */
+  isFeatured: z.boolean().optional().default(false),
   /** false = create only (fail on duplicate id) */
   isUpdate: z.boolean().optional().default(false),
 });
@@ -113,6 +115,7 @@ export async function upsertProductAction(
     allow_custom_image: p.allowCustomImage,
     kind: p.kind,
     stock: p.stock,
+    is_featured: p.isFeatured,
   };
 
   if (p.isUpdate) {
@@ -207,6 +210,21 @@ export async function setProductActiveAction(
   if (error) return { ok: false, error: error.message };
 
   revalidateCatalog();
+  return { ok: true };
+}
+
+/** Star / un-star a product for the homepage "featured picks" showcase (admin). */
+export async function setProductFeaturedAction(
+  id: string,
+  featured: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("products").update({ is_featured: featured }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateCatalog();
+  revalidatePath("/dashboard/featured");
   return { ok: true };
 }
 

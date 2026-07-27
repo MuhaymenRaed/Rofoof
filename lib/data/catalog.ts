@@ -304,6 +304,45 @@ export async function getBestSellerCounts(): Promise<Record<string, number>> {
   }
 }
 
+/** Admin-editable title for the homepage "featured picks" showcase section. */
+export interface FeaturedTitle {
+  ar: string;
+  en: string;
+}
+
+const FEATURED_TITLE_FALLBACK: FeaturedTitle = { ar: "مختارات رفوف", en: "Featured picks" };
+
+// Catches INSIDE the cached function so it always resolves to a value (and
+// caches it): letting the query throw out of unstable_cache would register an
+// uncached access and break the homepage prerender under Cache Components —
+// e.g. before the settings columns exist, or on any transient read error.
+const cachedFeaturedTitle = unstable_cache(
+  async (): Promise<FeaturedTitle> => {
+    try {
+      const supabase = createAnonClient();
+      const { data, error } = await supabase
+        .from("settings")
+        .select("featured_title_ar, featured_title_en")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        ar: data?.featured_title_ar?.trim() || FEATURED_TITLE_FALLBACK.ar,
+        en: data?.featured_title_en?.trim() || FEATURED_TITLE_FALLBACK.en,
+      };
+    } catch (error) {
+      console.error("[catalog] getFeaturedTitle failed:", error);
+      return FEATURED_TITLE_FALLBACK;
+    }
+  },
+  ["catalog:featured-title"],
+  { tags: [TAGS.settings], revalidate: 300 },
+);
+
+export async function getFeaturedTitle(): Promise<FeaturedTitle> {
+  return cachedFeaturedTitle();
+}
+
 export interface AnnouncementSettings {
   ar: string;
   en: string;

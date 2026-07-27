@@ -2,14 +2,19 @@ import { Hero } from "@/components/home/hero";
 import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
 import { SectionTitle } from "@/components/ui/section-title";
-import { getProducts, getBestSellerCounts } from "@/lib/data/catalog";
+import { FeaturedSection } from "@/components/home/featured-section";
+import { getProducts, getBestSellerCounts, getFeaturedTitle } from "@/lib/data/catalog";
 import type { Product } from "@/lib/products";
 
 // ISR: storefront regenerates every 5 min, and instantly on admin edits
 // (revalidateTag("products")) or when an order is placed (revalidateTag("sales")).
 
 export default async function HomePage() {
-  const [products, sold] = await Promise.all([getProducts(), getBestSellerCounts()]);
+  const [products, sold, featuredTitle] = await Promise.all([
+    getProducts(),
+    getBestSellerCounts(),
+    getFeaturedTitle(),
+  ]);
 
   // "الأكثر طلباً" — ranked by units actually ordered. Before the store has any
   // sales there's nothing to rank, so it falls back to the curated badge.
@@ -22,6 +27,9 @@ export default async function HomePage() {
   )
     .slice(0, 5)
     .map((r) => r.p);
+
+  // Admin-curated showcase — flagged by the star toggle, newest-featured first.
+  const featured = products.filter((p) => p.isFeatured).slice(0, 10);
 
   // "وصل حديثاً" — genuinely newest rows, not the admin's manual ordering.
   const fresh = [...products]
@@ -47,7 +55,19 @@ export default async function HomePage() {
         </>
       )}
 
-      <section className={bestsellers.length > 0 ? undefined : "mt-9"}>
+      {featured.length > 0 && (
+        <>
+          <FeaturedSection
+            products={featured}
+            titleAr={featuredTitle.ar}
+            titleEn={featuredTitle.en}
+          />
+
+          <div className="my-8 h-px bg-line-2" />
+        </>
+      )}
+
+      <section className={bestsellers.length > 0 || featured.length > 0 ? undefined : "mt-9"}>
         <SectionTitle titleKey="section.fresh" viewAllHref="/store" />
         <Grid products={fresh} />
       </section>

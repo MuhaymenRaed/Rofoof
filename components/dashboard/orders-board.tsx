@@ -462,8 +462,9 @@ function OrderDetailsModal({
             )}
           </div>
 
-          {/* Custom request artwork */}
-          {order.isCustom && order.customImages.length > 0 && (
+          {/* Custom request artwork (shown whenever the order carries any, even
+              when it also has regular products) */}
+          {order.customImages.length > 0 && (
             <div
               className="rounded-2xl border p-4"
               style={{

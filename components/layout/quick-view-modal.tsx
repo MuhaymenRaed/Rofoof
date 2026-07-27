@@ -15,6 +15,7 @@ import {
   Zap,
   Gift,
   ChevronEnd,
+  Search,
 } from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Lightbox } from "@/components/ui/lightbox";
@@ -240,7 +241,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             aria-label={name}
             className="tap absolute inset-0 cursor-zoom-in"
           >
-            <Image src={mainImage} alt={name} fill sizes="384px" className="object-cover" />
+            <Image src={mainImage} alt={name} fill sizes="384px" className="object-contain" />
           </button>
         ) : (
           <span className="text-[120px] drop-shadow-sm">{product.emoji}</span>
@@ -275,7 +276,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 aria-label={name}
                 className="tap absolute inset-0 cursor-zoom-in"
               >
-                <Image src={mainImage} alt={name} fill sizes="100vw" className="object-cover" />
+                <Image src={mainImage} alt={name} fill sizes="100vw" className="object-contain" />
               </button>
               {galleryThumbs && (
                 <>
@@ -301,6 +302,12 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
         <h2 className="text-xl font-black leading-tight text-ink">{name}</h2>
         <p className="mt-0.5 text-sm text-ink-3">{sub}</p>
+        {mainImage && (
+          <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-ink-3">
+            <Search size={12} />
+            {t("product.tapToExpand")}
+          </p>
+        )}
 
         {/* Live offer notes */}
         {(flash || bundle) && (
@@ -551,9 +558,9 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          rows={2}
+          rows={4}
           placeholder={t("product.notesPlaceholder")}
-          className="mt-2 w-full resize-none rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-3 focus:border-brand focus:bg-surface"
+          className="mt-2 min-h-28 w-full resize-y rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-3 focus:border-brand focus:bg-surface"
         />
 
         {/* Actions */}

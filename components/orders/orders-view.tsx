@@ -236,8 +236,9 @@ function OrderCard({ order, onCancel }: { order: Order; onCancel: () => void }) 
           <StatusPill status={order.status} />
         </div>
 
-        {/* Custom request artwork */}
-        {order.isCustom && order.customImages.length > 0 && (
+        {/* Custom request artwork (shown whenever the order carries any, even
+            when it also has regular products) */}
+        {order.customImages.length > 0 && (
           <div className="mt-4">
             <p className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-ink-3">
               {t("custom.imagesLabel")} ({order.customImages.length})

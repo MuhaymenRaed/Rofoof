@@ -140,6 +140,8 @@ export interface Product {
   discountFixed: number;
   /** priced by the GLOBAL volume ladder based on total count across the order */
   volumePriced: boolean;
+  /** admin-curated: shown in the homepage "featured picks" showcase section */
+  isFeatured: boolean;
   /** admin's curated ordering (higher = shown first) */
   order: number;
   /** ISO timestamp the row was created — drives the real "Just landed" rail */

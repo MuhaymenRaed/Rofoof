@@ -159,6 +159,24 @@ export const dict = {
     ar: "اضغط زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»",
     en: "Tap Share, then “Add to Home Screen”",
   },
+  "pwa.iosGuide": { ar: "طريقة التثبيت", en: "How to install" },
+  "pwa.iosGuideTitle": {
+    ar: "أضِف رفوف إلى شاشتك الرئيسية",
+    en: "Add rofoof to your Home Screen",
+  },
+  "pwa.iosStep1": {
+    ar: "اضغط زر المشاركة ⬆︎ في شريط المتصفح بالأسفل",
+    en: "Tap the Share button ⬆︎ in the browser bar below",
+  },
+  "pwa.iosStep2": {
+    ar: "مرّر للأسفل واختر «إضافة إلى الشاشة الرئيسية»",
+    en: "Scroll down and choose “Add to Home Screen”",
+  },
+  "pwa.iosStep3": {
+    ar: "اضغط «إضافة» في الأعلى — وانتهيت!",
+    en: "Tap “Add” at the top — and you're done!",
+  },
+  "pwa.gotIt": { ar: "فهمت", en: "Got it" },
 
   "orders.cancel": { ar: "إلغاء الطلب", en: "Cancel order" },
   "orders.cancelTitle": { ar: "إلغاء الطلب؟", en: "Cancel this order?" },
@@ -357,6 +375,7 @@ export const dict = {
   "dash.overview": { ar: "نظرة عامة", en: "Overview" },
   "dash.orders": { ar: "إدارة الطلبات", en: "Orders" },
   "dash.inventory": { ar: "إدارة المخزون", en: "Inventory" },
+  "dash.featured": { ar: "المميّزة", en: "Featured" },
   "dash.customers": { ar: "العملاء", en: "Customers" },
   "dash.inStock": { ar: "متوفر", en: "In stock" },
   "dash.newUsers": { ar: "مستخدمون جدد", en: "New users" },
@@ -383,6 +402,26 @@ export const dict = {
   "dash.product": { ar: "المنتج", en: "Product" },
   "dash.active": { ar: "مفعّل", en: "Active" },
   "dash.inactive": { ar: "موقوف", en: "Hidden" },
+  "dash.featuredToggle": { ar: "منتج مميّز", en: "Featured product" },
+  "dash.featuredToggleHint": {
+    ar: "يظهر في قسم «المختارات» على الصفحة الرئيسية",
+    en: "Shows in the “Featured picks” section on the home page",
+  },
+  "dash.featuredTitle": { ar: "اسم قسم المختارات", en: "Showcase section name" },
+  "dash.featuredTitleHint": {
+    ar: "العنوان الظاهر فوق المنتجات المميّزة في الصفحة الرئيسية",
+    en: "The heading shown above the featured products on the home page",
+  },
+  "dash.featuredTitleAr": { ar: "الاسم بالعربية", en: "Name in Arabic" },
+  "dash.featuredTitleEn": { ar: "الاسم بالإنجليزية", en: "Name in English" },
+  "dash.featuredRename": { ar: "تعديل اسم القسم", en: "Rename section" },
+  "dash.featuredList": { ar: "المنتجات المميّزة", en: "Featured products" },
+  "dash.featuredRemove": { ar: "إزالة", en: "Remove" },
+  "dash.featuredEmpty": { ar: "لا توجد منتجات مميّزة بعد", en: "No featured products yet" },
+  "dash.featuredEmptyHint": {
+    ar: "اضغط نجمة ⭐ على أي منتج، أو فعّل «منتج مميّز» في نافذة تعديل المنتج.",
+    en: "Tap the ⭐ on any product, or turn on “Featured product” in the product editor.",
+  },
   "dash.loadingMore": { ar: "جارٍ التحميل…", en: "Loading more…" },
   "dash.allLoaded": { ar: "تم عرض كل العناصر", en: "All items loaded" },
   "dash.call": { ar: "اتصال", en: "Call" },
@@ -514,6 +553,7 @@ export const dict = {
   "dash.subcategoriesHint": { ar: "اختياري", en: "optional" },
   "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
+  "store.perPage": { ar: "لكل صفحة", en: "Per page" },
   "store.subHint": {
     ar: "الفئات التي عليها + فيها تصنيفات فرعية — اضغط + لعرضها",
     en: "Categories marked with + have subfilters — press + to show them",
@@ -696,6 +736,9 @@ export const dict = {
   // Discounts (buyer-facing)
   "product.off": { ar: "خصم", en: "OFF" },
   "product.from": { ar: "يبدأ من", en: "From" },
+  "product.feature": { ar: "إضافة إلى المختارات", en: "Add to featured" },
+  "product.unfeature": { ar: "إزالة من المختارات", en: "Remove from featured" },
+  "product.tapToExpand": { ar: "اضغط على الصورة لتكبيرها ورؤيتها كاملة", en: "Tap the image to expand and see it fully" },
   "product.chooseItem": { ar: "اختر التصميم", en: "Pick a design" },
   "product.chooseItems": { ar: "اختر التصاميم", en: "Pick your designs" },
   "product.waterproofOption": {

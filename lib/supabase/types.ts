@@ -174,6 +174,7 @@ export interface Database {
           waterproof_surcharge: number;
           allow_custom_image: boolean;
           sort_order: number;
+          is_featured: boolean;
           is_deleted: boolean;
           deleted_at: string | null;
         } & Timestamps;
@@ -204,6 +205,7 @@ export interface Database {
           waterproof_surcharge?: number;
           allow_custom_image?: boolean;
           sort_order?: number;
+          is_featured?: boolean;
           is_deleted?: boolean;
           deleted_at?: string | null;
         };
@@ -455,6 +457,8 @@ export interface Database {
           stat_followers: string;
           stat_products: string;
           stat_rating: string;
+          featured_title_ar: string | null;
+          featured_title_en: string | null;
           updated_at: string;
         };
         Insert: {
@@ -468,6 +472,8 @@ export interface Database {
           stat_followers?: string;
           stat_products?: string;
           stat_rating?: string;
+          featured_title_ar?: string | null;
+          featured_title_en?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["settings"]["Insert"]>;
         Relationships: [];
@@ -495,6 +501,8 @@ export interface Database {
           p_notes: string | null;
           p_items: Json;
           p_coupon_code: string | null;
+          /** custom design requests folded into the same order (optional) */
+          p_customs?: Json;
         };
         Returns: Json;
       };

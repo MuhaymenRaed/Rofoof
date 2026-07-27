@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Trash, Droplet, Photo, Cube } from "@/components/icons";
+import { X, Plus, Trash, Droplet, Photo, Cube, Star } from "@/components/icons";
 import {
   canBeWaterproof,
   type CategoryInfo,
@@ -142,6 +142,7 @@ export function ProductEditorModal({
   const [waterproof, setWaterproof] = useState(false);
   const [surcharge, setSurcharge] = useState("0");
   const [allowCustom, setAllowCustom] = useState(false);
+  const [featured, setFeatured] = useState(false);
   const [rows, setRows] = useState<ImageRow[]>([]);
   const [bulkPrice, setBulkPrice] = useState("");
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
@@ -191,6 +192,7 @@ export function ProductEditorModal({
     setWaterproof(product?.waterproof ?? false);
     setSurcharge(String(product?.waterproofSurcharge ?? 0));
     setAllowCustom(product?.allowCustomImage ?? false);
+    setFeatured(product?.isFeatured ?? false);
     // Package products: slots come from their items (each has its own price);
     // others: from the plain image gallery.
     if (product?.kind === "package" && product.items.length > 0) {
@@ -498,6 +500,7 @@ export function ProductEditorModal({
         kind,
         items: itemsPayload,
         tiers: tiersPayload,
+        isFeatured: featured,
         isUpdate: isEdit,
       });
       if (!res.ok) {
@@ -541,6 +544,7 @@ export function ProductEditorModal({
           discountPercent: discountNum,
           discountFixed: discountFixedNum,
           volumePriced,
+          isFeatured: featured,
           order: Date.now(),
           createdAt: new Date().toISOString(),
           descAr: descAr.trim(),
@@ -1225,6 +1229,25 @@ export function ProductEditorModal({
               />
             </label>
           )}
+
+          {/* Featured — add to the homepage "featured picks" showcase */}
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line-2 bg-surface-2/40 p-3">
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                <Star size={16} className="text-amber-500" filled={featured} />
+                {t("dash.featuredToggle")}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-ink-3">
+                {t("dash.featuredToggleHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={featured}
+              onChange={(e) => setFeatured(e.target.checked)}
+              className="h-4 w-4 shrink-0 accent-brand"
+            />
+          </label>
 
           {error && (
             <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">

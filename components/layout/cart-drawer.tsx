@@ -21,7 +21,7 @@ import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
 import { CUSTOM_ORDER_COLOR, CUSTOM_TYPE_LABEL, deliveryFeeFor } from "@/lib/products";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
-import { placeOrderAction, placeCustomRequestAction } from "@/lib/actions/orders";
+import { placeOrderAction } from "@/lib/actions/orders";
 import { previewCouponAction, type CouponPreview } from "@/lib/actions/coupons";
 import { updateProfileAction } from "@/lib/actions/profile";
 import { whatsappMessageUrl } from "@/lib/contact";
@@ -191,56 +191,35 @@ export function CartDrawer() {
       provinceCode: province,
       addressLine: address.trim(),
     };
-    const codes: string[] = [];
-
-    // Products go out as one order; each queued custom request becomes its own
-    // custom order (they're produced and priced separately, and the schema
-    // carries the artwork at order level).
-    if (cart.length > 0) {
-      const res = await placeOrderAction({
-        ...contact,
-        notes: note.trim() || null,
-        couponCode: coupon?.valid ? coupon.code ?? null : null,
-        items: cart.map((l) => ({
-          productId: l.id,
-          itemId: l.itemId ?? null,
-          qty: l.qty,
-          waterproof: l.waterproof ?? false,
-          customImageUrl: l.customImageUrl ?? null,
-          note: l.note ?? null,
-        })),
-      });
-      if (!res.ok) {
-        setPending(false);
-        setError(true);
-        return;
-      }
-      codes.push(res.code);
-    }
-
-    for (const req of customRequests) {
-      const res = await placeCustomRequestAction({
-        ...contact,
-        type: req.type,
-        waterproof: req.waterproof,
-        description: req.description,
-        images: req.images,
-      });
-      if (!res.ok) {
-        setPending(false);
-        setError(true);
-        return;
-      }
-      codes.push(res.code);
-    }
+    // Products AND queued custom requests go out as ONE order — the whole cart
+    // is a single order in the customer's page, the dashboard, and the stats.
+    const res = await placeOrderAction({
+      ...contact,
+      notes: note.trim() || null,
+      couponCode: coupon?.valid ? coupon.code ?? null : null,
+      items: cart.map((l) => ({
+        productId: l.id,
+        itemId: l.itemId ?? null,
+        qty: l.qty,
+        waterproof: l.waterproof ?? false,
+        customImageUrl: l.customImageUrl ?? null,
+        note: l.note ?? null,
+      })),
+      customs: customRequests.map((r) => ({
+        type: r.type,
+        waterproof: r.waterproof,
+        description: r.description,
+        images: r.images,
+      })),
+    });
 
     setPending(false);
-    if (codes.length === 0) {
+    if (!res.ok) {
       setError(true);
       return;
     }
 
-    setOrderCode(codes.join(" · "));
+    setOrderCode(res.code);
     clearCart();
     setStep("done");
 

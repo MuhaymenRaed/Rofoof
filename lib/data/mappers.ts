@@ -93,6 +93,7 @@ export function mapProduct(row: ProductRowWithFandoms): Product {
     discountPercent: row.discount_percent ?? 0,
     discountFixed: row.discount_fixed ?? 0,
     volumePriced: row.volume_priced ?? false,
+    isFeatured: row.is_featured ?? false,
     order: row.sort_order,
     createdAt: row.created_at,
     descAr: row.description_ar,

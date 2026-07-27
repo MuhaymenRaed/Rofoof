@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus } from "@/components/icons";
+import { X, Plus, Share } from "@/components/icons";
 
 /** Chrome/Edge fire this before showing their own install UI. Not in lib.dom. */
 interface BeforeInstallPromptEvent extends Event {
@@ -52,6 +53,7 @@ export function InstallPrompt() {
   const { t } = useStore();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
+  const [showIosGuide, setShowIosGuide] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -130,6 +132,7 @@ export function InstallPrompt() {
   if (!visible) return null;
 
   return (
+    <>
     <div
       role="region"
       aria-label={t("pwa.title")}
@@ -152,7 +155,16 @@ export function InstallPrompt() {
           </p>
         </div>
 
-        {!showIosHint && (
+        {showIosHint ? (
+          <button
+            type="button"
+            onClick={() => setShowIosGuide(true)}
+            className="tap inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90"
+          >
+            <Share size={13} />
+            {t("pwa.iosGuide")}
+          </button>
+        ) : (
           <button
             type="button"
             onClick={install}
@@ -173,5 +185,57 @@ export function InstallPrompt() {
         </button>
       </div>
     </div>
+
+    {showIosGuide &&
+      typeof document !== "undefined" &&
+      createPortal(
+        <div className="fixed inset-0 z-[90] grid place-items-center p-4">
+          <button
+            type="button"
+            aria-label={t("aria.close")}
+            onClick={() => setShowIosGuide(false)}
+            className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
+            style={{ animation: "fade-in 0.2s ease both" }}
+          />
+          <div
+            role="dialog"
+            aria-label={t("pwa.iosGuideTitle")}
+            className="relative z-10 w-full max-w-sm rounded-3xl border border-line-2 bg-surface p-6 shadow-2xl"
+            style={{ animation: "pop 0.28s cubic-bezier(0.34,1.56,0.64,1) both" }}
+          >
+            <div className="mb-5 flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand text-white">
+                <Share size={20} />
+              </span>
+              <h2 className="text-base font-black leading-tight text-ink">
+                {t("pwa.iosGuideTitle")}
+              </h2>
+            </div>
+
+            <ol className="space-y-3">
+              {[t("pwa.iosStep1"), t("pwa.iosStep2"), t("pwa.iosStep3")].map((step, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-[12px] font-black text-brand">
+                    {i + 1}
+                  </span>
+                  <p className="pt-0.5 text-[13px] font-semibold leading-snug text-ink-2">
+                    {step}
+                  </p>
+                </li>
+              ))}
+            </ol>
+
+            <button
+              type="button"
+              onClick={() => setShowIosGuide(false)}
+              className="tap mt-6 w-full rounded-2xl bg-brand py-3 text-sm font-bold text-white transition hover:opacity-90"
+            >
+              {t("pwa.gotIt")}
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

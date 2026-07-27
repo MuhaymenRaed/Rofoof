@@ -14,27 +14,49 @@ import type { OrderStatusDb } from "@/lib/supabase/types";
 
 /* ------------------------------ Place order ---------------------------- */
 
-const placeOrderSchema = z.object({
-  customerName: z.string().trim().min(2).max(80),
-  customerPhone: z.string().trim().min(6).max(20),
-  // Province and a full address are required at checkout; the note is not.
-  provinceCode: z.string().trim().min(1),
-  addressLine: z.string().trim().min(3).max(200),
-  notes: z.string().trim().max(500).nullable().optional(),
-  couponCode: z.string().trim().max(40).nullable().optional(),
-  items: z
-    .array(
-      z.object({
-        productId: z.string().min(1),
-        itemId: z.string().uuid().nullable().optional(),
-        qty: z.number().int().min(1).max(99),
-        waterproof: z.boolean().optional().default(false),
-        customImageUrl: z.string().url().max(500).nullable().optional(),
-        note: z.string().max(200).nullable().optional(),
-      }),
-    )
-    .min(1),
-});
+const placeOrderSchema = z
+  .object({
+    customerName: z.string().trim().min(2).max(80),
+    customerPhone: z.string().trim().min(6).max(20),
+    // Province and a full address are required at checkout; the note is not.
+    provinceCode: z.string().trim().min(1),
+    addressLine: z.string().trim().min(3).max(200),
+    notes: z.string().trim().max(500).nullable().optional(),
+    couponCode: z.string().trim().max(40).nullable().optional(),
+    items: z
+      .array(
+        z.object({
+          productId: z.string().min(1),
+          itemId: z.string().uuid().nullable().optional(),
+          qty: z.number().int().min(1).max(99),
+          waterproof: z.boolean().optional().default(false),
+          customImageUrl: z.string().url().max(500).nullable().optional(),
+          note: z.string().max(200).nullable().optional(),
+        }),
+      )
+      .max(200)
+      .optional()
+      .default([]),
+    // Custom design requests queued in the cart — folded into THIS order so a
+    // mixed basket stays a single order (each carries its own uploaded artwork).
+    customs: z
+      .array(
+        z.object({
+          type: z.enum(["brooch", "sticker", "poster"]),
+          waterproof: z.boolean().optional().default(false),
+          description: z.string().trim().max(1000).optional().default(""),
+          images: z.array(z.string().url().max(500)).min(1).max(100),
+        }),
+      )
+      .max(50)
+      .optional()
+      .default([]),
+  })
+  // A basket must contain at least one product OR one custom request.
+  .refine((v) => v.items.length > 0 || v.customs.length > 0, {
+    message: "no_items",
+    path: ["items"],
+  });
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
 export type PlaceOrderResult =
@@ -64,6 +86,12 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
       custom_image_url: i.customImageUrl ?? null,
       note: i.note ?? null,
     })),
+    p_customs: v.customs.map((c) => ({
+      type: c.type,
+      waterproof: c.waterproof,
+      description: c.description || null,
+      images: c.images,
+    })),
   });
 
   if (error) {
@@ -86,7 +114,9 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     addressLine: v.addressLine ?? null,
     notes: v.notes ?? null,
     total: result.total,
-    itemCount: v.items.reduce((sum, i) => sum + i.qty, 0),
+    itemCount:
+      v.items.reduce((sum, i) => sum + i.qty, 0) +
+      v.customs.reduce((sum, c) => sum + c.images.length, 0),
   });
 
   revalidateTag(TAGS.sales, "max");
