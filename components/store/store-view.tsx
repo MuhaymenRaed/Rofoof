@@ -83,12 +83,10 @@ export function StoreView() {
   // can override it. Once they pick, we stop auto-adjusting.
   const [pageSize, setPageSize] = useState(20);
   const pickedPageSize = useRef(false);
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (pickedPageSize.current) return;
     setPageSize(window.matchMedia("(min-width: 1024px)").matches ? 32 : 20);
   }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const hasActiveFilters =
     fandom !== "all" || waterproof || maxPrice < MAX_PRICE;
@@ -360,29 +358,10 @@ export function StoreView() {
         <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
       )}
 
-      {/* Result count + per-page selector */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-ink-3">
-          {filtered.length} {t("store.results")}
-        </p>
-        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-3">
-          {t("store.perPage")}
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              pickedPageSize.current = true;
-              setPageSize(Number(e.target.value));
-            }}
-            className="tap cursor-pointer rounded-lg border border-line bg-surface px-2 py-1 text-xs font-bold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
-          >
-            {[20, 32, 48, 96].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {/* Result count */}
+      <p className="mt-4 text-xs font-semibold text-ink-3">
+        {filtered.length} {t("store.results")}
+      </p>
 
       {/* Content */}
       <div className="mt-3 flex gap-5">
@@ -415,15 +394,37 @@ export function StoreView() {
                 ))}
               </div>
 
-              {totalPages > 1 && (
-                <Pagination
-                  current={current}
-                  totalPages={totalPages}
-                  onChange={setPage}
-                  prevLabel={t("store.prev")}
-                  nextLabel={t("store.next")}
-                />
-              )}
+              {/* Pagination + per-page control, at the bottom of the cards */}
+              <div className="mt-8 space-y-4">
+                {totalPages > 1 && (
+                  <Pagination
+                    current={current}
+                    totalPages={totalPages}
+                    onChange={setPage}
+                    prevLabel={t("store.prev")}
+                    nextLabel={t("store.next")}
+                  />
+                )}
+                <div className="flex justify-center">
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-3">
+                    {t("store.perPage")}
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        pickedPageSize.current = true;
+                        setPageSize(Number(e.target.value));
+                      }}
+                      className="tap cursor-pointer rounded-lg border border-line bg-surface px-2 py-1 text-xs font-bold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
+                    >
+                      {[20, 32, 48, 96].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -520,7 +521,7 @@ function Pagination({
     "tap grid h-9 min-w-9 place-items-center rounded-lg border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <nav className="mt-8 flex items-center justify-center gap-1.5" aria-label="pagination">
+    <nav className="flex items-center justify-center gap-1.5" aria-label="pagination">
       <button
         type="button"
         onClick={() => onChange(current - 1)}

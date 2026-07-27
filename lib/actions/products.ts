@@ -228,6 +228,30 @@ export async function setProductFeaturedAction(
   return { ok: true };
 }
 
+/**
+ * Star / un-star MANY products at once (admin) — powers the dashboard's
+ * "feature a whole category / subfilter / fandom" bulk control.
+ */
+export async function setProductsFeaturedAction(
+  ids: string[],
+  featured: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const clean = Array.from(new Set(ids.filter((id) => typeof id === "string" && id))).slice(0, 500);
+  if (clean.length === 0) return { ok: true };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("products")
+    .update({ is_featured: featured })
+    .in("id", clean);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateCatalog();
+  revalidatePath("/dashboard/featured");
+  return { ok: true };
+}
+
 /** Next page of the admin inventory list (infinite scroll). */
 export async function loadMoreInventoryAction(offset: number): Promise<InventoryPage> {
   await requireAdmin();

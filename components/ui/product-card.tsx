@@ -137,10 +137,10 @@ export function ProductCard({
           onClick={toggleFeatured}
           aria-pressed={featured}
           aria-label={featured ? t("product.unfeature") : t("product.feature")}
-          className={`tap absolute top-20 start-2 grid h-8 w-8 place-items-center rounded-full border backdrop-blur transition ${
+          className={`reveal-on-hover tap absolute top-20 start-2 grid h-8 w-8 place-items-center rounded-full border backdrop-blur transition ${
             featured
               ? "border-amber-400 bg-amber-400 text-white"
-              : "reveal-on-hover border-line-2 bg-surface/90 text-ink-2 hover:border-amber-400 hover:text-amber-500"
+              : "border-line-2 bg-surface/90 text-ink-2 hover:border-amber-400 hover:text-amber-500"
           }`}
         >
           <Star size={14} filled={featured} />

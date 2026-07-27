@@ -86,12 +86,20 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
       custom_image_url: i.customImageUrl ?? null,
       note: i.note ?? null,
     })),
-    p_customs: v.customs.map((c) => ({
-      type: c.type,
-      waterproof: c.waterproof,
-      description: c.description || null,
-      images: c.images,
-    })),
+    // Only send p_customs when the cart actually has custom requests. A
+    // products-only checkout then calls the 7-arg signature, which works
+    // against BOTH the old and the merged place_order — so deploying this
+    // before the merge SQL runs can never break a normal order.
+    ...(v.customs.length > 0
+      ? {
+          p_customs: v.customs.map((c) => ({
+            type: c.type,
+            waterproof: c.waterproof,
+            description: c.description || null,
+            images: c.images,
+          })),
+        }
+      : {}),
   });
 
   if (error) {

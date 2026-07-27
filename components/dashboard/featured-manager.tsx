@@ -2,19 +2,23 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { Star, Check, Package } from "@/components/icons";
-import { setProductFeaturedAction } from "@/lib/actions/products";
+import { Star, Check, Package, Plus } from "@/components/icons";
+import {
+  setProductFeaturedAction,
+  setProductsFeaturedAction,
+} from "@/lib/actions/products";
 import { updateFeaturedTitleAction } from "@/lib/actions/settings";
 import { formatPrice } from "@/lib/format";
 import { lowestPrice, type Product } from "@/lib/products";
 
+type Scope = "category" | "subcategory" | "fandom";
+
 /**
  * Dashboard "featured picks" manager — full control over the homepage showcase:
- * rename the section, and see every starred product grouped by its main
- * category with a one-tap remove (un-star). Products are added to the showcase
- * by the star toggle on any product card or the checkbox in the product editor.
+ * rename the section, feature a whole category / subfilter / fandom in one tap,
+ * and see every starred product grouped by its main category with a one-tap
+ * remove. Everything updates live here — no page refresh.
  */
 export function FeaturedManager({
   initialProducts,
@@ -25,8 +29,15 @@ export function FeaturedManager({
   titleAr: string;
   titleEn: string;
 }) {
-  const { t, lang, categoryLabel } = useStore();
-  const router = useRouter();
+  const {
+    t,
+    lang,
+    categoryLabel,
+    products: catalog,
+    categories,
+    subcategories,
+    fandoms,
+  } = useStore();
 
   const [products, setProducts] = useState(initialProducts);
   const [ar, setAr] = useState(titleAr);
@@ -34,6 +45,36 @@ export function FeaturedManager({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Bulk-add control
+  const [scope, setScope] = useState<Scope>("category");
+  const [scopeValue, setScopeValue] = useState("");
+  const [addedCount, setAddedCount] = useState<number | null>(null);
+
+  const featuredIds = useMemo(() => new Set(products.map((p) => p.id)), [products]);
+
+  // Options for the second dropdown, driven by the chosen scope.
+  const scopeOptions = useMemo(() => {
+    if (scope === "category")
+      return categories.map((c) => ({ code: c.code, label: lang === "ar" ? c.nameAr : c.nameEn }));
+    if (scope === "subcategory")
+      return subcategories.map((s) => ({
+        code: s.code,
+        label: `${lang === "ar" ? s.nameAr : s.nameEn} · ${categoryLabel(s.categoryCode)}`,
+      }));
+    return fandoms.map((f) => ({ code: f.code, label: lang === "ar" ? f.nameAr : f.nameEn }));
+  }, [scope, categories, subcategories, fandoms, lang, categoryLabel]);
+
+  // Active products matching the chosen scope+value that aren't featured yet.
+  const matches = useMemo(() => {
+    if (!scopeValue) return [];
+    return catalog.filter((p) => {
+      if (featuredIds.has(p.id)) return false;
+      if (scope === "category") return p.categories.includes(scopeValue) || p.category === scopeValue;
+      if (scope === "subcategory") return p.subcategories.includes(scopeValue);
+      return p.fandoms.includes(scopeValue);
+    });
+  }, [catalog, scope, scopeValue, featuredIds]);
 
   // Group by primary category so the admin can eyeball the showcase's balance.
   const groups = useMemo(() => {
@@ -58,15 +99,36 @@ export function FeaturedManager({
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
-      router.refresh();
+    });
+  }
+
+  function bulkAdd() {
+    if (matches.length === 0) return;
+    const added = matches;
+    const ids = added.map((p) => p.id);
+    setProducts((prev) => [...added, ...prev]); // live, no refresh
+    setAddedCount(added.length);
+    setScopeValue("");
+    setTimeout(() => setAddedCount(null), 2500);
+    startTransition(async () => {
+      const res = await setProductsFeaturedAction(ids, true);
+      if (!res.ok) {
+        // roll back the ones we just added
+        setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
+        setError(res.error ?? t("checkout.error"));
+      }
     });
   }
 
   function unfeature(id: string) {
-    setProducts((prev) => prev.filter((p) => p.id !== id)); // optimistic
+    const removed = products.find((p) => p.id === id);
+    setProducts((prev) => prev.filter((p) => p.id !== id)); // live, no refresh
     startTransition(async () => {
       const res = await setProductFeaturedAction(id, false);
-      if (!res.ok) router.refresh(); // failed — resync to restore it
+      if (!res.ok && removed) {
+        setProducts((prev) => (prev.some((p) => p.id === id) ? prev : [removed, ...prev]));
+        setError(res.error ?? t("checkout.error"));
+      }
     });
   }
 
@@ -108,9 +170,68 @@ export function FeaturedManager({
           {saved ? <Check size={14} /> : null}
           {saved ? t("profile.saved") : t("profile.save")}
         </button>
-        {error && (
-          <p className="mt-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
-            {error}
+      </section>
+
+      {/* Bulk add by filter */}
+      <section className="rounded-2xl border border-line-2 bg-surface p-5 card-shadow">
+        <h2 className="flex items-center gap-2 text-sm font-extrabold text-ink">
+          <Plus size={16} className="text-brand" />
+          {t("dash.featuredBulk")}
+        </h2>
+        <p className="mt-1 text-[11px] text-ink-3">{t("dash.featuredBulkHint")}</p>
+
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="block sm:w-44">
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("dash.featuredBy")}</span>
+            <select
+              value={scope}
+              onChange={(e) => {
+                setScope(e.target.value as Scope);
+                setScopeValue("");
+              }}
+              className="dash-input cursor-pointer"
+            >
+              <option value="category">{t("dash.byCategory")}</option>
+              <option value="subcategory">{t("dash.bySubcategory")}</option>
+              <option value="fandom">{t("dash.byFandom")}</option>
+            </select>
+          </label>
+
+          <label className="block flex-1">
+            <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("dash.featuredPick")}</span>
+            <select
+              value={scopeValue}
+              onChange={(e) => setScopeValue(e.target.value)}
+              className="dash-input cursor-pointer"
+            >
+              <option value="">{t("dash.featuredPickValue")}</option>
+              {scopeOptions.map((o) => (
+                <option key={o.code} value={o.code}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={bulkAdd}
+            disabled={pending || matches.length === 0}
+            className="tap inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            <Star size={14} filled />
+            {t("dash.featuredAddAll")}
+            {scopeValue && matches.length > 0 ? ` (${matches.length})` : ""}
+          </button>
+        </div>
+
+        {scopeValue && matches.length === 0 && (
+          <p className="mt-2 text-[11px] font-semibold text-ink-3">{t("dash.featuredAllIn")}</p>
+        )}
+        {addedCount !== null && (
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
+            <Check size={13} />
+            {addedCount} {t("dash.featuredAdded")}
           </p>
         )}
       </section>
@@ -123,6 +244,12 @@ export function FeaturedManager({
             {products.length}
           </span>
         </div>
+
+        {error && (
+          <p className="mb-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
+            {error}
+          </p>
+        )}
 
         {products.length === 0 ? (
           <div className="grid place-items-center rounded-xl border border-dashed border-line py-12 text-center">
