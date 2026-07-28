@@ -394,36 +394,34 @@ export function StoreView() {
                 ))}
               </div>
 
-              {/* Pagination + per-page control, at the bottom of the cards */}
-              <div className="mt-8 space-y-4">
-                {totalPages > 1 && (
-                  <Pagination
-                    current={current}
-                    totalPages={totalPages}
-                    onChange={setPage}
-                    prevLabel={t("store.prev")}
-                    nextLabel={t("store.next")}
-                  />
-                )}
-                <div className="flex justify-center">
-                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-3">
-                    {t("store.perPage")}
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        pickedPageSize.current = true;
-                        setPageSize(Number(e.target.value));
-                      }}
-                      className="tap cursor-pointer rounded-lg border border-line bg-surface px-2 py-1 text-xs font-bold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
-                    >
-                      {[20, 32, 48, 96].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+              {/* Pagination + per-page control — always at the bottom of the
+                  cards. The prev/next arrows stay put (disabled at the edges)
+                  so the control is consistent even on a single page. */}
+              <div className="mt-10 flex flex-col items-center gap-4 border-t border-line-2 pt-6">
+                <Pagination
+                  current={current}
+                  totalPages={totalPages}
+                  onChange={setPage}
+                  prevLabel={t("store.prev")}
+                  nextLabel={t("store.next")}
+                />
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-ink-3">
+                  {t("store.perPage")}
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      pickedPageSize.current = true;
+                      setPageSize(Number(e.target.value));
+                    }}
+                    className="tap cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-bold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
+                  >
+                    {[20, 32, 48, 96].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </>
           )}
