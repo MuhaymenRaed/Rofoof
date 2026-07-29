@@ -11,6 +11,7 @@ import {
   Trash,
   Whatsapp,
   Check,
+  Copy,
   Droplet,
   Percent,
   Sparkles,
@@ -30,6 +31,11 @@ import type { DictKey } from "@/lib/i18n";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 type Step = "cart" | "form" | "done";
+
+// The just-placed order code, kept in sessionStorage so the success screen (and
+// the code the buyer must copy) survives a Server-Action revalidation refresh /
+// remount after checkout. Cleared when the buyer dismisses the drawer.
+const DONE_KEY = "rofoof.checkout.done";
 
 /** Map a preview_coupon rejection reason to a friendly message. */
 function couponMessage(p: CouponPreview): DictKey {
@@ -80,6 +86,7 @@ export function CartDrawer() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
   const [orderCode, setOrderCode] = useState("");
+  const [copied, setCopied] = useState(false);
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<CouponPreview | null>(null);
   const [couponPending, setCouponPending] = useState(false);
@@ -92,15 +99,55 @@ export function CartDrawer() {
     return () => window.removeEventListener("keydown", onKey);
   }, [cartOpen, closeCart]);
 
+  // Restore a just-placed order after a remount (a Server-Action revalidation
+  // refresh can remount this drawer and wipe its state — that's what made the
+  // success screen vanish before the buyer could copy the code).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(DONE_KEY);
+      if (saved) setOrderCode(saved);
+    } catch {
+      /* storage blocked — the in-memory state still covers the common case */
+    }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   // Reset to the cart view a moment after the drawer closes — unconditionally,
   // so a *previous* completed order never resurfaces when the user later adds
   // another item and the drawer reopens (it must show the current cart, not
-  // the old "order received" screen).
+  // the old "order received" screen). Clearing the code here (not on success)
+  // keeps the success screen up for as long as the drawer stays open.
   useEffect(() => {
     if (cartOpen) return;
-    const id = setTimeout(() => setStep("cart"), 300);
+    const id = setTimeout(() => {
+      setStep("cart");
+      setOrderCode("");
+      setCopied(false);
+      try {
+        sessionStorage.removeItem(DONE_KEY);
+      } catch {
+        /* ignore */
+      }
+    }, 300);
     return () => clearTimeout(id);
   }, [cartOpen]);
+
+  // Once the buyer starts a NEW basket after a completed order, drop the stored
+  // success so the drawer shows the fresh cart instead of the old confirmation.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!orderCode) return;
+    if (cart.length === 0 && customRequests.length === 0) return;
+    setOrderCode("");
+    setStep("cart");
+    try {
+      sessionStorage.removeItem(DONE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, [orderCode, cart.length, customRequests.length]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Prefill checkout details from the signed-in profile (only empty fields).
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -222,6 +269,13 @@ export function CartDrawer() {
     }
 
     setOrderCode(res.code);
+    // Persist so the success screen (and the code) survives any refresh/remount
+    // the checkout server action triggers — the buyer needs it to track later.
+    try {
+      sessionStorage.setItem(DONE_KEY, res.code);
+    } catch {
+      /* ignore */
+    }
     clearCart();
     setStep("done");
 
@@ -236,6 +290,16 @@ export function CartDrawer() {
       }).then((r) => {
         if (r.ok) void refresh();
       });
+    }
+  }
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(orderCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked (insecure context) — the code is still selectable */
     }
   }
 
@@ -282,17 +346,31 @@ export function CartDrawer() {
           </button>
         </div>
 
-        {/* Success */}
-        {step === "done" ? (
+        {/* Success — driven by orderCode (not `step`) so a post-checkout refresh
+            can't swap it for the empty-cart screen before the buyer copies it. */}
+        {orderCode ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-emerald-500">
               <Check size={30} />
             </div>
             <p className="text-lg font-black text-ink">{t("checkout.successTitle")}</p>
             <p className="text-sm text-ink-3">{t("checkout.successHint")}</p>
-            <div className="mt-1 rounded-xl border border-line-2 bg-surface-2 px-5 py-2 text-lg font-black tracking-wide text-brand">
-              {orderCode}
-            </div>
+            <button
+              type="button"
+              onClick={copyCode}
+              aria-label={t("checkout.copyCode")}
+              className="tap mt-1 flex items-center gap-2.5 rounded-xl border border-line-2 bg-surface-2 px-5 py-2 text-lg font-black tracking-wide text-brand transition hover:border-brand"
+            >
+              <span dir="ltr">{orderCode}</span>
+              {copied ? (
+                <Check size={17} className="text-emerald-500" />
+              ) : (
+                <Copy size={16} className="text-ink-3" />
+              )}
+            </button>
+            <p className="-mt-1 text-[11px] font-semibold text-ink-3">
+              {copied ? t("checkout.codeCopied") : t("checkout.copyCode")}
+            </p>
             {/* Guests have no history — remind them to keep the ID for tracking. */}
             {ready && !user && (
               <p className="max-w-xs text-[12px] font-semibold text-ink-3">

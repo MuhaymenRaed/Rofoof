@@ -889,6 +889,8 @@ export const dict = {
     en: "Keep your order code to track it. We'll confirm via WhatsApp.",
   },
   "checkout.sendWhatsapp": { ar: "إرسال عبر واتساب", en: "Send via WhatsApp" },
+  "checkout.copyCode": { ar: "اضغط لنسخ رقم الطلب", en: "Tap to copy your Order ID" },
+  "checkout.codeCopied": { ar: "تم نسخ الرقم ✓", en: "Copied ✓" },
   "checkout.guestSaveId": {
     ar: "احتفظ برقم الطلب لتتبّعه لاحقاً من صفحة «طلباتي».",
     en: "Save your Order ID to track your order later from the Orders page.",
