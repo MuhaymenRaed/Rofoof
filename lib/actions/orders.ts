@@ -5,12 +5,14 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
+import { mapOrder, type OrderRowWithItems } from "@/lib/data/mappers";
 import { TAGS } from "@/lib/data/tags";
 import {
   sendOrderTelegramNotification,
   sendOrderCancelledTelegramNotification,
 } from "@/lib/telegram";
 import type { OrderStatusDb } from "@/lib/supabase/types";
+import type { Order } from "@/lib/products";
 
 /* ------------------------------ Place order ---------------------------- */
 
@@ -194,6 +196,38 @@ export async function placeCustomRequestAction(
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
   return { ok: true, code: result.code, total: result.total };
+}
+
+/* --------------------------- Track order (guest) ----------------------- */
+
+const trackOrderSchema = z.object({
+  code: z.string().trim().min(3).max(40),
+  phone: z.string().trim().min(4).max(25),
+});
+
+export type TrackOrderResult = { ok: true; order: Order } | { ok: false };
+
+/**
+ * Guest order lookup. The track_order() RPC (SECURITY DEFINER) returns the
+ * order ONLY when the code AND the phone match, so a guessable code alone can
+ * never surface someone else's order. Authenticated users never need this —
+ * their history loads automatically from getUserOrders().
+ */
+export async function trackOrderAction(input: {
+  code: string;
+  phone: string;
+}): Promise<TrackOrderResult> {
+  const parsed = trackOrderSchema.safeParse(input);
+  if (!parsed.success) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("track_order", {
+    p_code: parsed.data.code,
+    p_phone: parsed.data.phone,
+  });
+  if (error || !data) return { ok: false };
+
+  return { ok: true, order: mapOrder(data as unknown as OrderRowWithItems) };
 }
 
 /* --------------------------- Update status (admin) --------------------- */

@@ -148,6 +148,58 @@ export const dict = {
   },
   "orders.tracking": { ar: "رقم التتبّع", en: "Tracking no." },
   "orders.empty": { ar: "لا توجد طلبات بعد", en: "No orders yet" },
+  // Guest order tracking (no account → look one order up by ID + phone)
+  "orders.trackTitle": { ar: "تتبّع طلبك", en: "Track your order" },
+  "orders.trackSubtitle": {
+    ar: "أدخل رقم الطلب ورقم هاتفك للاطّلاع على آخر حالة لشرائك.",
+    en: "Enter your Order ID and phone to check the latest status of your purchase.",
+  },
+  "orders.trackCodeLabel": { ar: "رقم الطلب", en: "Order ID" },
+  "orders.trackCodePlaceholder": {
+    ar: "الرقم الظاهر في تأكيد طلبك",
+    en: "The code from your order confirmation",
+  },
+  "orders.trackPhoneLabel": { ar: "رقم الهاتف", en: "Phone number" },
+  "orders.trackPhoneHint": {
+    ar: "لحمايتك، أدخل رقم الهاتف الذي استخدمته عند الطلب.",
+    en: "For your security, enter the phone number you used on the order.",
+  },
+  "orders.trackButton": { ar: "تتبّع الطلب", en: "Track order" },
+  "orders.trackingLoad": { ar: "جارٍ البحث…", en: "Searching…" },
+  "orders.trackNotFound": {
+    ar: "لم نعثر على طلب بهذا الرقم ورقم الهاتف. تأكّد منهما وحاول مجدداً.",
+    en: "No order matches that ID and phone. Double-check both and try again.",
+  },
+  "orders.trackAnother": { ar: "تتبّع طلب آخر", en: "Track another order" },
+  "orders.guestSignInPrompt": {
+    ar: "لديك حساب؟ سجّل الدخول لعرض كل طلباتك تلقائياً.",
+    en: "Have an account? Sign in to see all your orders automatically.",
+  },
+  // Guest checkout — account benefits card
+  "guest.title": {
+    ar: "أنشئ حساباً لتجربة أفضل",
+    en: "Create an account for a better experience",
+  },
+  "guest.subtitle": {
+    ar: "يمكنك المتابعة كضيف، لكن إنشاء حساب يمنحك مزايا إضافية.",
+    en: "You can continue as a guest, but creating an account unlocks additional features.",
+  },
+  "guest.benefitWishlist": { ar: "احفظ منتجاتك في المفضّلة", en: "Save products to your wishlist" },
+  "guest.benefitAutofill": {
+    ar: "تعبئة معلوماتك تلقائياً في طلباتك القادمة",
+    en: "Auto-fill your info during future checkouts",
+  },
+  "guest.benefitOrders": {
+    ar: "عرض ومتابعة كل طلباتك تلقائياً",
+    en: "Automatically view and track all your orders",
+  },
+  "guest.benefitProfile": {
+    ar: "ملف شخصي وإدارة كاملة لحسابك",
+    en: "Personal profile and account management",
+  },
+  "guest.benefitFaster": { ar: "تجربة شراء أسرع", en: "Faster checkout experience" },
+  "guest.continueAsGuest": { ar: "المتابعة كضيف", en: "Continue as guest" },
+  "guest.signIn": { ar: "تسجيل الدخول / إنشاء حساب", en: "Sign in / Create account" },
   // Install app (PWA) banner
   "pwa.title": { ar: "ثبّت تطبيق رفوف", en: "Install the rofoof app" },
   "pwa.hint": {
@@ -837,6 +889,10 @@ export const dict = {
     en: "Keep your order code to track it. We'll confirm via WhatsApp.",
   },
   "checkout.sendWhatsapp": { ar: "إرسال عبر واتساب", en: "Send via WhatsApp" },
+  "checkout.guestSaveId": {
+    ar: "احتفظ برقم الطلب لتتبّعه لاحقاً من صفحة «طلباتي».",
+    en: "Save your Order ID to track your order later from the Orders page.",
+  },
   "checkout.done": { ar: "تم", en: "Done" },
 
   // Store pagination

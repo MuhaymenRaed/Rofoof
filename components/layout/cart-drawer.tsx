@@ -16,6 +16,7 @@ import {
   Sparkles,
   CUSTOM_TYPE_ICON,
 } from "@/components/icons";
+import { GuestBenefitsCard } from "@/components/checkout/guest-benefits-card";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
@@ -67,9 +68,10 @@ export function CartDrawer() {
     lang,
     t,
   } = useStore();
-  const { user, refresh } = useAuth();
+  const { user, ready, refresh } = useAuth();
 
   const [step, setStep] = useState<Step>("cart");
+  const [promoDismissed, setPromoDismissed] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [province, setProvince] = useState("");
@@ -291,6 +293,12 @@ export function CartDrawer() {
             <div className="mt-1 rounded-xl border border-line-2 bg-surface-2 px-5 py-2 text-lg font-black tracking-wide text-brand">
               {orderCode}
             </div>
+            {/* Guests have no history — remind them to keep the ID for tracking. */}
+            {ready && !user && (
+              <p className="max-w-xs text-[12px] font-semibold text-ink-3">
+                {t("checkout.guestSaveId")}
+              </p>
+            )}
             <a
               href={waHref}
               target="_blank"
@@ -327,6 +335,11 @@ export function CartDrawer() {
           /* Checkout form */
           <form onSubmit={submit} className="flex flex-1 flex-col overflow-y-auto">
             <div className="flex-1 space-y-3 px-5 py-4">
+              {/* Guests: explain the perks of an account without blocking the
+                  sale. Dismissed by "Continue as guest" — never forced. */}
+              {ready && !user && !promoDismissed && (
+                <GuestBenefitsCard onContinue={() => setPromoDismissed(true)} />
+              )}
               <Field label={t("checkout.name")}>
                 <input
                   value={name}
