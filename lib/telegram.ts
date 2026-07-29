@@ -24,6 +24,9 @@ export interface OrderNotification {
   notes?: string | null;
   /** grand total the customer pays — products (after discount) PLUS delivery */
   total: number;
+  /** optional breakdown used to compute the displayed total if available */
+  subtotal?: number;
+  discountTotal?: number;
   /** delivery fee, shown as its own line when provided */
   deliveryFee?: number;
   itemCount: number;
@@ -38,6 +41,16 @@ function escapeMarkdown(text: string): string {
 
 function provinceLabel(provinceCode: string | null): string {
   return provinceCode ? translate(provinceLabelKey(provinceCode), "ar") : "—";
+}
+
+function resolvedTotal(order: OrderNotification): number {
+  if (order.subtotal != null && order.discountTotal != null) {
+    return (
+      Math.max(order.subtotal - order.discountTotal, 0) +
+      (order.deliveryFee ?? 0)
+    );
+  }
+  return order.total;
 }
 
 function formatOrderMessage(order: OrderNotification): string {
@@ -57,9 +70,13 @@ function formatOrderMessage(order: OrderNotification): string {
   }
   lines.push(`🧾 *عدد القطع:* ${order.itemCount}`);
   if (order.deliveryFee != null && order.deliveryFee > 0) {
-    lines.push(`🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`);
+    lines.push(
+      `🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`,
+    );
   }
-  lines.push(`💰 *المجموع مع التوصيل:* ${order.total.toLocaleString("en-US")} د.ع`);
+  lines.push(
+    `💰 *المجموع مع التوصيل:* ${resolvedTotal(order).toLocaleString("en-US")} د.ع`,
+  );
   return lines.join("\n");
 }
 
@@ -80,10 +97,12 @@ function formatCancelMessage(order: OrderNotification): string {
   }
   lines.push(`🧾 *عدد القطع:* ${order.itemCount}`);
   if (order.deliveryFee != null && order.deliveryFee > 0) {
-    lines.push(`🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`);
+    lines.push(
+      `🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`,
+    );
   }
   lines.push(
-    `💰 *كان المجموع مع التوصيل:* ${order.total.toLocaleString("en-US")} د.ع`,
+    `💰 *كان المجموع مع التوصيل:* ${resolvedTotal(order).toLocaleString("en-US")} د.ع`,
     "",
     "_تم حذف الطلب من النظام._",
   );
@@ -119,25 +138,37 @@ async function deactivate(chatId: number): Promise<void> {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
   try {
     const supabase = createAdminClient();
-    await supabase.from("telegram_subscribers").update({ is_active: false }).eq("chat_id", chatId);
+    await supabase
+      .from("telegram_subscribers")
+      .update({ is_active: false })
+      .eq("chat_id", chatId);
   } catch {
     /* non-fatal */
   }
 }
 
-async function sendTo(token: string, chatId: number, text: string): Promise<void> {
+async function sendTo(
+  token: string,
+  chatId: number,
+  text: string,
+): Promise<void> {
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
-      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
-    });
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
+        signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+      },
+    );
     if (!res.ok) {
       const body = await res.text();
       // Drop dead chats so we stop retrying them: 403 = bot blocked/stopped,
       // 400 "chat not found" = the chat no longer exists.
-      const dead = res.status === 403 || (res.status === 400 && /chat not found/i.test(body));
+      const dead =
+        res.status === 403 ||
+        (res.status === 400 && /chat not found/i.test(body));
       if (dead) await deactivate(chatId);
       else console.error("[telegram] sendMessage failed:", res.status, body);
     }
@@ -158,7 +189,9 @@ async function broadcast(text: string): Promise<void> {
   const recipients = Array.from(new Set([...envChatIds(), ...subs]));
 
   if (recipients.length === 0) {
-    console.error("[telegram] no recipients — set TELEGRAM_CHAT_ID or have someone /start the bot");
+    console.error(
+      "[telegram] no recipients — set TELEGRAM_CHAT_ID or have someone /start the bot",
+    );
     return;
   }
 
@@ -166,7 +199,9 @@ async function broadcast(text: string): Promise<void> {
 }
 
 /** Broadcast a "new order" alert to every bot subscriber + env chat IDs. */
-export async function sendOrderTelegramNotification(order: OrderNotification): Promise<void> {
+export async function sendOrderTelegramNotification(
+  order: OrderNotification,
+): Promise<void> {
   await broadcast(formatOrderMessage(order));
 }
 

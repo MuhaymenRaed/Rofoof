@@ -21,9 +21,21 @@ import type { Order } from "@/lib/products";
  * lets the Telegram alert show the true grand total (products − discount +
  * delivery) rather than a product-only figure.
  */
+function calculateGrandTotal(
+  subtotal: number,
+  discountTotal: number,
+  deliveryFee: number,
+): number {
+  return Math.max(subtotal - discountTotal, 0) + deliveryFee;
+}
+
 async function getOrderMoney(
   code: string,
-): Promise<{ subtotal: number; discountTotal: number; deliveryFee: number } | null> {
+): Promise<{
+  subtotal: number;
+  discountTotal: number;
+  deliveryFee: number;
+} | null> {
   try {
     const admin = createAdminClient();
     const { data } = await admin
@@ -93,7 +105,9 @@ export type PlaceOrderResult =
   | { ok: true; code: string; total: number }
   | { ok: false; error: string };
 
-export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrderResult> {
+export async function placeOrderAction(
+  input: PlaceOrderInput,
+): Promise<PlaceOrderResult> {
   const parsed = placeOrderSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_input" };
   const v = parsed.data;
@@ -145,7 +159,11 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
   // the RPC total if that read is unavailable.
   const money = await getOrderMoney(result.code);
   const grandTotal = money
-    ? Math.max(money.subtotal - money.discountTotal, 0) + money.deliveryFee
+    ? calculateGrandTotal(
+        money.subtotal,
+        money.discountTotal,
+        money.deliveryFee,
+      )
     : result.total;
 
   // Alert the store's Telegram bot. Fully non-fatal: sendOrderTelegramNotification
@@ -161,6 +179,8 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     addressLine: v.addressLine ?? null,
     notes: v.notes ?? null,
     total: grandTotal,
+    subtotal: money?.subtotal,
+    discountTotal: money?.discountTotal,
     deliveryFee: money?.deliveryFee ?? 0,
     itemCount:
       v.items.reduce((sum, i) => sum + i.qty, 0) +
@@ -270,7 +290,12 @@ export async function trackOrderAction(input: {
 
 /* --------------------------- Update status (admin) --------------------- */
 
-const STATUSES: OrderStatusDb[] = ["review", "accepted", "shipped", "delivered"];
+const STATUSES: OrderStatusDb[] = [
+  "review",
+  "accepted",
+  "shipped",
+  "delivered",
+];
 
 export async function updateOrderStatusAction(
   code: string,
@@ -280,7 +305,10 @@ export async function updateOrderStatusAction(
   if (!STATUSES.includes(status)) return { ok: false, error: "invalid_status" };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("orders").update({ status }).eq("code", code);
+  const { error } = await supabase
+    .from("orders")
+    .update({ status })
+    .eq("code", code);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/dashboard/orders");
@@ -291,7 +319,9 @@ export async function updateOrderStatusAction(
 }
 
 /** Next page of the admin orders board (infinite scroll). */
-export async function loadMoreOrdersAction(offset: number): Promise<OrdersPage> {
+export async function loadMoreOrdersAction(
+  offset: number,
+): Promise<OrdersPage> {
   await requireAdmin();
   return getAllOrders(offset);
 }
@@ -337,7 +367,9 @@ export async function cancelOrderAction(
       order_items: { qty: number }[] | null;
     }>();
 
-  const { data, error } = await supabase.rpc("cancel_order", { p_code: trimmed });
+  const { data, error } = await supabase.rpc("cancel_order", {
+    p_code: trimmed,
+  });
   if (error) {
     console.error("[cancelOrder]", error);
     return { ok: false, error: error.message };
@@ -347,9 +379,11 @@ export async function cancelOrderAction(
   // Alert the store's bot that a customer cancelled (non-fatal — see place_order).
   if (snap) {
     const itemCount = snap.is_custom
-      ? snap.custom_images?.length ?? 0
+      ? (snap.custom_images?.length ?? 0)
       : (snap.order_items ?? []).reduce((sum, i) => sum + (i.qty ?? 0), 0);
     const deliveryFee = snap.delivery_fee ?? 0;
+    const subtotal = snap.subtotal ?? 0;
+    const discountTotal = snap.discount_total ?? 0;
     await sendOrderCancelledTelegramNotification({
       code: snap.code,
       customerName: snap.customer_name,
@@ -357,7 +391,9 @@ export async function cancelOrderAction(
       provinceCode: snap.province_code ?? null,
       addressLine: snap.address_line ?? null,
       notes: snap.notes ?? null,
-      total: Math.max((snap.subtotal ?? 0) - (snap.discount_total ?? 0), 0) + deliveryFee,
+      total: calculateGrandTotal(subtotal, discountTotal, deliveryFee),
+      subtotal,
+      discountTotal,
       deliveryFee,
       itemCount,
     });
@@ -414,18 +450,25 @@ export async function cancelGuestOrderAction(input: {
   } | null;
 
   if (!res || !res.cancelled) {
-    return { ok: false, error: res?.reason === "cannot_cancel" ? "cannot_cancel" : "not_found" };
+    return {
+      ok: false,
+      error: res?.reason === "cannot_cancel" ? "cannot_cancel" : "not_found",
+    };
   }
 
   const o = res.order;
   if (o) {
-    const itemCount = o.is_custom ? o.custom_images?.length ?? 0 : Number(o.item_qty ?? 0);
+    const itemCount = o.is_custom
+      ? (o.custom_images?.length ?? 0)
+      : Number(o.item_qty ?? 0);
     const deliveryFee = o.delivery_fee ?? 0;
+    const subtotal = o.subtotal ?? null;
+    const discountTotal = o.discount_total ?? null;
     // Prefer the breakdown (products − discount + delivery); fall back to the
     // stored total if the RPC predates the extra snapshot fields.
     const total =
-      o.subtotal != null
-        ? Math.max(o.subtotal - (o.discount_total ?? 0), 0) + deliveryFee
+      subtotal != null && discountTotal != null
+        ? calculateGrandTotal(subtotal, discountTotal, deliveryFee)
         : o.total;
     await sendOrderCancelledTelegramNotification({
       code: o.code,
@@ -435,6 +478,8 @@ export async function cancelGuestOrderAction(input: {
       addressLine: o.address_line ?? null,
       notes: o.notes ?? null,
       total,
+      subtotal: subtotal ?? undefined,
+      discountTotal: discountTotal ?? undefined,
       deliveryFee,
       itemCount,
     });
