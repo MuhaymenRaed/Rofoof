@@ -142,7 +142,15 @@ export function Footer() {
 
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-line-2 pt-6 text-xs text-ink-3 sm:flex-row">
           <p>
-            © {year} رفوف · rofoof — {t("footer.rights")}
+            © {year} رفوف · rofoof — {t("footer.rights")}{" "}
+            <a
+              href="https://muhaymen-raed-portfolio.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-ink-2 underline decoration-dotted underline-offset-2 transition hover:text-brand"
+            >
+              Qcode
+            </a>
           </p>
           <p className="flex items-center gap-1.5">
             <Truck size={14} /> {t("footer.location")}

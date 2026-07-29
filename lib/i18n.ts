@@ -282,8 +282,8 @@ export const dict = {
     en: "Delivery to all provinces",
   },
   "footer.rights": {
-    ar: "جميع الحقوق محفوظة Qcode",
-    en: "All rights reserved Qcode",
+    ar: "جميع الحقوق محفوظة",
+    en: "All rights reserved",
   },
   "footer.policies": { ar: "السياسات", en: "Policies" },
   "footer.returns": { ar: "الإرجاع والاستبدال", en: "Returns" },

@@ -22,7 +22,10 @@ export interface OrderNotification {
   provinceCode: string | null;
   addressLine?: string | null;
   notes?: string | null;
+  /** grand total the customer pays — products (after discount) PLUS delivery */
   total: number;
+  /** delivery fee, shown as its own line when provided */
+  deliveryFee?: number;
   itemCount: number;
 }
 
@@ -52,10 +55,11 @@ function formatOrderMessage(order: OrderNotification): string {
   if (order.notes?.trim()) {
     lines.push(`📝 *ملاحظات:* ${escapeMarkdown(order.notes.trim())}`);
   }
-  lines.push(
-    `🧾 *عدد القطع:* ${order.itemCount}`,
-    `💰 *المجموع:* ${order.total.toLocaleString("en-US")} د.ع`,
-  );
+  lines.push(`🧾 *عدد القطع:* ${order.itemCount}`);
+  if (order.deliveryFee != null && order.deliveryFee > 0) {
+    lines.push(`🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`);
+  }
+  lines.push(`💰 *المجموع مع التوصيل:* ${order.total.toLocaleString("en-US")} د.ع`);
   return lines.join("\n");
 }
 
@@ -74,9 +78,12 @@ function formatCancelMessage(order: OrderNotification): string {
   if (order.notes?.trim()) {
     lines.push(`📝 *ملاحظات:* ${escapeMarkdown(order.notes.trim())}`);
   }
+  lines.push(`🧾 *عدد القطع:* ${order.itemCount}`);
+  if (order.deliveryFee != null && order.deliveryFee > 0) {
+    lines.push(`🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`);
+  }
   lines.push(
-    `🧾 *عدد القطع:* ${order.itemCount}`,
-    `💰 *كان المجموع:* ${order.total.toLocaleString("en-US")} د.ع`,
+    `💰 *كان المجموع مع التوصيل:* ${order.total.toLocaleString("en-US")} د.ع`,
     "",
     "_تم حذف الطلب من النظام._",
   );

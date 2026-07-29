@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useStore, cartLineKey } from "@/components/providers/store-provider";
@@ -92,12 +92,26 @@ export function CartDrawer() {
   const [couponPending, setCouponPending] = useState(false);
   const [couponMsg, setCouponMsg] = useState<DictKey | null>(null);
 
+  // Close the drawer AND clear the just-placed order — the only place the
+  // success screen is dismissed (an explicit user action), so a stray refresh
+  // can never wipe it out from under the buyer.
+  const dismiss = useCallback(() => {
+    setOrderCode("");
+    setCopied(false);
+    try {
+      sessionStorage.removeItem(DONE_KEY);
+    } catch {
+      /* ignore */
+    }
+    closeCart();
+  }, [closeCart]);
+
   useEffect(() => {
     if (!cartOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeCart();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && dismiss();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cartOpen, closeCart]);
+  }, [cartOpen, dismiss]);
 
   // Restore a just-placed order after a remount (a Server-Action revalidation
   // refresh can remount this drawer and wipe its state — that's what made the
@@ -113,23 +127,15 @@ export function CartDrawer() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Reset to the cart view a moment after the drawer closes — unconditionally,
-  // so a *previous* completed order never resurfaces when the user later adds
-  // another item and the drawer reopens (it must show the current cart, not
-  // the old "order received" screen). Clearing the code here (not on success)
-  // keeps the success screen up for as long as the drawer stays open.
+  // Revert the *step* to the cart view a moment after the drawer closes, so a
+  // half-finished checkout form doesn't reappear on reopen. The order code is
+  // deliberately NOT cleared here — a post-checkout refresh can briefly flip
+  // cartOpen, and clearing on that timer is exactly what used to wipe the
+  // success screen before the buyer could copy the code. The code is cleared
+  // only on an explicit dismiss (below) or when a new basket starts.
   useEffect(() => {
     if (cartOpen) return;
-    const id = setTimeout(() => {
-      setStep("cart");
-      setOrderCode("");
-      setCopied(false);
-      try {
-        sessionStorage.removeItem(DONE_KEY);
-      } catch {
-        /* ignore */
-      }
-    }, 300);
+    const id = setTimeout(() => setStep("cart"), 300);
     return () => clearTimeout(id);
   }, [cartOpen]);
 
@@ -311,7 +317,7 @@ export function CartDrawer() {
       aria-hidden={!cartOpen}
     >
       <div
-        onClick={closeCart}
+        onClick={dismiss}
         className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300 ${
           cartOpen ? "opacity-100" : "opacity-0"
         }`}
@@ -338,7 +344,7 @@ export function CartDrawer() {
           </h2>
           <button
             type="button"
-            onClick={closeCart}
+            onClick={dismiss}
             aria-label={t("aria.close")}
             className="tap grid h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink"
           >
@@ -388,7 +394,7 @@ export function CartDrawer() {
             </a>
             <button
               type="button"
-              onClick={closeCart}
+              onClick={dismiss}
               className="tap text-sm font-bold text-ink-3 transition hover:text-ink"
             >
               {t("checkout.done")}

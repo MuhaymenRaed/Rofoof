@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { mapOrder, type OrderRowWithItems } from "@/lib/data/mappers";
@@ -13,6 +14,33 @@ import {
 } from "@/lib/telegram";
 import type { OrderStatusDb } from "@/lib/supabase/types";
 import type { Order } from "@/lib/products";
+
+/**
+ * The authoritative money breakdown for an order. Uses the admin client so it
+ * resolves even for a guest order (whose rows a plain RLS read can't see), and
+ * lets the Telegram alert show the true grand total (products − discount +
+ * delivery) rather than a product-only figure.
+ */
+async function getOrderMoney(
+  code: string,
+): Promise<{ subtotal: number; discountTotal: number; deliveryFee: number } | null> {
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("orders")
+      .select("subtotal, discount_total, delivery_fee")
+      .eq("code", code)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      subtotal: data.subtotal ?? 0,
+      discountTotal: data.discount_total ?? 0,
+      deliveryFee: data.delivery_fee ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /* ------------------------------ Place order ---------------------------- */
 
@@ -111,6 +139,15 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
 
   const result = data as { code: string; total: number };
 
+  // The alert must show the amount the customer actually pays: products (after
+  // discount) PLUS delivery. Read the authoritative breakdown with the admin
+  // client (RLS would hide a *guest* order from a plain read) and fall back to
+  // the RPC total if that read is unavailable.
+  const money = await getOrderMoney(result.code);
+  const grandTotal = money
+    ? Math.max(money.subtotal - money.discountTotal, 0) + money.deliveryFee
+    : result.total;
+
   // Alert the store's Telegram bot. Fully non-fatal: sendOrderTelegramNotification
   // never throws, so a Telegram outage can never fail an already-successful
   // order. Still awaited (not fire-and-forget) — Netlify Functions can freeze
@@ -123,7 +160,8 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
     provinceCode: v.provinceCode ?? null,
     addressLine: v.addressLine ?? null,
     notes: v.notes ?? null,
-    total: result.total,
+    total: grandTotal,
+    deliveryFee: money?.deliveryFee ?? 0,
     itemCount:
       v.items.reduce((sum, i) => sum + i.qty, 0) +
       v.customs.reduce((sum, c) => sum + c.images.length, 0),
@@ -281,7 +319,7 @@ export async function cancelOrderAction(
   const { data: snap } = await supabase
     .from("orders")
     .select(
-      "code, customer_name, customer_phone, province_code, address_line, notes, total, is_custom, custom_images, order_items(qty)",
+      "code, customer_name, customer_phone, province_code, address_line, notes, subtotal, discount_total, delivery_fee, is_custom, custom_images, order_items(qty)",
     )
     .eq("code", trimmed)
     .maybeSingle<{
@@ -291,7 +329,9 @@ export async function cancelOrderAction(
       province_code: string | null;
       address_line: string | null;
       notes: string | null;
-      total: number;
+      subtotal: number;
+      discount_total: number;
+      delivery_fee: number;
       is_custom: boolean | null;
       custom_images: string[] | null;
       order_items: { qty: number }[] | null;
@@ -309,6 +349,7 @@ export async function cancelOrderAction(
     const itemCount = snap.is_custom
       ? snap.custom_images?.length ?? 0
       : (snap.order_items ?? []).reduce((sum, i) => sum + (i.qty ?? 0), 0);
+    const deliveryFee = snap.delivery_fee ?? 0;
     await sendOrderCancelledTelegramNotification({
       code: snap.code,
       customerName: snap.customer_name,
@@ -316,7 +357,8 @@ export async function cancelOrderAction(
       provinceCode: snap.province_code ?? null,
       addressLine: snap.address_line ?? null,
       notes: snap.notes ?? null,
-      total: snap.total,
+      total: Math.max((snap.subtotal ?? 0) - (snap.discount_total ?? 0), 0) + deliveryFee,
+      deliveryFee,
       itemCount,
     });
   }
@@ -361,6 +403,9 @@ export async function cancelGuestOrderAction(input: {
       province_code: string | null;
       address_line: string | null;
       notes: string | null;
+      subtotal?: number;
+      discount_total?: number;
+      delivery_fee?: number;
       total: number;
       is_custom: boolean;
       custom_images: string[] | null;
@@ -375,6 +420,13 @@ export async function cancelGuestOrderAction(input: {
   const o = res.order;
   if (o) {
     const itemCount = o.is_custom ? o.custom_images?.length ?? 0 : Number(o.item_qty ?? 0);
+    const deliveryFee = o.delivery_fee ?? 0;
+    // Prefer the breakdown (products − discount + delivery); fall back to the
+    // stored total if the RPC predates the extra snapshot fields.
+    const total =
+      o.subtotal != null
+        ? Math.max(o.subtotal - (o.discount_total ?? 0), 0) + deliveryFee
+        : o.total;
     await sendOrderCancelledTelegramNotification({
       code: o.code,
       customerName: o.customer_name,
@@ -382,7 +434,8 @@ export async function cancelGuestOrderAction(input: {
       provinceCode: o.province_code ?? null,
       addressLine: o.address_line ?? null,
       notes: o.notes ?? null,
-      total: o.total,
+      total,
+      deliveryFee,
       itemCount,
     });
   }

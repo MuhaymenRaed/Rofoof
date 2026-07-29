@@ -13,7 +13,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusPill } from "@/components/ui/status-pill";
 import { UsersIcon, TrendIcon, BarsIcon } from "@/components/dashboard/dash-icons";
 import { Package, Bag, Star, Sparkles } from "@/components/icons";
@@ -63,7 +66,24 @@ export function OverviewView({
   latest: Order[];
 }) {
   const { t, lang } = useStore();
+  const router = useRouter();
   const maxSold = Math.max(1, ...stats.topProducts.map((p) => p.sold));
+
+  // Keep the KPIs live: any order change — a new order, a status move, or a
+  // customer/guest cancellation (which deletes the row) — refetches the stats
+  // so the dashboard reflects it without a manual refresh.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel("dashboard-overview")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () =>
+        router.refresh(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const pieData = (Object.keys(statusCounts) as OrderStatus[])
     .map((s) => ({
