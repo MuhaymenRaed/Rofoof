@@ -536,6 +536,8 @@ export interface Database {
       is_admin: { Args: Record<string, never>; Returns: boolean };
       /** Guest order lookup by code + phone (SECURITY DEFINER); null on mismatch. */
       track_order: { Args: { p_code: string; p_phone: string }; Returns: Json };
+      /** Guest order cancel by code + phone (SECURITY DEFINER); null on mismatch. */
+      cancel_order_guest: { Args: { p_code: string; p_phone: string }; Returns: Json };
     };
     Enums: {
       badge_type: BadgeType;

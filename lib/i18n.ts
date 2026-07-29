@@ -171,6 +171,11 @@ export const dict = {
     en: "No order matches that ID and phone. Double-check both and try again.",
   },
   "orders.trackAnother": { ar: "تتبّع طلب آخر", en: "Track another order" },
+  "orders.trackCancelledTitle": { ar: "تم إلغاء طلبك", en: "Your order was cancelled" },
+  "orders.trackCancelledHint": {
+    ar: "تم إلغاء الطلب بنجاح. يمكنك تقديم طلب جديد في أي وقت.",
+    en: "The order was cancelled successfully. You can place a new order anytime.",
+  },
   "orders.guestSignInPrompt": {
     ar: "لديك حساب؟ سجّل الدخول لعرض كل طلباتك تلقائياً.",
     en: "Have an account? Sign in to see all your orders automatically.",

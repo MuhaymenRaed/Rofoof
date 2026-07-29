@@ -329,6 +329,72 @@ export async function cancelOrderAction(
 }
 
 /**
+ * Guest cancellation: a guest who tracked their order (code + phone) can cancel
+ * it while it's still in review. cancel_order_guest() (SECURITY DEFINER) re-checks
+ * the phone AND the review-only rule, hard-deletes the order, and returns a
+ * snapshot — so we fire the SAME Telegram cancellation alert as the authed path.
+ */
+export async function cancelGuestOrderAction(input: {
+  code: string;
+  phone: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const parsed = trackOrderSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("cancel_order_guest", {
+    p_code: parsed.data.code,
+    p_phone: parsed.data.phone,
+  });
+  if (error) {
+    console.error("[cancelGuestOrder]", error);
+    return { ok: false, error: error.message };
+  }
+
+  const res = data as {
+    cancelled: boolean;
+    reason?: string;
+    order?: {
+      code: string;
+      customer_name: string;
+      customer_phone: string;
+      province_code: string | null;
+      address_line: string | null;
+      notes: string | null;
+      total: number;
+      is_custom: boolean;
+      custom_images: string[] | null;
+      item_qty: number;
+    };
+  } | null;
+
+  if (!res || !res.cancelled) {
+    return { ok: false, error: res?.reason === "cannot_cancel" ? "cannot_cancel" : "not_found" };
+  }
+
+  const o = res.order;
+  if (o) {
+    const itemCount = o.is_custom ? o.custom_images?.length ?? 0 : Number(o.item_qty ?? 0);
+    await sendOrderCancelledTelegramNotification({
+      code: o.code,
+      customerName: o.customer_name,
+      customerPhone: o.customer_phone,
+      provinceCode: o.province_code ?? null,
+      addressLine: o.address_line ?? null,
+      notes: o.notes ?? null,
+      total: o.total,
+      itemCount,
+    });
+  }
+
+  revalidateTag(TAGS.sales, "max");
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/orders");
+  return { ok: true };
+}
+
+/**
  * Bulk status move for the order-cards grid. Each entry carries its own target
  * status (computed client-side as next/previous step per card), validated here.
  */
