@@ -146,39 +146,43 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
           })}
         </ul>
 
-        {/* Money breakdown */}
-        <div className="mt-4 space-y-1 border-t border-line-2 pt-4 text-sm">
-          {(order.discountTotal > 0 || order.deliveryFee > 0) && (
-            <>
-              <div className="flex items-center justify-between text-ink-2">
-                <span>{t("cart.subtotal")}</span>
-                <span className="font-semibold">{formatPrice(order.subtotal, lang)}</span>
-              </div>
-              {order.discountTotal > 0 && (
-                <div className="flex items-center justify-between text-emerald-600">
-                  <span className="text-xs font-bold">
-                    {t("cart.discount")}
-                    {order.offerNote && ` · ${order.offerNote}`}
-                  </span>
-                  <span className="font-bold">-{formatPrice(order.discountTotal, lang)}</span>
-                </div>
-              )}
-              {order.deliveryFee > 0 && (
-                <div className="flex items-center justify-between text-ink-2">
-                  <span>{t("cart.delivery")}</span>
-                  <span className="font-semibold">{formatPrice(order.deliveryFee, lang)}</span>
-                </div>
-              )}
-            </>
+        {/* Money breakdown — always itemized so the total is fully transparent:
+            products − discount + delivery. Computed here (not the stored total)
+            so it's always correct even if the column lags. */}
+        <div className="mt-4 space-y-1.5 border-t border-line-2 pt-4 text-sm">
+          <div className="flex items-center justify-between text-ink-2">
+            <span>{t("cart.subtotal")}</span>
+            <span className="font-semibold text-ink">{formatPrice(order.subtotal, lang)}</span>
+          </div>
+          {order.discountTotal > 0 && (
+            <div className="flex items-center justify-between text-emerald-600">
+              <span className="text-xs font-bold">
+                {t("cart.discount")}
+                {order.offerNote && ` · ${order.offerNote}`}
+              </span>
+              <span className="font-bold">-{formatPrice(order.discountTotal, lang)}</span>
+            </div>
           )}
-          <div className="flex items-center justify-between pt-1">
-            <span className="flex items-center gap-2 font-semibold text-ink-2">
-              <Package size={16} className="text-brand" />
-              {order.customer}
+          <div className="flex items-center justify-between text-ink-2">
+            <span>{t("cart.delivery")}</span>
+            <span className="font-semibold text-ink">
+              {order.deliveryFee > 0
+                ? formatPrice(order.deliveryFee, lang)
+                : t("cart.freeDelivery")}
             </span>
+          </div>
+          <div className="flex items-center justify-between border-t border-line-2 pt-2">
+            <span className="font-black text-ink">{t("cart.total")}</span>
             <span className="text-base font-black text-brand">
-              {formatPrice(order.total, lang)}
+              {formatPrice(
+                Math.max(order.subtotal - order.discountTotal, 0) + order.deliveryFee,
+                lang,
+              )}
             </span>
+          </div>
+          <div className="flex items-center gap-2 pt-1 text-ink-2">
+            <Package size={15} className="shrink-0 text-brand" />
+            <span className="font-semibold">{order.customer}</span>
           </div>
         </div>
 

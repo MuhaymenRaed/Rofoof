@@ -555,11 +555,12 @@ function OrderDetailsModal({
             })}
           </ul>
 
-          {/* Money breakdown */}
-          <div className="space-y-1 rounded-2xl border border-line-2 p-4 text-sm">
+          {/* Money breakdown — itemized: products − discount + delivery, with
+              the total computed here so it always matches the parts. */}
+          <div className="space-y-1.5 rounded-2xl border border-line-2 p-4 text-sm">
             <div className="flex items-center justify-between text-ink-2">
               <span>{t("cart.subtotal")}</span>
-              <span className="font-semibold">{formatPrice(order.subtotal, lang)}</span>
+              <span className="font-semibold text-ink">{formatPrice(order.subtotal, lang)}</span>
             </div>
             {order.discountTotal > 0 && (
               <div className="flex items-center justify-between text-emerald-600">
@@ -570,16 +571,21 @@ function OrderDetailsModal({
                 <span className="font-bold">-{formatPrice(order.discountTotal, lang)}</span>
               </div>
             )}
-            {order.deliveryFee > 0 && (
-              <div className="flex items-center justify-between text-ink-2">
-                <span>{t("cart.delivery")}</span>
-                <span className="font-semibold">{formatPrice(order.deliveryFee, lang)}</span>
-              </div>
-            )}
+            <div className="flex items-center justify-between text-ink-2">
+              <span>{t("cart.delivery")}</span>
+              <span className="font-semibold text-ink">
+                {order.deliveryFee > 0
+                  ? formatPrice(order.deliveryFee, lang)
+                  : t("cart.freeDelivery")}
+              </span>
+            </div>
             <div className="flex items-center justify-between border-t border-line-2 pt-2">
-              <span className="font-bold text-ink">{t("cart.total")}</span>
+              <span className="font-black text-ink">{t("cart.total")}</span>
               <span className="text-base font-black text-brand">
-                {formatPrice(order.total, lang)}
+                {formatPrice(
+                  Math.max(order.subtotal - order.discountTotal, 0) + order.deliveryFee,
+                  lang,
+                )}
               </span>
             </div>
           </div>
