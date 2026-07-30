@@ -20,12 +20,15 @@ function toAsciiDigits(s: string): string {
 }
 
 /**
- * Keep only what belongs in a phone number — digits (incl. Arabic numerals),
- * a leading +, spaces and dashes. Typing letters simply produces nothing, so
- * the field can't hold gibberish like "تنمتنمت".
+ * Force a phone-only value: digits (incl. Arabic numerals → ASCII) plus at most
+ * one leading +. Everything else — letters, spaces, dashes, symbols — is
+ * dropped as it's typed, so the field can never hold gibberish like "jkljklj"
+ * or "تنمتنمت"; there's nothing to reject after the fact.
  */
 export function sanitizePhoneInput(value: string): string {
-  return toAsciiDigits(value).replace(/[^\d+\s-]/g, "");
+  const digitsAndPlus = toAsciiDigits(value).replace(/[^\d+]/g, "");
+  // A + is only meaningful as the very first character.
+  return digitsAndPlus.replace(/(?!^)\+/g, "");
 }
 
 /** A plausible phone: 10–15 digits (Iraqi mobile is 11 with the leading 0). */
