@@ -154,15 +154,21 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
             <span>{t("cart.subtotal")}</span>
             <span className="font-semibold text-ink">{formatPrice(order.subtotal, lang)}</span>
           </div>
-          {order.discountTotal > 0 && (
-            <div className="flex items-center justify-between text-emerald-600">
-              <span className="text-xs font-bold">
-                {t("cart.discount")}
-                {order.offerNote && ` · ${order.offerNote}`}
-              </span>
-              <span className="font-bold">-{formatPrice(order.discountTotal, lang)}</span>
-            </div>
-          )}
+          <div
+            className={`flex items-center justify-between ${
+              order.discountTotal > 0 ? "text-emerald-600" : "text-ink-2"
+            }`}
+          >
+            <span className={order.discountTotal > 0 ? "text-xs font-bold" : undefined}>
+              {t("cart.discount")}
+              {order.discountTotal > 0 && order.offerNote ? ` · ${order.offerNote}` : ""}
+            </span>
+            <span className="font-bold">
+              {order.discountTotal > 0
+                ? `-${formatPrice(order.discountTotal, lang)}`
+                : formatPrice(0, lang)}
+            </span>
+          </div>
           <div className="flex items-center justify-between text-ink-2">
             <span>{t("cart.delivery")}</span>
             <span className="font-semibold text-ink">

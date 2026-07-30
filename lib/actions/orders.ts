@@ -59,7 +59,16 @@ async function getOrderMoney(
 const placeOrderSchema = z
   .object({
     customerName: z.string().trim().min(2).max(80),
-    customerPhone: z.string().trim().min(6).max(20),
+    // A real phone: 10–15 digits once separators are stripped — rejects junk
+    // like "تنمتنمت" even if the client validation is bypassed.
+    customerPhone: z
+      .string()
+      .trim()
+      .max(25)
+      .refine((v) => {
+        const digits = v.replace(/\D/g, "");
+        return digits.length >= 10 && digits.length <= 15;
+      }, "invalid_phone"),
     // Province and a full address are required at checkout; the note is not.
     provinceCode: z.string().trim().min(1),
     addressLine: z.string().trim().min(3).max(200),

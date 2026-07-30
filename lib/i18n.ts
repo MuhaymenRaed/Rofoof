@@ -882,6 +882,15 @@ export const dict = {
     en: "Name, phone, province and address are required to place an order",
   },
   "checkout.placing": { ar: "جارٍ الإرسال…", en: "Placing…" },
+  "checkout.invalidPhone": {
+    ar: "أدخل رقم هاتف صحيح (أرقام فقط، مثل 07XXXXXXXXX)",
+    en: "Enter a valid phone number (digits only, e.g. 07XXXXXXXXX)",
+  },
+  "checkout.stale": {
+    ar: "انتهت صلاحية هذه الصفحة بعد تحديث الموقع. حدّث الصفحة ثم أعد المحاولة — لم يتم إنشاء الطلب.",
+    en: "This page went out of date after a site update. Refresh and try again — no order was created.",
+  },
+  "checkout.reload": { ar: "تحديث الصفحة", en: "Refresh page" },
   "checkout.back": { ar: "رجوع للسلة", en: "Back to cart" },
   "checkout.proceed": { ar: "متابعة الطلب", en: "Proceed to checkout" },
   "checkout.error": {

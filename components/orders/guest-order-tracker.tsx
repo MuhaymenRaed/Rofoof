@@ -7,6 +7,7 @@ import { OrderCard } from "@/components/orders/order-card";
 import { CancelDialog } from "@/components/orders/cancel-dialog";
 import { Search, Package, ChevronEnd, Check } from "@/components/icons";
 import { trackOrderAction, cancelGuestOrderAction } from "@/lib/actions/orders";
+import { sanitizePhoneInput } from "@/lib/contact";
 import type { Order } from "@/lib/products";
 
 /**
@@ -129,7 +130,7 @@ export function GuestOrderTracker() {
             </span>
             <input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
               inputMode="tel"
               dir="ltr"
               aria-label={t("orders.trackPhoneLabel")}

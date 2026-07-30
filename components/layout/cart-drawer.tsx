@@ -26,7 +26,7 @@ import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { placeOrderAction } from "@/lib/actions/orders";
 import { previewCouponAction, type CouponPreview } from "@/lib/actions/coupons";
 import { updateProfileAction } from "@/lib/actions/profile";
-import { whatsappMessageUrl } from "@/lib/contact";
+import { whatsappMessageUrl, sanitizePhoneInput, isValidPhone } from "@/lib/contact";
 import type { DictKey } from "@/lib/i18n";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
@@ -85,6 +85,9 @@ export function CartDrawer() {
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
+  // A thrown checkout action (network drop, or a Server Action ID that no
+  // longer exists after a new deploy) needs a refresh, not a blind retry.
+  const [staleError, setStaleError] = useState(false);
   const [orderCode, setOrderCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [couponInput, setCouponInput] = useState("");
@@ -169,7 +172,7 @@ export function CartDrawer() {
   // the only optional field.
   const canCheckout =
     name.trim() !== "" &&
-    phone.trim() !== "" &&
+    isValidPhone(phone) &&
     province !== "" &&
     address.trim() !== "";
 
@@ -239,6 +242,7 @@ export function CartDrawer() {
     if (!name.trim() || !phone.trim() || !province || !address.trim()) return;
     setPending(true);
     setError(false);
+    setStaleError(false);
 
     const contact = {
       customerName: name,
@@ -246,27 +250,38 @@ export function CartDrawer() {
       provinceCode: province,
       addressLine: address.trim(),
     };
+
     // Products AND queued custom requests go out as ONE order — the whole cart
     // is a single order in the customer's page, the dashboard, and the stats.
-    const res = await placeOrderAction({
-      ...contact,
-      notes: note.trim() || null,
-      couponCode: coupon?.valid ? coupon.code ?? null : null,
-      items: cart.map((l) => ({
-        productId: l.id,
-        itemId: l.itemId ?? null,
-        qty: l.qty,
-        waterproof: l.waterproof ?? false,
-        customImageUrl: l.customImageUrl ?? null,
-        note: l.note ?? null,
-      })),
-      customs: customRequests.map((r) => ({
-        type: r.type,
-        waterproof: r.waterproof,
-        description: r.description,
-        images: r.images,
-      })),
-    });
+    // Wrapped so a THROWN action (network drop, or a stale Server Action ID
+    // after a new deploy) resets the button and prompts a refresh instead of
+    // leaving it stuck on "sending". The order isn't created in that case.
+    let res: Awaited<ReturnType<typeof placeOrderAction>>;
+    try {
+      res = await placeOrderAction({
+        ...contact,
+        notes: note.trim() || null,
+        couponCode: coupon?.valid ? coupon.code ?? null : null,
+        items: cart.map((l) => ({
+          productId: l.id,
+          itemId: l.itemId ?? null,
+          qty: l.qty,
+          waterproof: l.waterproof ?? false,
+          customImageUrl: l.customImageUrl ?? null,
+          note: l.note ?? null,
+        })),
+        customs: customRequests.map((r) => ({
+          type: r.type,
+          waterproof: r.waterproof,
+          description: r.description,
+          images: r.images,
+        })),
+      });
+    } catch {
+      setPending(false);
+      setStaleError(true);
+      return;
+    }
 
     setPending(false);
     if (!res.ok) {
@@ -435,12 +450,18 @@ export function CartDrawer() {
               <Field label={t("checkout.phone")}>
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                   required
                   inputMode="tel"
                   dir="ltr"
+                  placeholder="07XX XXX XXXX"
                   className="dash-input text-start"
                 />
+                {phone.trim() !== "" && !isValidPhone(phone) && (
+                  <span className="mt-1 block text-[11px] font-semibold text-red-500">
+                    {t("checkout.invalidPhone")}
+                  </span>
+                )}
               </Field>
               <Field label={t("checkout.province")}>
                 <select
@@ -479,6 +500,19 @@ export function CartDrawer() {
                 <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
                   {t("checkout.error")}
                 </p>
+              )}
+
+              {staleError && (
+                <div className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-xs font-semibold text-amber-700">
+                  <p>{t("checkout.stale")}</p>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="tap mt-2 rounded-lg bg-amber-500 px-3 py-1.5 font-bold text-white transition hover:opacity-90"
+                  >
+                    {t("checkout.reload")}
+                  </button>
+                </div>
               )}
             </div>
 
