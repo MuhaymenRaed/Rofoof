@@ -247,6 +247,19 @@ export async function placeCustomRequestAction(
 
   const result = data as { code: string; total: number };
 
+  // Same authoritative read as a normal checkout, so the alert can itemise
+  // products / discount / delivery instead of only a bare total. The RPC's own
+  // total stays authoritative here: a custom request is priced server-side, so
+  // the breakdown is only shown when it reconciles with that total — otherwise
+  // the alert falls back to the total alone rather than risk understating it.
+  const money = await getOrderMoney(result.code);
+  const itemised =
+    money != null &&
+    calculateGrandTotal(money.subtotal, money.discountTotal, money.deliveryFee) ===
+      result.total
+      ? money
+      : null;
+
   await sendOrderTelegramNotification({
     code: result.code,
     customerName: v.customerName,
@@ -255,6 +268,9 @@ export async function placeCustomRequestAction(
     addressLine: v.addressLine ?? null,
     notes: v.description || null,
     total: result.total,
+    subtotal: itemised?.subtotal,
+    discountTotal: itemised?.discountTotal,
+    deliveryFee: itemised?.deliveryFee,
     itemCount: v.images.length,
   });
 

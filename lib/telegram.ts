@@ -53,6 +53,29 @@ function resolvedTotal(order: OrderNotification): number {
   return order.total;
 }
 
+const money = (amount: number) => `${amount.toLocaleString("en-US")} د.ع`;
+
+/**
+ * The money block, itemised the same way the customer's own order card is:
+ * products → discount → delivery → grand total. Products and discount only
+ * appear when the caller supplied the breakdown (and the discount only when
+ * there actually was one), so an alert without it degrades to just the total.
+ */
+function moneyLines(order: OrderNotification, totalLabel: string): string[] {
+  const lines: string[] = [];
+  if (order.subtotal != null) {
+    lines.push(`🛒 *سعر المنتجات:* ${money(order.subtotal)}`);
+  }
+  if (order.discountTotal != null && order.discountTotal > 0) {
+    lines.push(`🏷️ *الخصم:* -${money(order.discountTotal)}`);
+  }
+  if (order.deliveryFee != null && order.deliveryFee > 0) {
+    lines.push(`🚚 *أجور التوصيل:* ${money(order.deliveryFee)}`);
+  }
+  lines.push(`💰 *${totalLabel}:* ${money(resolvedTotal(order))}`);
+  return lines;
+}
+
 function formatOrderMessage(order: OrderNotification): string {
   const lines = [
     "🛍️ *طلب جديد على المتجر!*",
@@ -69,14 +92,7 @@ function formatOrderMessage(order: OrderNotification): string {
     lines.push(`📝 *ملاحظات:* ${escapeMarkdown(order.notes.trim())}`);
   }
   lines.push(`🧾 *عدد القطع:* ${order.itemCount}`);
-  if (order.deliveryFee != null && order.deliveryFee > 0) {
-    lines.push(
-      `🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`,
-    );
-  }
-  lines.push(
-    `💰 *المجموع مع التوصيل:* ${resolvedTotal(order).toLocaleString("en-US")} د.ع`,
-  );
+  lines.push(...moneyLines(order, "المجموع مع التوصيل"));
   return lines.join("\n");
 }
 
@@ -96,13 +112,8 @@ function formatCancelMessage(order: OrderNotification): string {
     lines.push(`📝 *ملاحظات:* ${escapeMarkdown(order.notes.trim())}`);
   }
   lines.push(`🧾 *عدد القطع:* ${order.itemCount}`);
-  if (order.deliveryFee != null && order.deliveryFee > 0) {
-    lines.push(
-      `🚚 *أجور التوصيل:* ${order.deliveryFee.toLocaleString("en-US")} د.ع`,
-    );
-  }
   lines.push(
-    `💰 *كان المجموع مع التوصيل:* ${resolvedTotal(order).toLocaleString("en-US")} د.ع`,
+    ...moneyLines(order, "كان المجموع مع التوصيل"),
     "",
     "_تم حذف الطلب من النظام._",
   );
