@@ -22,7 +22,7 @@ import { UsersIcon, TrendIcon, BarsIcon } from "@/components/dashboard/dash-icon
 import { Package, Bag, Star, Sparkles } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { statusStyle, CUSTOM_ORDER_COLOR, type Order, type OrderStatus } from "@/lib/products";
-import type { DashboardStats, WeeklyRevenuePoint } from "@/lib/data/dashboard";
+import type { DashboardStats, RevenueSplit, WeeklyRevenuePoint } from "@/lib/data/dashboard";
 import type { DictKey } from "@/lib/i18n";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
@@ -56,11 +56,13 @@ const MINI_META: { key: DictKey; field: keyof DashboardStats; money?: boolean; a
 
 export function OverviewView({
   stats,
+  revenueSplit,
   weekly,
   statusCounts,
   latest,
 }: {
   stats: DashboardStats;
+  revenueSplit: RevenueSplit;
   weekly: WeeklyRevenuePoint[];
   statusCounts: Record<OrderStatus, number>;
   latest: Order[];
@@ -130,6 +132,37 @@ export function OverviewView({
             </div>
           );
         })}
+      </div>
+
+      {/* Product revenue — delivery stripped out, so the headline figure is what
+          the goods themselves earned. Delivery/gross sit beside it for context. */}
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/6 p-4 card-shadow">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500 text-white">
+          <TrendIcon size={22} />
+        </span>
+        <div className="flex-1">
+          <div className="text-2xl font-black text-emerald-600">
+            {formatPrice(revenueSplit.products, lang)}
+          </div>
+          <div className="text-xs font-semibold text-ink-3">{t("dash.productRevenue")}</div>
+          <div className="mt-0.5 text-[11px] text-ink-3">{t("dash.productRevenueHint")}</div>
+        </div>
+        <div className="flex gap-5 text-end">
+          <div>
+            <div className="text-sm font-black text-ink">
+              {formatPrice(revenueSplit.delivery, lang)}
+            </div>
+            <div className="text-[11px] font-semibold text-ink-3">
+              {t("dash.deliveryCollected")}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-black text-ink">
+              {formatPrice(revenueSplit.gross, lang)}
+            </div>
+            <div className="text-[11px] font-semibold text-ink-3">{t("dash.grossRevenue")}</div>
+          </div>
+        </div>
       </div>
 
       {/* Custom design requests — their own signature card */}

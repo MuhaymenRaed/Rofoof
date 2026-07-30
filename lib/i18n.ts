@@ -751,6 +751,13 @@ export const dict = {
     ar: "إيراد الطلبات المخصصة",
     en: "Custom requests revenue",
   },
+  "dash.productRevenue": { ar: "إيرادات المنتجات", en: "Product revenue" },
+  "dash.productRevenueHint": {
+    ar: "أسعار المنتجات بعد الخصم — بدون أجور التوصيل",
+    en: "Product prices after discount — delivery excluded",
+  },
+  "dash.deliveryCollected": { ar: "أجور التوصيل", en: "Delivery fees" },
+  "dash.grossRevenue": { ar: "الإجمالي مع التوصيل", en: "Total with delivery" },
 
   // Custom design requests
   "custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your custom design" },

@@ -54,6 +54,58 @@ export interface WeeklyRevenuePoint {
   value: number;
 }
 
+/** Revenue split into what was earned on goods vs. what was collected for shipping. */
+export interface RevenueSplit {
+  /** Goods only: Σ max(subtotal − discount_total, 0) — discounts applied, delivery excluded. */
+  products: number;
+  /** Delivery fees collected. */
+  delivery: number;
+  /** products + delivery — what customers actually paid. */
+  gross: number;
+}
+
+const EMPTY_SPLIT: RevenueSplit = { products: 0, delivery: 0, gross: 0 };
+
+/**
+ * All-time revenue split, summed from the money columns the order card itemises
+ * (products − discount + delivery) rather than the stored `total`.
+ *
+ * Its own query because dashboard_stats() only exposes one combined revenue
+ * figure; keeping both halves in a single pass means the products/delivery
+ * breakdown is always internally consistent. Cancellations delete the order
+ * row, so every row here is a live order.
+ */
+export async function getRevenueSplit(): Promise<RevenueSplit> {
+  const supabase = await createSupabaseServerClient();
+  const PAGE = 1000;
+  const MAX_PAGES = 50; // 50k orders; guards against an unbounded loop
+  let products = 0;
+  let delivery = 0;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE;
+    const { data, error } = await supabase
+      .from("orders")
+      .select("subtotal, discount_total, delivery_fee")
+      .order("id") // stable key so paging can't repeat or skip rows
+      .range(from, from + PAGE - 1);
+
+    if (error) {
+      console.error("[dashboard] revenueSplit:", error);
+      return page === 0 ? EMPTY_SPLIT : { products, delivery, gross: products + delivery };
+    }
+    if (!data || data.length === 0) break;
+
+    for (const row of data) {
+      products += Math.max(Number(row.subtotal ?? 0) - Number(row.discount_total ?? 0), 0);
+      delivery += Number(row.delivery_fee ?? 0);
+    }
+    if (data.length < PAGE) break;
+  }
+
+  return { products, delivery, gross: products + delivery };
+}
+
 export interface DashboardCustomer {
   id: string;
   name: string;
@@ -152,8 +204,9 @@ export interface RangePoint {
 
 export interface RangeStats {
   revenue: number;
+  /** Goods only for this period — discounts applied, delivery excluded. */
+  productRevenue: number;
   orders: number;
-  avgOrder: number;
   delivered: number;
   customOrders: number;
   customRevenue: number;
@@ -162,8 +215,8 @@ export interface RangeStats {
 
 const EMPTY_RANGE: RangeStats = {
   revenue: 0,
+  productRevenue: 0,
   orders: 0,
-  avgOrder: 0,
   delivered: 0,
   customOrders: 0,
   customRevenue: 0,
@@ -208,7 +261,7 @@ export async function getRangeStats(
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("total, status, is_custom, created_at")
+    .select("total, subtotal, discount_total, status, is_custom, created_at")
     .gte("created_at", fromIso)
     .lte("created_at", toIso)
     .limit(5000);
@@ -220,6 +273,7 @@ export async function getRangeStats(
 
   const buckets = emptyBuckets(new Date(fromIso), grain);
   let revenue = 0;
+  let productRevenue = 0;
   let delivered = 0;
   let customOrders = 0;
   let customRevenue = 0;
@@ -227,6 +281,7 @@ export async function getRangeStats(
   for (const row of data) {
     const total = Number(row.total ?? 0);
     revenue += total;
+    productRevenue += Math.max(Number(row.subtotal ?? 0) - Number(row.discount_total ?? 0), 0);
     if (row.status === "delivered") delivered += 1;
     if (row.is_custom) {
       customOrders += 1;
@@ -239,8 +294,8 @@ export async function getRangeStats(
   const orders = data.length;
   return {
     revenue,
+    productRevenue,
     orders,
-    avgOrder: orders > 0 ? Math.round(revenue / orders) : 0,
     delivered,
     customOrders,
     customRevenue,

@@ -1,6 +1,11 @@
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/auth/dal";
-import { getDashboardStats, getWeeklyRevenue, getStatusCounts } from "@/lib/data/dashboard";
+import {
+  getDashboardStats,
+  getRevenueSplit,
+  getWeeklyRevenue,
+  getStatusCounts,
+} from "@/lib/data/dashboard";
 import { getAllOrders } from "@/lib/data/orders";
 import { OverviewView } from "@/components/dashboard/overview-view";
 import { RangeStats } from "@/components/dashboard/range-stats";
@@ -8,8 +13,9 @@ import DashboardLoading from "./loading";
 
 async function OverviewContent() {
   await requireAdmin();
-  const [stats, weekly, statusCounts, latestPage] = await Promise.all([
+  const [stats, revenueSplit, weekly, statusCounts, latestPage] = await Promise.all([
     getDashboardStats(),
+    getRevenueSplit(),
     getWeeklyRevenue(),
     getStatusCounts(),
     getAllOrders(0, 5),
@@ -18,6 +24,7 @@ async function OverviewContent() {
   return (
     <OverviewView
       stats={stats}
+      revenueSplit={revenueSplit}
       weekly={weekly}
       statusCounts={statusCounts}
       latest={latestPage.orders}

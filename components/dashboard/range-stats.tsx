@@ -80,11 +80,16 @@ export function RangeStats() {
     setValue(defaultValue(next));
   }
 
-  const cards = [
-    { key: "dash.revenue" as DictKey, value: formatPrice(stats?.revenue ?? 0, lang) },
-    { key: "dash.ordersCount" as DictKey, value: String(stats?.orders ?? 0) },
-    { key: "dash.avgOrder" as DictKey, value: formatPrice(stats?.avgOrder ?? 0, lang) },
-    { key: "status.delivered" as DictKey, value: String(stats?.delivered ?? 0) },
+  const cards: { key: DictKey; value: string; hint?: DictKey; highlight?: boolean }[] = [
+    { key: "dash.revenue", value: formatPrice(stats?.revenue ?? 0, lang) },
+    { key: "dash.ordersCount", value: String(stats?.orders ?? 0) },
+    {
+      key: "dash.productRevenue",
+      value: formatPrice(stats?.productRevenue ?? 0, lang),
+      hint: "dash.productRevenueHint",
+      highlight: true,
+    },
+    { key: "status.delivered", value: String(stats?.delivered ?? 0) },
   ];
 
   return (
@@ -135,12 +140,28 @@ export function RangeStats() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs — the product-revenue card is tinted apart because it strips delivery */}
       <div className={`mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4 ${pending ? "opacity-60" : ""}`}>
         {cards.map((c) => (
-          <div key={c.key} className="rounded-xl border border-line-2 bg-surface-2/40 p-3">
-            <p className="text-[11px] font-semibold text-ink-3">{t(c.key)}</p>
+          <div
+            key={c.key}
+            className={`rounded-xl border p-3 ${
+              c.highlight
+                ? "border-emerald-500/40 bg-emerald-500/8"
+                : "border-line-2 bg-surface-2/40"
+            }`}
+          >
+            <p
+              className={`text-[11px] ${
+                c.highlight ? "font-bold text-emerald-600" : "font-semibold text-ink-3"
+              }`}
+            >
+              {t(c.key)}
+            </p>
             <p className="mt-1 text-lg font-black text-ink">{c.value}</p>
+            {c.hint && (
+              <p className="mt-0.5 text-[10px] font-medium text-ink-3">{t(c.hint)}</p>
+            )}
           </div>
         ))}
       </div>
