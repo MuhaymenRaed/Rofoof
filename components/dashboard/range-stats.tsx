@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { useStore } from "@/components/providers/store-provider";
+import { TrendIcon } from "@/components/dashboard/dash-icons";
 import { formatPrice } from "@/lib/format";
 import { loadRangeStatsAction } from "@/lib/actions/dashboard";
 import type { RangeGrain, RangeStats } from "@/lib/data/dashboard";
@@ -80,15 +81,10 @@ export function RangeStats() {
     setValue(defaultValue(next));
   }
 
-  const cards: { key: DictKey; value: string; hint?: DictKey; highlight?: boolean }[] = [
+  const cards: { key: DictKey; value: string }[] = [
     { key: "dash.revenue", value: formatPrice(stats?.revenue ?? 0, lang) },
     { key: "dash.ordersCount", value: String(stats?.orders ?? 0) },
-    {
-      key: "dash.productRevenue",
-      value: formatPrice(stats?.productRevenue ?? 0, lang),
-      hint: "dash.productRevenueHint",
-      highlight: true,
-    },
+    { key: "dash.avgOrder", value: formatPrice(stats?.avgOrder ?? 0, lang) },
     { key: "status.delivered", value: String(stats?.delivered ?? 0) },
   ];
 
@@ -140,30 +136,49 @@ export function RangeStats() {
         </div>
       </div>
 
-      {/* KPIs — the product-revenue card is tinted apart because it strips delivery */}
+      {/* KPIs */}
       <div className={`mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4 ${pending ? "opacity-60" : ""}`}>
         {cards.map((c) => (
-          <div
-            key={c.key}
-            className={`rounded-xl border p-3 ${
-              c.highlight
-                ? "border-emerald-500/40 bg-emerald-500/8"
-                : "border-line-2 bg-surface-2/40"
-            }`}
-          >
-            <p
-              className={`text-[11px] ${
-                c.highlight ? "font-bold text-emerald-600" : "font-semibold text-ink-3"
-              }`}
-            >
-              {t(c.key)}
-            </p>
+          <div key={c.key} className="rounded-xl border border-line-2 bg-surface-2/40 p-3">
+            <p className="text-[11px] font-semibold text-ink-3">{t(c.key)}</p>
             <p className="mt-1 text-lg font-black text-ink">{c.value}</p>
-            {c.hint && (
-              <p className="mt-0.5 text-[10px] font-medium text-ink-3">{t(c.hint)}</p>
-            )}
           </div>
         ))}
+      </div>
+
+      {/* What the goods themselves earned this period — delivery stripped out,
+          with the delivery and gross figures beside it for context. */}
+      <div
+        className={`mt-3 flex flex-wrap items-center gap-4 rounded-xl border border-emerald-500/40 bg-emerald-500/6 p-4 ${
+          pending ? "opacity-60" : ""
+        }`}
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500 text-white">
+          <TrendIcon size={20} />
+        </span>
+        <div className="flex-1">
+          <div className="text-xl font-black text-emerald-600">
+            {formatPrice(stats?.productRevenue ?? 0, lang)}
+          </div>
+          <div className="text-xs font-semibold text-ink-3">{t("dash.productRevenue")}</div>
+          <div className="mt-0.5 text-[11px] text-ink-3">{t("dash.productRevenueHint")}</div>
+        </div>
+        <div className="flex gap-5 text-end">
+          <div>
+            <div className="text-sm font-black text-ink">
+              {formatPrice(stats?.deliveryRevenue ?? 0, lang)}
+            </div>
+            <div className="text-[11px] font-semibold text-ink-3">
+              {t("dash.deliveryCollected")}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-black text-ink">
+              {formatPrice(stats?.revenue ?? 0, lang)}
+            </div>
+            <div className="text-[11px] font-semibold text-ink-3">{t("dash.grossRevenue")}</div>
+          </div>
+        </div>
       </div>
 
       {/* Series */}

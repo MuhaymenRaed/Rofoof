@@ -206,7 +206,10 @@ export interface RangeStats {
   revenue: number;
   /** Goods only for this period — discounts applied, delivery excluded. */
   productRevenue: number;
+  /** Delivery fees collected in this period. */
+  deliveryRevenue: number;
   orders: number;
+  avgOrder: number;
   delivered: number;
   customOrders: number;
   customRevenue: number;
@@ -216,7 +219,9 @@ export interface RangeStats {
 const EMPTY_RANGE: RangeStats = {
   revenue: 0,
   productRevenue: 0,
+  deliveryRevenue: 0,
   orders: 0,
+  avgOrder: 0,
   delivered: 0,
   customOrders: 0,
   customRevenue: 0,
@@ -261,7 +266,7 @@ export async function getRangeStats(
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("total, subtotal, discount_total, status, is_custom, created_at")
+    .select("total, subtotal, discount_total, delivery_fee, status, is_custom, created_at")
     .gte("created_at", fromIso)
     .lte("created_at", toIso)
     .limit(5000);
@@ -274,6 +279,7 @@ export async function getRangeStats(
   const buckets = emptyBuckets(new Date(fromIso), grain);
   let revenue = 0;
   let productRevenue = 0;
+  let deliveryRevenue = 0;
   let delivered = 0;
   let customOrders = 0;
   let customRevenue = 0;
@@ -282,6 +288,7 @@ export async function getRangeStats(
     const total = Number(row.total ?? 0);
     revenue += total;
     productRevenue += Math.max(Number(row.subtotal ?? 0) - Number(row.discount_total ?? 0), 0);
+    deliveryRevenue += Number(row.delivery_fee ?? 0);
     if (row.status === "delivered") delivered += 1;
     if (row.is_custom) {
       customOrders += 1;
@@ -295,7 +302,9 @@ export async function getRangeStats(
   return {
     revenue,
     productRevenue,
+    deliveryRevenue,
     orders,
+    avgOrder: orders > 0 ? Math.round(revenue / orders) : 0,
     delivered,
     customOrders,
     customRevenue,
