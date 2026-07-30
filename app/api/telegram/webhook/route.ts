@@ -2,16 +2,32 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Telegram bot webhook. Telegram POSTs every update (message) here. When a
- * user sends /start we register their chat as a subscriber; /stop removes them.
- * That's how "anyone who uses the bot" starts receiving order alerts — the
- * order notifier (lib/telegram.ts) then broadcasts to every active subscriber.
+ * Telegram bot webhook. Telegram POSTs every update (message) here.
+ *   /start → subscribe this chat (or re-activate a stopped one)
+ *   /stop  → unsubscribe
+ *   /help  → show the commands
+ * The order notifier (lib/telegram.ts) then broadcasts every order + cancel to
+ * ALL active subscribers, so anyone who /start-s the bot gets the alerts.
  *
- * Register this URL once with Telegram (see the setWebhook step in the deploy
- * notes) using a secret_token; Telegram echoes it back in the header below so
- * we can reject forged calls to this public endpoint.
+ * Register this URL once with Telegram (setWebhook) pointing at the LIVE host
+ * (https://www.rofoof.net/api/telegram/webhook). A stale URL is a silent
+ * failure: Telegram gets 404 and nobody's /start is ever recorded.
  */
 
+const WELCOME =
+  "أهلاً بك في بوت رفوف! ✅\n" +
+  "تم تفعيل الإشعارات — ستصلك تفاصيل كل طلب جديد فور وصوله (المنتجات، العنوان، والمجموع مع التوصيل).\n\n" +
+  "الأوامر:\n/help — المساعدة\n/stop — إيقاف الإشعارات";
+
+const HELP =
+  "بوت إشعارات رفوف 🛍️\n\n" +
+  "الأوامر المتاحة:\n" +
+  "/start — تفعيل إشعارات الطلبات\n" +
+  "/stop — إيقاف الإشعارات\n" +
+  "/help — عرض هذه الرسالة\n\n" +
+  "بعد /start ستصلك تفاصيل كل طلب جديد وأي إلغاء تلقائياً.";
+
+const STOPPED = "تم إيقاف إشعارات رفوف. أرسل /start لتشغيلها مرة أخرى.";
 
 interface TelegramChat {
   id: number;
@@ -40,6 +56,15 @@ async function reply(chatId: number, text: string) {
   }
 }
 
+/**
+ * Browser/health check. Visiting the webhook URL should return this — NOT a
+ * 404. If you see 404 here, the route isn't deployed at this path (or you're
+ * on the wrong host) and Telegram can't deliver /start either.
+ */
+export function GET() {
+  return NextResponse.json({ ok: true, webhook: "rofoof-telegram", method: "POST" });
+}
+
 export async function POST(request: Request) {
   // Reject anything that isn't Telegram calling with our shared secret.
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -56,22 +81,21 @@ export async function POST(request: Request) {
 
   const msg = update.message ?? update.channel_post;
   const chat = msg?.chat;
+  if (!chat) return NextResponse.json({ ok: true });
+
   const text = (msg?.text ?? "").trim().toLowerCase();
 
-  // Only care about the subscribe/unsubscribe commands.
-  if (!chat || (!text.startsWith("/start") && !text.startsWith("/stop"))) {
-    return NextResponse.json({ ok: true });
-  }
-
   try {
-    const supabase = createAdminClient();
     if (text.startsWith("/stop")) {
+      const supabase = createAdminClient();
       await supabase
         .from("telegram_subscribers")
         .update({ is_active: false })
         .eq("chat_id", chat.id);
-      await reply(chat.id, "تم إيقاف إشعارات رفوف. أرسل /start لتشغيلها مرة أخرى.");
-    } else {
+      await reply(chat.id, STOPPED);
+    } else if (text.startsWith("/start")) {
+      // upsert re-activates a previously stopped chat, so /start always works.
+      const supabase = createAdminClient();
       await supabase.from("telegram_subscribers").upsert(
         {
           chat_id: chat.id,
@@ -81,7 +105,12 @@ export async function POST(request: Request) {
         },
         { onConflict: "chat_id" },
       );
-      await reply(chat.id, "تم تفعيل إشعارات رفوف ✅ ستصلك تفاصيل كل طلب جديد. أرسل /stop للإيقاف.");
+      await reply(chat.id, WELCOME);
+    } else if (text.startsWith("/help")) {
+      await reply(chat.id, HELP);
+    } else {
+      // Any other message → point them at the commands.
+      await reply(chat.id, HELP);
     }
   } catch (error) {
     console.error("[telegram webhook]", error);
