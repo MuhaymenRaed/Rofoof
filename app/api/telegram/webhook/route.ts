@@ -43,16 +43,24 @@ interface TelegramUpdate {
 
 async function reply(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
+  if (!token) {
+    console.error("[telegram webhook] TELEGRAM_BOT_TOKEN missing — cannot reply");
+    return;
+  }
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text }),
       signal: AbortSignal.timeout(5000),
     });
-  } catch {
-    /* non-fatal */
+    if (!res.ok) {
+      // A 401/400 here almost always means TELEGRAM_BOT_TOKEN is for a
+      // DIFFERENT bot than the one this chat is talking to.
+      console.error("[telegram webhook] sendMessage failed:", res.status, await res.text());
+    }
+  } catch (error) {
+    console.error("[telegram webhook] sendMessage error:", error);
   }
 }
 
@@ -84,6 +92,9 @@ export async function POST(request: Request) {
   if (!chat) return NextResponse.json({ ok: true });
 
   const text = (msg?.text ?? "").trim().toLowerCase();
+  // Visible in Vercel → Deployments → Functions logs, so you can confirm the
+  // update actually reaches this route (vs. a webhook/URL problem).
+  console.log("[telegram webhook] update from", chat.id, "text:", text);
 
   try {
     if (text.startsWith("/stop")) {
