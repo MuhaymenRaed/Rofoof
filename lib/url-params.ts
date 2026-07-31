@@ -39,6 +39,10 @@ export function parseNumberParam(
   raw: string | null | undefined,
   { min, max, fallback }: { min: number; max: number; fallback: number },
 ): number {
+  // Absent/blank must fall back, NOT clamp: Number(null) and Number("") are 0,
+  // which is finite, so without this guard a missing param would silently
+  // become `min` (a price slider pinned to its floor, filtering everything out).
+  if (raw === null || raw === undefined || raw.trim() === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(Math.max(n, min), max);

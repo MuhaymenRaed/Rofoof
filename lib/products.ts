@@ -198,6 +198,12 @@ export function hasVariablePrice(p: Product): boolean {
 export const MAX_PRICE = 100000;
 /** Lowest value the store's price slider (and the ?maxPrice= param) allows. */
 export const MIN_PRICE = 1000;
+/**
+ * Where the store's price slider sits before the shopper touches it. The
+ * slider can still be dragged up to MAX_PRICE; this is only the resting point
+ * (and the value that's omitted from the URL as "no price filter chosen").
+ */
+export const DEFAULT_MAX_PRICE = 25000;
 
 /**
  * An admin-made showcase rail on the home page. Any number of them can exist;

@@ -11,7 +11,13 @@ import { FilterPanel } from "@/components/store/filter-panel";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { FilterManagerModal } from "@/components/store/filter-manager-modal";
 import { Search, Sliders, X, ChevronEnd, Plus, Check } from "@/components/icons";
-import { MAX_PRICE, MIN_PRICE, lowestPrice, type SubcategoryInfo } from "@/lib/products";
+import {
+  DEFAULT_MAX_PRICE,
+  MAX_PRICE,
+  MIN_PRICE,
+  lowestPrice,
+  type SubcategoryInfo,
+} from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
 import { useDebouncedUrlValue } from "@/lib/hooks/use-debounced-url-value";
 import {
@@ -105,7 +111,7 @@ export function StoreView() {
       parseNumberParam(searchParams.get("maxPrice"), {
         min: MIN_PRICE,
         max: MAX_PRICE,
-        fallback: MAX_PRICE,
+        fallback: DEFAULT_MAX_PRICE,
       }),
     [searchParams],
   );
@@ -153,7 +159,10 @@ export function StoreView() {
     urlMaxPrice,
     useCallback(
       (value: number) =>
-        applyFilters({ maxPrice: value >= MAX_PRICE ? null : value }, { replace: true }),
+        applyFilters(
+          { maxPrice: value === DEFAULT_MAX_PRICE ? null : value },
+          { replace: true },
+        ),
       [applyFilters],
     ),
   );
@@ -190,14 +199,14 @@ export function StoreView() {
 
   /** The side panel's filters (fandom / waterproof / price) back to defaults. */
   function clearFilters() {
-    setPriceInput(MAX_PRICE);
+    setPriceInput(DEFAULT_MAX_PRICE);
     applyFilters({ fandom: null, waterproof: null, maxPrice: null });
   }
 
   /** The empty-state reset — everything, including search and categories. */
   function clearEverything() {
     setSearchInput("");
-    setPriceInput(MAX_PRICE);
+    setPriceInput(DEFAULT_MAX_PRICE);
     applyFilters({
       category: null,
       cat: null,
@@ -210,7 +219,8 @@ export function StoreView() {
     });
   }
 
-  const hasActiveFilters = activeFandoms.length > 0 || waterproof || urlMaxPrice < MAX_PRICE;
+  const hasActiveFilters =
+    activeFandoms.length > 0 || waterproof || urlMaxPrice !== DEFAULT_MAX_PRICE;
 
   /* ------------------------------- searching ------------------------------ */
 
