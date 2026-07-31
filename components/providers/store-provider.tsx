@@ -16,6 +16,7 @@ import type {
   CustomCartRequest,
   CustomPricing,
   FandomInfo,
+  FeaturedGroup,
   Offer,
   Product,
   SiteSettings,
@@ -67,6 +68,8 @@ interface StoreContextValue {
   /** second-level taxonomy nested under categories (third store filter) */
   subcategories: SubcategoryInfo[];
   fandoms: FandomInfo[];
+  /** admin-made home-page showcase rails (drives the star picker on cards) */
+  featuredGroups: FeaturedGroup[];
   offers: Offer[];
   /** GLOBAL by-count price ladder, shared across packages/categories */
   volumeTiers: VolumeTier[];
@@ -126,6 +129,7 @@ export function StoreProvider({
   categories,
   subcategories,
   fandoms,
+  featuredGroups = [],
   offers,
   volumeTiers,
   siteSettings,
@@ -137,6 +141,7 @@ export function StoreProvider({
   categories: CategoryInfo[];
   subcategories: SubcategoryInfo[];
   fandoms: FandomInfo[];
+  featuredGroups?: FeaturedGroup[];
   offers: Offer[];
   volumeTiers: VolumeTier[];
   siteSettings: SiteSettings;
@@ -450,6 +455,7 @@ export function StoreProvider({
     categories,
     subcategories,
     fandoms,
+    featuredGroups,
     offers,
     volumeTiers,
     siteSettings,

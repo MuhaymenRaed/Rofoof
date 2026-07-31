@@ -22,6 +22,7 @@ import {
   createSubcategoryAction,
   deleteSubcategoryAction,
 } from "@/lib/actions/products";
+import { setProductGroupsAction } from "@/lib/actions/featured";
 import { updateVolumeTiersAction } from "@/lib/actions/offers";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp } from "@/lib/webp";
@@ -104,6 +105,7 @@ export function ProductEditorModal({
     subcategories: storeSubcategories,
     fandoms: storeFandoms,
     volumeTiers: storeVolumeTiers,
+    featuredGroups: storeFeaturedGroups,
   } = useStore();
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
@@ -142,7 +144,8 @@ export function ProductEditorModal({
   const [waterproof, setWaterproof] = useState(false);
   const [surcharge, setSurcharge] = useState("0");
   const [allowCustom, setAllowCustom] = useState(false);
-  const [featured, setFeatured] = useState(false);
+  /** home-page showcase rails this product belongs to */
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [rows, setRows] = useState<ImageRow[]>([]);
   const [bulkPrice, setBulkPrice] = useState("");
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
@@ -192,7 +195,11 @@ export function ProductEditorModal({
     setWaterproof(product?.waterproof ?? false);
     setSurcharge(String(product?.waterproofSurcharge ?? 0));
     setAllowCustom(product?.allowCustomImage ?? false);
-    setFeatured(product?.isFeatured ?? false);
+    setGroupIds(
+      product
+        ? storeFeaturedGroups.filter((g) => g.productIds.includes(product.id)).map((g) => g.id)
+        : [],
+    );
     // Package products: slots come from their items (each has its own price);
     // others: from the plain image gallery.
     if (product?.kind === "package" && product.items.length > 0) {
@@ -220,7 +227,7 @@ export function ProductEditorModal({
     setFanFormOpen(false);
     setConfirmingDelete(false);
     setError(null);
-  }, [open, product, storeVolumeTiers]);
+  }, [open, product, storeVolumeTiers, storeFeaturedGroups]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -500,12 +507,21 @@ export function ProductEditorModal({
         kind,
         items: itemsPayload,
         tiers: tiersPayload,
-        isFeatured: featured,
         isUpdate: isEdit,
       });
       if (!res.ok) {
         setError(res.error ?? t("checkout.error"));
         return;
+      }
+
+      // Showcase membership lives in its own join table, so it's saved
+      // alongside the product rather than as a column on it.
+      if (storeFeaturedGroups.length > 0) {
+        const groupRes = await setProductGroupsAction(id, groupIds);
+        if (!groupRes.ok) {
+          setError(groupRes.error ?? t("checkout.error"));
+          return;
+        }
       }
 
       // Optimistic create: hand back a fully-built product so the list can show
@@ -544,7 +560,7 @@ export function ProductEditorModal({
           discountPercent: discountNum,
           discountFixed: discountFixedNum,
           volumePriced,
-          isFeatured: featured,
+          isFeatured: groupIds.length > 0,
           order: Date.now(),
           createdAt: new Date().toISOString(),
           descAr: descAr.trim(),
@@ -1230,24 +1246,43 @@ export function ProductEditorModal({
             </label>
           )}
 
-          {/* Featured — add to the homepage "featured picks" showcase */}
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line-2 bg-surface-2/40 p-3">
-            <span className="min-w-0">
+          {/* Showcase rails this product appears in on the home page */}
+          {storeFeaturedGroups.length > 0 && (
+            <div className="rounded-xl border border-line-2 bg-surface-2/40 p-3">
               <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
-                <Star size={16} className="text-amber-500" filled={featured} />
-                {t("dash.featuredToggle")}
+                <Star size={16} className="text-amber-500" filled={groupIds.length > 0} />
+                {t("dash.featuredGroups")}
               </span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-ink-3">
+              <span className="mt-0.5 mb-2 block text-[11px] leading-snug text-ink-3">
                 {t("dash.featuredToggleHint")}
               </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={featured}
-              onChange={(e) => setFeatured(e.target.checked)}
-              className="h-4 w-4 shrink-0 accent-brand"
-            />
-          </label>
+              <div className="flex flex-wrap gap-2">
+                {storeFeaturedGroups.map((g) => {
+                  const on = groupIds.includes(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() =>
+                        setGroupIds((prev) =>
+                          prev.includes(g.id) ? prev.filter((x) => x !== g.id) : [...prev, g.id],
+                        )
+                      }
+                      aria-pressed={on}
+                      className={`tap inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                        on
+                          ? "border-amber-400 bg-amber-400 text-white"
+                          : "border-line bg-surface text-ink-2 hover:border-amber-400 hover:text-amber-500"
+                      }`}
+                    >
+                      <Star size={12} filled={on} />
+                      {lang === "ar" ? g.nameAr : g.nameEn}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">

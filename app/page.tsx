@@ -3,17 +3,17 @@ import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
 import { SectionTitle } from "@/components/ui/section-title";
 import { FeaturedSection } from "@/components/home/featured-section";
-import { getProducts, getBestSellerCounts, getFeaturedTitle } from "@/lib/data/catalog";
+import { getProducts, getBestSellerCounts, getFeaturedGroups } from "@/lib/data/catalog";
 import type { Product } from "@/lib/products";
 
 // ISR: storefront regenerates every 5 min, and instantly on admin edits
 // (revalidateTag("products")) or when an order is placed (revalidateTag("sales")).
 
 export default async function HomePage() {
-  const [products, sold, featuredTitle] = await Promise.all([
+  const [products, sold, featuredGroups] = await Promise.all([
     getProducts(),
     getBestSellerCounts(),
-    getFeaturedTitle(),
+    getFeaturedGroups(),
   ]);
 
   // "الأكثر طلباً" — ranked by units actually ordered. Before the store has any
@@ -28,8 +28,18 @@ export default async function HomePage() {
     .slice(0, 5)
     .map((r) => r.p);
 
-  // Admin-curated showcase — flagged by the star toggle, newest-featured first.
-  const featured = products.filter((p) => p.isFeatured).slice(0, 10);
+  // Admin-curated showcases. Each group is its own rail, in the admin's order;
+  // groups whose products are all gone/hidden are skipped rather than shown empty.
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const rails = featuredGroups
+    .map((g) => ({
+      group: g,
+      products: g.productIds
+        .map((id) => byId.get(id))
+        .filter((p): p is Product => p !== undefined)
+        .slice(0, 10),
+    }))
+    .filter((r) => r.products.length > 0);
 
   // "وصل حديثاً" — genuinely newest rows, not the admin's manual ordering.
   const fresh = [...products]
@@ -55,19 +65,14 @@ export default async function HomePage() {
         </>
       )}
 
-      {featured.length > 0 && (
-        <>
-          <FeaturedSection
-            products={featured}
-            titleAr={featuredTitle.ar}
-            titleEn={featuredTitle.en}
-          />
-
+      {rails.map(({ group, products: railProducts }) => (
+        <div key={group.id}>
+          <FeaturedSection group={group} products={railProducts} />
           <div className="my-8 h-px bg-line-2" />
-        </>
-      )}
+        </div>
+      ))}
 
-      <section className={bestsellers.length > 0 || featured.length > 0 ? undefined : "mt-9"}>
+      <section className={bestsellers.length > 0 || rails.length > 0 ? undefined : "mt-9"}>
         <SectionTitle titleKey="section.fresh" viewAllHref="/store" />
         <Grid products={fresh} />
       </section>

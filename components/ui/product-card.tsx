@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { badgeMeta, ProductBadge } from "@/components/ui/badge";
 import { ProductMedia } from "@/components/ui/product-media";
+import { FeaturedStarPicker } from "@/components/ui/featured-star-picker";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { Pencil } from "@/components/dashboard/dash-icons";
-import { Heart, Cart, Check, Star } from "@/components/icons";
-import { setProductFeaturedAction } from "@/lib/actions/products";
+import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { hasVariablePrice, lowestPrice, type Product } from "@/lib/products";
 
@@ -25,11 +24,8 @@ export function ProductCard({
 }) {
   const { lang, t, addToCart, openQuickView, isWished, toggleWish, openCart } = useStore();
   const { isAdmin, ready } = useAuth();
-  const router = useRouter();
   const [justAdded, setJustAdded] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [featured, setFeatured] = useState(product.isFeatured);
-  const [, startFeatureTransition] = useTransition();
 
   const name = lang === "ar" ? product.nameAr : product.nameEn;
   const sub = lang === "ar" ? product.subAr : product.subEn;
@@ -55,17 +51,6 @@ export function ProductCard({
     setJustAdded(true);
     openCart();
     setTimeout(() => setJustAdded(false), 1200);
-  }
-
-  function toggleFeatured(e: React.MouseEvent) {
-    e.stopPropagation();
-    const next = !featured;
-    setFeatured(next); // optimistic
-    startFeatureTransition(async () => {
-      const res = await setProductFeaturedAction(product.id, next);
-      if (!res.ok) setFeatured(!next); // revert on failure
-      else router.refresh(); // reflect in the homepage showcase
-    });
   }
 
   return (
@@ -130,22 +115,8 @@ export function ProductCard({
         </button>
       )}
 
-      {/* Admin: star = add to the homepage "featured picks" showcase */}
-      {ready && isAdmin && (
-        <button
-          type="button"
-          onClick={toggleFeatured}
-          aria-pressed={featured}
-          aria-label={featured ? t("product.unfeature") : t("product.feature")}
-          className={`reveal-on-hover tap absolute top-20 start-2 grid h-8 w-8 place-items-center rounded-full border backdrop-blur transition ${
-            featured
-              ? "border-amber-400 bg-amber-400 text-white"
-              : "border-line-2 bg-surface/90 text-ink-2 hover:border-amber-400 hover:text-amber-500"
-          }`}
-        >
-          <Star size={14} filled={featured} />
-        </button>
-      )}
+      {/* Admin: star = pick which home-page showcase rails this product is in */}
+      {ready && isAdmin && <FeaturedStarPicker productId={product.id} />}
 
       {/* Body */}
       <div className="flex flex-1 flex-col p-3">

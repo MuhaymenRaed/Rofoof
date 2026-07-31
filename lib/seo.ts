@@ -54,7 +54,7 @@ export function webSiteSchema(siteUrl: string): Record<string, unknown> {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${siteUrl}/store?q={search_term_string}`,
+        urlTemplate: `${siteUrl}/store?search={search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     },

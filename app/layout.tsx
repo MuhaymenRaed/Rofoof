@@ -17,6 +17,7 @@ import {
   getCustomPricing,
   getVolumeTiers,
   getSiteSettings,
+  getFeaturedGroups,
 } from "@/lib/data/catalog";
 import { CustomRequestModal } from "@/components/layout/custom-request-modal";
 import { Ticker } from "@/components/layout/ticker";
@@ -120,6 +121,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     customPricing,
     volumeTiers,
     siteSettings,
+    featuredGroups,
   ] = await Promise.all([
     getProducts(),
     getAnnouncement(),
@@ -130,6 +132,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     getCustomPricing(),
     getVolumeTiers(),
     getSiteSettings(),
+    getFeaturedGroups(),
   ]);
 
   return (
@@ -155,6 +158,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               categories={categories}
               subcategories={subcategories}
               fandoms={fandoms}
+              featuredGroups={featuredGroups}
               offers={offers}
               volumeTiers={volumeTiers}
               siteSettings={siteSettings}

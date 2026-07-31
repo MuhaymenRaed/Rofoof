@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { CategoryIcon } from "@/components/ui/category-icon";
@@ -11,13 +11,20 @@ import { FilterPanel } from "@/components/store/filter-panel";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { FilterManagerModal } from "@/components/store/filter-manager-modal";
 import { Search, Sliders, X, ChevronEnd, Plus, Check } from "@/components/icons";
-import { MAX_PRICE, lowestPrice, type Fandom, type SubcategoryInfo } from "@/lib/products";
+import { MAX_PRICE, MIN_PRICE, lowestPrice, type SubcategoryInfo } from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
+import { useDebouncedUrlValue } from "@/lib/hooks/use-debounced-url-value";
+import {
+  parseIntParam,
+  parseListParam,
+  parseNumberParam,
+  toggleInList,
+  withParams,
+  type ParamValue,
+} from "@/lib/url-params";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { DictKey } from "@/lib/i18n";
 
-type CatSel = string;
-type FandomSel = Fandom | "all";
 type Sort = "popular" | "priceAsc" | "priceDesc" | "newest";
 
 const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
@@ -27,34 +34,185 @@ const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
   { id: "priceDesc", key: "sort.priceDesc" },
 ];
 
+const DEFAULT_SORT: Sort = "popular";
+
+/**
+ * The storefront catalogue.
+ *
+ * Filtering stays 100% client-side (the whole catalogue is already in the store
+ * provider), but every SHAREABLE filter lives in the URL rather than in local
+ * state — so a link carries the exact view, refresh keeps it, and back/forward
+ * work for free. Only genuinely local UI (open dropdown, per-page preference)
+ * stays in React state.
+ *
+ * Category / subcategory / fandom are multi-select: OR within a group, AND
+ * across groups (stickers OR posters, AND anime OR games). Results come from a
+ * single pass over the unique product list, so an item matching two selected
+ * filters still appears exactly once.
+ */
 export function StoreView() {
-  const { t, lang, products, categories, subcategories } = useStore();
+  const { t, lang, products, categories, subcategories, fandoms } = useStore();
   const { isAdmin, ready } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   // Read from the URL here (not on the server) so /store stays prerenderable.
   const searchParams = useSearchParams();
-  const catParam = searchParams.get("cat")?.trim() || "all";
 
   const [addOpen, setAddOpen] = useState(false);
   const [filtersManagerOpen, setFiltersManagerOpen] = useState(false);
-  const [category, setCategory] = useState<CatSel>(catParam);
-
-  // Follow later URL changes (e.g. a category link elsewhere on the site).
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    setCategory(catParam);
-  }, [catParam]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const [subcategory, setSubcategory] = useState<string>("all");
-  const [fandom, setFandom] = useState<FandomSel>("all");
-  const [waterproof, setWaterproof] = useState(false);
-  const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<Sort>("popular");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [subMenuFor, setSubMenuFor] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
+
+  /* ----------------------- filters, derived from the URL ------------------ */
+
+  const knownCategories = useMemo(() => new Set(categories.map((c) => c.code)), [categories]);
+  const knownFandoms = useMemo(() => new Set(fandoms.map((f) => f.code)), [fandoms]);
+  /** subcategory code → its parent category code */
+  const subParent = useMemo(
+    () => new Map(subcategories.map((s) => [s.code, s.categoryCode])),
+    [subcategories],
+  );
+
+  // `cat` is the legacy single-category param — still honoured so links shared
+  // before multi-select (and the home page chips) keep working.
+  const activeCategories = useMemo(() => {
+    const raw = parseListParam(searchParams.get("category") ?? searchParams.get("cat"));
+    // Drop codes that no longer exist instead of showing an empty store.
+    return knownCategories.size > 0 ? raw.filter((c) => knownCategories.has(c)) : raw;
+  }, [searchParams, knownCategories]);
+
+  // A subcategory only means something under a selected parent (with no
+  // category selected, every subcategory is fair game).
+  const activeSubcategories = useMemo(() => {
+    const raw = parseListParam(searchParams.get("subcategory"));
+    if (subParent.size === 0) return raw;
+    return raw.filter((code) => {
+      const parent = subParent.get(code);
+      if (!parent) return false;
+      return activeCategories.length === 0 || activeCategories.includes(parent);
+    });
+  }, [searchParams, subParent, activeCategories]);
+
+  const activeFandoms = useMemo(() => {
+    const raw = parseListParam(searchParams.get("fandom"));
+    return knownFandoms.size > 0 ? raw.filter((f) => knownFandoms.has(f)) : raw;
+  }, [searchParams, knownFandoms]);
+
+  const waterproof = searchParams.get("waterproof") === "true";
+
+  const urlMaxPrice = useMemo(
+    () =>
+      parseNumberParam(searchParams.get("maxPrice"), {
+        min: MIN_PRICE,
+        max: MAX_PRICE,
+        fallback: MAX_PRICE,
+      }),
+    [searchParams],
+  );
+
+  const sort = useMemo<Sort>(() => {
+    const raw = searchParams.get("sort");
+    return SORT_OPTIONS.some((o) => o.id === raw) ? (raw as Sort) : DEFAULT_SORT;
+  }, [searchParams]);
+
+  const urlSearch = useMemo(
+    () => (searchParams.get("search") ?? searchParams.get("q") ?? "").trim(),
+    [searchParams],
+  );
+
+  const urlPage = useMemo(() => parseIntParam(searchParams.get("page"), 1), [searchParams]);
+
+  /* --------------------------- writing to the URL ------------------------- */
+
+  /**
+   * Patch the query string. Any filter change drops `page` (a new result set
+   * always starts at page 1) unless the patch sets the page itself.
+   * `replace` avoids a history entry for continuous inputs; `scroll` is only
+   * wanted when paging.
+   */
+  const applyFilters = useCallback(
+    (patch: Record<string, ParamValue>, opts?: { replace?: boolean; scroll?: boolean }) => {
+      const query = withParams(searchParams, { page: null, ...patch });
+      const url = query ? `${pathname}?${query}` : pathname;
+      const options = { scroll: opts?.scroll ?? false };
+      if (opts?.replace) router.replace(url, options);
+      else router.push(url, options);
+    },
+    [pathname, router, searchParams],
+  );
+
+  // Continuous inputs: instant locally, written to the URL once the user pauses.
+  const [searchInput, setSearchInput] = useDebouncedUrlValue(
+    urlSearch,
+    useCallback(
+      (value: string) => applyFilters({ search: value.trim() || null }, { replace: true }),
+      [applyFilters],
+    ),
+  );
+  const [priceInput, setPriceInput] = useDebouncedUrlValue(
+    urlMaxPrice,
+    useCallback(
+      (value: number) =>
+        applyFilters({ maxPrice: value >= MAX_PRICE ? null : value }, { replace: true }),
+      [applyFilters],
+    ),
+  );
+
+  function toggleCategory(code: string) {
+    const nextCategories = toggleInList(activeCategories, code);
+    // Un-selecting a category takes its subcategories with it.
+    const nextSubs =
+      nextCategories.length === 0
+        ? activeSubcategories
+        : activeSubcategories.filter((s) => {
+            const parent = subParent.get(s);
+            return parent ? nextCategories.includes(parent) : false;
+          });
+    setSubMenuFor(null);
+    applyFilters({ category: nextCategories, subcategory: nextSubs });
+  }
+
+  function toggleSubcategory(code: string) {
+    applyFilters({ subcategory: toggleInList(activeSubcategories, code) });
+  }
+
+  /** Clear every subcategory belonging to one category chip. */
+  function clearSubcategoriesOf(categoryCode: string) {
+    applyFilters({
+      subcategory: activeSubcategories.filter((s) => subParent.get(s) !== categoryCode),
+    });
+  }
+
+  function selectAllCategories() {
+    setSubMenuFor(null);
+    applyFilters({ category: null, subcategory: null });
+  }
+
+  /** The side panel's filters (fandom / waterproof / price) back to defaults. */
+  function clearFilters() {
+    setPriceInput(MAX_PRICE);
+    applyFilters({ fandom: null, waterproof: null, maxPrice: null });
+  }
+
+  /** The empty-state reset — everything, including search and categories. */
+  function clearEverything() {
+    setSearchInput("");
+    setPriceInput(MAX_PRICE);
+    applyFilters({
+      category: null,
+      cat: null,
+      subcategory: null,
+      fandom: null,
+      waterproof: null,
+      maxPrice: null,
+      search: null,
+      q: null,
+    });
+  }
+
+  const hasActiveFilters = activeFandoms.length > 0 || waterproof || urlMaxPrice < MAX_PRICE;
+
+  /* ------------------------------- searching ------------------------------ */
 
   // DB-side typo-tolerant match ids (Postgres pg_trgm). Augments the instant
   // client fuzzy match so nothing is ever slower or missing — the client result
@@ -63,7 +221,7 @@ export function StoreView() {
   const [dbMatchIds, setDbMatchIds] = useState<Set<string> | null>(null);
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const q = search.trim();
+    const q = urlSearch;
     setDbMatchIds(null); // reset instantly; client fuzzy covers the gap
     if (q.length < 2) return;
     let active = true;
@@ -76,36 +234,32 @@ export function StoreView() {
       active = false;
       clearTimeout(id);
     };
-  }, [search, supabase]);
+  }, [urlSearch, supabase]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Per-page count: default 20 on phones, 32 on large screens, and the shopper
-  // can override it. Once they pick, we stop auto-adjusting.
-  const [pageSize, setPageSize] = useState(20);
-  const pickedPageSize = useRef(false);
-  useEffect(() => {
-    if (pickedPageSize.current) return;
-    setPageSize(window.matchMedia("(min-width: 1024px)").matches ? 32 : 20);
-  }, []);
-
-  const hasActiveFilters =
-    fandom !== "all" || waterproof || maxPrice < MAX_PRICE;
-
-  function clearFilters() {
-    setFandom("all");
-    setWaterproof(false);
-    setMaxPrice(MAX_PRICE);
-  }
+  /* ------------------------------- results -------------------------------- */
 
   const filtered = useMemo(() => {
-    const q = search.trim();
-    let list = products.filter((p) => {
-      if (category !== "all" && !p.categories.includes(category) && p.category !== category)
+    const q = urlSearch;
+    const list = products.filter((p) => {
+      // OR inside each group, AND across groups. An empty group = no constraint.
+      if (
+        activeCategories.length > 0 &&
+        !activeCategories.some((c) => p.categories.includes(c) || p.category === c)
+      ) {
         return false;
-      if (subcategory !== "all" && !p.subcategories.includes(subcategory)) return false;
-      if (fandom !== "all" && !p.fandoms.includes(fandom)) return false;
+      }
+      if (
+        activeSubcategories.length > 0 &&
+        !activeSubcategories.some((s) => p.subcategories.includes(s))
+      ) {
+        return false;
+      }
+      if (activeFandoms.length > 0 && !activeFandoms.some((f) => p.fandoms.includes(f))) {
+        return false;
+      }
       if (waterproof && !p.waterproof) return false;
-      if (lowestPrice(p) > maxPrice) return false;
+      if (lowestPrice(p) > urlMaxPrice) return false;
       if (q) {
         // Match if EITHER the instant client fuzzy matcher OR the Postgres
         // trigram RPC accepts it — the DB catches typos the client misses.
@@ -115,7 +269,7 @@ export function StoreView() {
       return true;
     });
 
-    list = [...list].sort((a, b) => {
+    return list.sort((a, b) => {
       switch (sort) {
         case "priceAsc":
           return lowestPrice(a) - lowestPrice(b);
@@ -128,14 +282,18 @@ export function StoreView() {
           return b.order - a.order;
       }
     });
-    return list;
-  }, [products, category, subcategory, fandom, waterproof, maxPrice, search, sort, dbMatchIds]);
+  }, [
+    products,
+    activeCategories,
+    activeSubcategories,
+    activeFandoms,
+    waterproof,
+    urlMaxPrice,
+    urlSearch,
+    sort,
+    dbMatchIds,
+  ]);
 
-  // Subcategories of the active category (all of them on the "all" tab).
-  const visibleSubs = useMemo(
-    () => subcategories.filter((s) => category === "all" || s.categoryCode === category),
-    [subcategories, category],
-  );
   // Subcategories grouped by their parent category → drives the per-chip menu.
   const subsByCat = useMemo(() => {
     const m = new Map<string, SubcategoryInfo[]>();
@@ -146,6 +304,7 @@ export function StoreView() {
     }
     return m;
   }, [subcategories]);
+
   const catChips = [
     { code: "all", label: t("cat.all"), icon: "grid" },
     ...categories.map((c) => ({
@@ -155,26 +314,20 @@ export function StoreView() {
     })),
   ];
 
-  // A subcategory only makes sense under its parent — drop it when the
-  // category changes or the chosen one is no longer on offer.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (subcategory !== "all" && !visibleSubs.some((s) => s.code === subcategory)) {
-      setSubcategory("all");
-    }
-  }, [visibleSubs, subcategory]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  /* ------------------------------ pagination ------------------------------ */
 
-  // Reset to first page whenever the result set changes.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Per-page count: default 20 on phones, 32 on large screens, and the shopper
+  // can override it. Device-specific, so it stays out of the shareable URL.
+  const [pageSize, setPageSize] = useState(20);
+  const pickedPageSize = useRef(false);
   useEffect(() => {
-    setPage(1);
-    setSubMenuFor(null);
-  }, [category, subcategory, fandom, waterproof, maxPrice, search, sort, pageSize]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    if (pickedPageSize.current) return;
+    setPageSize(window.matchMedia("(min-width: 1024px)").matches ? 32 : 20);
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const current = Math.min(page, totalPages);
+  // A `page` beyond the result set (stale link, smaller page size) clamps in.
+  const current = Math.min(urlPage, totalPages);
   const pageItems = filtered.slice((current - 1) * pageSize, current * pageSize);
 
   return (
@@ -185,10 +338,10 @@ export function StoreView() {
           <span className="pointer-events-none absolute inset-y-0 start-3.5 grid place-items-center text-ink-3">
             <Search size={17} />
           </span>
-          {search && (
+          {searchInput && (
             <button
               type="button"
-              onClick={() => setSearch("")}
+              onClick={() => setSearchInput("")}
               aria-label={t("aria.close")}
               className="tap absolute inset-y-0 end-3 grid place-items-center text-ink-3 hover:text-brand"
             >
@@ -196,8 +349,8 @@ export function StoreView() {
             </button>
           )}
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("store.searchPlaceholder")}
             aria-label={t("store.searchPlaceholder")}
             className="h-11 w-full rounded-xl border border-line bg-surface ps-10 pe-9 text-sm text-ink outline-none transition placeholder:text-ink-3 focus:border-brand"
@@ -209,7 +362,9 @@ export function StoreView() {
           <span className="sr-only">{t("store.sort")}</span>
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value as Sort)}
+            onChange={(e) =>
+              applyFilters({ sort: e.target.value === DEFAULT_SORT ? null : e.target.value })
+            }
             className="tap h-11 cursor-pointer appearance-none rounded-xl border border-line bg-surface ps-4 pe-9 text-sm font-semibold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
           >
             {SORT_OPTIONS.map((o) => (
@@ -261,14 +416,17 @@ export function StoreView() {
         </div>
       )}
 
-      {/* Category chips — a chip that has subfilters carries a + that opens its
-          subcategory dropdown, merged into one control (no separate button).
-          The row wraps (not scrolls) so the dropdown is never clipped. */}
+      {/* Category chips — multi-select: pick as many as you like and the results
+          merge (each product still shown once). A chip that has subfilters
+          carries a + that opens its subcategory dropdown, merged into one
+          control. The row wraps (not scrolls) so the dropdown is never clipped. */}
       <div className="mt-4 flex flex-wrap gap-2">
         {catChips.map((c) => {
-          const isActive = category === c.code;
+          const isAll = c.code === "all";
+          const isActive = isAll ? activeCategories.length === 0 : activeCategories.includes(c.code);
           const subs = subsByCat.get(c.code) ?? [];
           const menuOpen = subMenuFor === c.code;
+          const picked = activeSubcategories.filter((s) => subParent.get(s) === c.code);
           return (
             <div key={c.code} className="relative">
               <div
@@ -280,29 +438,26 @@ export function StoreView() {
               >
                 <button
                   type="button"
-                  onClick={() => {
-                    setCategory(c.code);
-                    setSubMenuFor(null);
-                  }}
+                  onClick={() => (isAll ? selectAllCategories() : toggleCategory(c.code))}
+                  aria-pressed={isActive}
                   className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
                 >
                   <CategoryIcon name={c.icon} size={15} />
                   {c.label}
-                  {isActive && subcategory !== "all" && subs.length > 0 && (
+                  {picked.length > 0 && (
                     <span className="ms-0.5 rounded-md bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
-                      {lang === "ar"
-                        ? subs.find((s) => s.code === subcategory)?.nameAr
-                        : subs.find((s) => s.code === subcategory)?.nameEn}
+                      {picked.length === 1
+                        ? subcategories.find((s) => s.code === picked[0])?.[
+                            lang === "ar" ? "nameAr" : "nameEn"
+                          ]
+                        : picked.length}
                     </span>
                   )}
                 </button>
                 {subs.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setCategory(c.code);
-                      setSubMenuFor(menuOpen ? null : c.code);
-                    }}
+                    onClick={() => setSubMenuFor(menuOpen ? null : c.code)}
                     aria-label={t("store.subcategory")}
                     aria-expanded={menuOpen}
                     className="tap grid w-8 place-items-center border-s border-line-2"
@@ -328,21 +483,15 @@ export function StoreView() {
                   <div className="absolute z-30 mt-2 max-h-64 min-w-[190px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
                     <SubItem
                       label={t("cat.all")}
-                      on={subcategory === "all"}
-                      onClick={() => {
-                        setSubcategory("all");
-                        setSubMenuFor(null);
-                      }}
+                      on={picked.length === 0}
+                      onClick={() => clearSubcategoriesOf(c.code)}
                     />
                     {subs.map((s) => (
                       <SubItem
                         key={s.code}
                         label={lang === "ar" ? s.nameAr : s.nameEn}
-                        on={subcategory === s.code}
-                        onClick={() => {
-                          setSubcategory(s.code);
-                          setSubMenuFor(null);
-                        }}
+                        on={activeSubcategories.includes(s.code)}
+                        onClick={() => toggleSubcategory(s.code)}
                       />
                     ))}
                   </div>
@@ -375,11 +524,7 @@ export function StoreView() {
               <p className="mt-1 text-sm text-ink-3">{t("store.emptyHint")}</p>
               <button
                 type="button"
-                onClick={() => {
-                  clearFilters();
-                  setSearch("");
-                  setCategory("all");
-                }}
+                onClick={clearEverything}
                 className="tap mt-4 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
               >
                 {t("store.clear")}
@@ -401,7 +546,7 @@ export function StoreView() {
                 <Pagination
                   current={current}
                   totalPages={totalPages}
-                  onChange={setPage}
+                  onChange={(p) => applyFilters({ page: p > 1 ? p : null }, { scroll: true })}
                   prevLabel={t("store.prev")}
                   nextLabel={t("store.next")}
                 />
@@ -412,6 +557,8 @@ export function StoreView() {
                     onChange={(e) => {
                       pickedPageSize.current = true;
                       setPageSize(Number(e.target.value));
+                      // A different page size means a different page 1.
+                      if (urlPage > 1) applyFilters({}, { replace: true });
                     }}
                     className="tap cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-bold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
                   >
@@ -445,12 +592,13 @@ export function StoreView() {
         >
           <div className="lg:sticky lg:top-24">
             <FilterPanel
-              fandom={fandom}
+              fandoms={activeFandoms}
               waterproof={waterproof}
-              maxPrice={maxPrice}
-              onFandom={setFandom}
-              onWaterproof={setWaterproof}
-              onMaxPrice={setMaxPrice}
+              maxPrice={priceInput}
+              onFandom={(code) => applyFilters({ fandom: toggleInList(activeFandoms, code) })}
+              onClearFandoms={() => applyFilters({ fandom: null })}
+              onWaterproof={(v) => applyFilters({ waterproof: v })}
+              onMaxPrice={setPriceInput}
               onClear={clearFilters}
               onClose={() => setFiltersOpen(false)}
               hasActive={hasActiveFilters}

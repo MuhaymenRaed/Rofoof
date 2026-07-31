@@ -339,27 +339,6 @@ export async function getInventory(offset = 0, limit = 30): Promise<InventoryPag
   return { products: rows.slice(0, limit).map(mapProduct), hasMore };
 }
 
-/**
- * Every product flagged for the homepage "featured picks" showcase (active or
- * not, but never soft-deleted), newest-featured first. Powers the dashboard's
- * featured manager.
- */
-export async function getFeaturedProducts(): Promise<Product[]> {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("is_featured", true)
-    .eq("is_deleted", false)
-    .order("sort_order", { ascending: false });
-
-  if (error || !data) {
-    console.error("[dashboard] featured:", error);
-    return [];
-  }
-  return (data as unknown as ProductRowWithFandoms[]).map(mapProduct);
-}
-
 export interface CustomersPage {
   customers: DashboardCustomer[];
   hasMore: boolean;

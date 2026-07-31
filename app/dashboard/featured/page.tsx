@@ -1,14 +1,13 @@
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/auth/dal";
-import { getFeaturedProducts } from "@/lib/data/dashboard";
-import { getFeaturedTitle } from "@/lib/data/catalog";
+import { getFeaturedGroups, getProducts } from "@/lib/data/catalog";
 import { FeaturedManager } from "@/components/dashboard/featured-manager";
 import DashboardLoading from "../loading";
 
 async function FeaturedContent() {
   await requireAdmin();
-  const [products, title] = await Promise.all([getFeaturedProducts(), getFeaturedTitle()]);
-  return <FeaturedManager initialProducts={products} titleAr={title.ar} titleEn={title.en} />;
+  const [groups, products] = await Promise.all([getFeaturedGroups(), getProducts()]);
+  return <FeaturedManager initialGroups={groups} products={products} />;
 }
 
 export default function DashboardFeaturedPage() {

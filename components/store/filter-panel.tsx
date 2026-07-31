@@ -2,19 +2,18 @@
 
 import { useStore } from "@/components/providers/store-provider";
 import { X, Droplet } from "@/components/icons";
-import { MAX_PRICE } from "@/lib/products";
+import { MAX_PRICE, MIN_PRICE } from "@/lib/products";
 import { formatPrice } from "@/lib/format";
 
-type FandomSel = string;
-
-export interface FilterState {
-  fandom: FandomSel;
+interface Props {
+  /** Selected fandom codes — multi-select, so an empty list means "all". */
+  fandoms: string[];
   waterproof: boolean;
   maxPrice: number;
-}
-
-interface Props extends FilterState {
-  onFandom: (f: FandomSel) => void;
+  /** Toggle one fandom on/off. */
+  onFandom: (code: string) => void;
+  /** Clear the whole fandom group (the "all" row). */
+  onClearFandoms: () => void;
   onWaterproof: (v: boolean) => void;
   onMaxPrice: (v: number) => void;
   onClear: () => void;
@@ -23,10 +22,11 @@ interface Props extends FilterState {
 }
 
 export function FilterPanel({
-  fandom,
+  fandoms: selectedFandoms,
   waterproof,
   maxPrice,
   onFandom,
+  onClearFandoms,
   onWaterproof,
   onMaxPrice,
   onClear,
@@ -74,12 +74,14 @@ export function FilterPanel({
         </p>
         <div className="space-y-1">
           {options.map((f) => {
-            const active = fandom === f.code;
+            const isAll = f.code === "all";
+            const active = isAll ? selectedFandoms.length === 0 : selectedFandoms.includes(f.code);
             return (
               <button
                 key={f.code}
                 type="button"
-                onClick={() => onFandom(f.code)}
+                aria-pressed={active}
+                onClick={() => (isAll ? onClearFandoms() : onFandom(f.code))}
                 className={`tap flex w-full items-center justify-between rounded-lg px-3 py-2 text-[13px] font-semibold transition ${
                   active
                     ? "bg-brand-soft text-brand"
@@ -133,7 +135,7 @@ export function FilterPanel({
         </div>
         <input
           type="range"
-          min={1000}
+          min={MIN_PRICE}
           max={MAX_PRICE}
           step={500}
           value={maxPrice}
@@ -142,7 +144,7 @@ export function FilterPanel({
           aria-label={t("store.maxPrice")}
         />
         <div className="mt-2 flex justify-between text-[10px] font-medium text-ink-3">
-          <span>{formatPrice(1000, lang)}</span>
+          <span>{formatPrice(MIN_PRICE, lang)}</span>
           <span>{formatPrice(MAX_PRICE, lang)}</span>
         </div>
       </div>

@@ -15,6 +15,7 @@ import type {
   CustomPricing,
   CustomType,
   FandomInfo,
+  FeaturedGroup,
   Offer,
   Product,
   SiteSettings,
@@ -304,43 +305,52 @@ export async function getBestSellerCounts(): Promise<Record<string, number>> {
   }
 }
 
-/** Admin-editable title for the homepage "featured picks" showcase section. */
-export interface FeaturedTitle {
-  ar: string;
-  en: string;
-}
-
-const FEATURED_TITLE_FALLBACK: FeaturedTitle = { ar: "مختارات رفوف", en: "Featured picks" };
-
-// Catches INSIDE the cached function so it always resolves to a value (and
-// caches it): letting the query throw out of unstable_cache would register an
-// uncached access and break the homepage prerender under Cache Components —
-// e.g. before the settings columns exist, or on any transient read error.
-const cachedFeaturedTitle = unstable_cache(
-  async (): Promise<FeaturedTitle> => {
+/**
+ * Every showcase group with its product ids, in the admin's order. Catches
+ * inside the cached function so a missing table (before the SQL is applied) or
+ * a transient error resolves to an empty list instead of registering an
+ * uncached access — which would break the home page prerender.
+ */
+const cachedFeaturedGroups = unstable_cache(
+  async (): Promise<FeaturedGroup[]> => {
     try {
       const supabase = createAnonClient();
       const { data, error } = await supabase
-        .from("settings")
-        .select("featured_title_ar, featured_title_en")
-        .limit(1)
-        .maybeSingle();
+        .from("featured_groups")
+        .select("id, name_ar, name_en, sort_order, featured_group_products(product_id, sort_order)")
+        .eq("is_deleted", false)
+        .order("sort_order", { ascending: true });
       if (error) throw error;
-      return {
-        ar: data?.featured_title_ar?.trim() || FEATURED_TITLE_FALLBACK.ar,
-        en: data?.featured_title_en?.trim() || FEATURED_TITLE_FALLBACK.en,
-      };
+
+      const rows = (data ?? []) as unknown as {
+        id: string;
+        name_ar: string;
+        name_en: string;
+        sort_order: number;
+        featured_group_products?: { product_id: string; sort_order: number }[] | null;
+      }[];
+
+      return rows.map((g) => ({
+        id: g.id,
+        nameAr: g.name_ar,
+        nameEn: g.name_en,
+        order: g.sort_order,
+        productIds: (g.featured_group_products ?? [])
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((p) => p.product_id),
+      }));
     } catch (error) {
-      console.error("[catalog] getFeaturedTitle failed:", error);
-      return FEATURED_TITLE_FALLBACK;
+      console.error("[catalog] getFeaturedGroups failed:", error);
+      return [];
     }
   },
-  ["catalog:featured-title"],
-  { tags: [TAGS.settings], revalidate: 300 },
+  ["catalog:featured-groups"],
+  { tags: [TAGS.products, TAGS.settings], revalidate: 300 },
 );
 
-export async function getFeaturedTitle(): Promise<FeaturedTitle> {
-  return cachedFeaturedTitle();
+export async function getFeaturedGroups(): Promise<FeaturedGroup[]> {
+  return cachedFeaturedGroups();
 }
 
 export interface AnnouncementSettings {

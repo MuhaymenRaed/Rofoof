@@ -337,6 +337,31 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["offers"]["Insert"]>;
         Relationships: [];
       };
+      featured_groups: {
+        Row: {
+          id: string;
+          name_ar: string;
+          name_en: string;
+          sort_order: number;
+          is_deleted: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name_ar: string;
+          name_en: string;
+          sort_order?: number;
+          is_deleted?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["featured_groups"]["Insert"]>;
+        Relationships: [];
+      };
+      featured_group_products: {
+        Row: { group_id: string; product_id: string; sort_order: number };
+        Insert: { group_id: string; product_id: string; sort_order?: number };
+        Update: Partial<{ group_id: string; product_id: string; sort_order: number }>;
+        Relationships: [];
+      };
       product_categories: {
         Row: { product_id: string; category_code: string };
         Insert: { product_id: string; category_code: string };

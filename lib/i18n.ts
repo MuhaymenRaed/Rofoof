@@ -479,6 +479,23 @@ export const dict = {
     ar: "اضغط نجمة ⭐ على أي منتج، أو فعّل «منتج مميّز» في نافذة تعديل المنتج.",
     en: "Tap the ⭐ on any product, or turn on “Featured product” in the product editor.",
   },
+  "dash.featuredGroups": { ar: "أقسام المختارات", en: "Showcase sections" },
+  "dash.featuredGroupsHint": {
+    ar: "كل قسم يظهر كصف مستقل في الصفحة الرئيسية بين «الأكثر طلباً» و«وصل حديثاً».",
+    en: "Each section is its own row on the home page, between “Most ordered” and “Just landed”.",
+  },
+  "dash.newGroup": { ar: "قسم جديد", en: "New section" },
+  "dash.createGroup": { ar: "إنشاء القسم", en: "Create section" },
+  "dash.deleteGroup": { ar: "حذف القسم", en: "Delete section" },
+  "dash.moveUp": { ar: "تحريك للأعلى", en: "Move up" },
+  "dash.moveDown": { ar: "تحريك للأسفل", en: "Move down" },
+  "dash.groupProducts": { ar: "منتجات القسم", en: "Section products" },
+  "dash.noGroups": { ar: "لا توجد أقسام بعد", en: "No sections yet" },
+  "dash.noGroupsHint": {
+    ar: "أنشئ قسماً أولاً، ثم أضِف إليه المنتجات بنجمة ⭐ على أي بطاقة أو من هنا.",
+    en: "Create a section first, then fill it from the ⭐ on any product card or right here.",
+  },
+  "dash.featuredTargetGroup": { ar: "إلى القسم", en: "Into section" },
   "dash.featuredBulk": { ar: "إضافة مجموعة دفعة واحدة", en: "Add a whole group at once" },
   "dash.featuredBulkHint": {
     ar: "اختر فئة أو تصنيفاً فرعياً أو مجموعة لإضافة كل منتجاتها إلى المختارات.",

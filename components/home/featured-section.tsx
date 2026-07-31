@@ -7,30 +7,28 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { ProductCard } from "@/components/ui/product-card";
 import { Star, Check, X } from "@/components/icons";
 import { Pencil } from "@/components/dashboard/dash-icons";
-import { updateFeaturedTitleAction } from "@/lib/actions/settings";
-import type { Product } from "@/lib/products";
+import { renameFeaturedGroupAction } from "@/lib/actions/featured";
+import type { FeaturedGroup, Product } from "@/lib/products";
 
 /**
- * Homepage "featured picks" showcase — an admin-curated rail sitting between
- * "most ordered" and "just landed". Products land here by their star toggle
- * (on the card or in the editor). The section title is admin-editable both in
- * the dashboard and inline right here.
+ * One admin-curated showcase rail on the home page. Any number of these stack
+ * between "most ordered" and "just landed", in the admin's chosen order.
+ * Products join a rail via the star picker on a card (or the product editor),
+ * and the rail's title is renameable inline here as well as in the dashboard.
  */
 export function FeaturedSection({
+  group,
   products,
-  titleAr,
-  titleEn,
 }: {
+  group: FeaturedGroup;
   products: Product[];
-  titleAr: string;
-  titleEn: string;
 }) {
   const { lang, t } = useStore();
   const { isAdmin, ready } = useAuth();
   const router = useRouter();
 
-  const [ar, setAr] = useState(titleAr);
-  const [en, setEn] = useState(titleEn);
+  const [ar, setAr] = useState(group.nameAr);
+  const [en, setEn] = useState(group.nameEn);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -42,7 +40,10 @@ export function FeaturedSection({
     if (!ar.trim() || !en.trim()) return;
     setError(false);
     startTransition(async () => {
-      const res = await updateFeaturedTitleAction({ ar: ar.trim(), en: en.trim() });
+      const res = await renameFeaturedGroupAction(group.id, {
+        nameAr: ar.trim(),
+        nameEn: en.trim(),
+      });
       if (!res.ok) {
         setError(true);
         return;
@@ -53,8 +54,8 @@ export function FeaturedSection({
   }
 
   function cancel() {
-    setAr(titleAr);
-    setEn(titleEn);
+    setAr(group.nameAr);
+    setEn(group.nameEn);
     setEditing(false);
     setError(false);
   }

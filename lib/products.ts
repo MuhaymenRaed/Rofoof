@@ -196,6 +196,23 @@ export function hasVariablePrice(p: Product): boolean {
 }
 
 export const MAX_PRICE = 100000;
+/** Lowest value the store's price slider (and the ?maxPrice= param) allows. */
+export const MIN_PRICE = 1000;
+
+/**
+ * An admin-made showcase rail on the home page. Any number of them can exist;
+ * each renders as its own titled row between "most ordered" and "just landed",
+ * ordered by `order`. A product may belong to several groups at once.
+ */
+export interface FeaturedGroup {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  /** admin's manual ordering (lower = higher up the page) */
+  order: number;
+  /** ids of the products in this group, in the admin's order */
+  productIds: string[];
+}
 
 /** Category codes that can be waterproof (paper/vinyl products). */
 export const WATERPROOF_CATEGORIES = ["stickers", "posters"];

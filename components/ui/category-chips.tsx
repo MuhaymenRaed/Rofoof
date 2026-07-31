@@ -44,7 +44,7 @@ export function CategoryChips({ asLinks, active, onSelect }: Props) {
           return (
             <Link
               key={c.code}
-              href={c.code === "all" ? "/store" : `/store?cat=${encodeURIComponent(c.code)}`}
+              href={c.code === "all" ? "/store" : `/store?category=${encodeURIComponent(c.code)}`}
               className={className}
             >
               {inner}
