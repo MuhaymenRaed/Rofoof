@@ -646,8 +646,8 @@ export const dict = {
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
   "store.perPage": { ar: "لكل صفحة", en: "Per page" },
   "store.subHint": {
-    ar: "الفئات التي عليها + فيها تصنيفات فرعية — اضغط + لعرضها",
-    en: "Categories marked with + have subfilters — press + to show them",
+    ar: "اختر أكثر من فئة معاً، واضغط + لتحديد تصنيفات فرعية لأي فئة منها فقط",
+    en: "Pick several categories at once, and press + to narrow any one of them to its subfilters",
   },
   "store.manageFilters": { ar: "إدارة الفلاتر", en: "Manage filters" },
   "store.manageFiltersHint": {

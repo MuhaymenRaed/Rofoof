@@ -87,17 +87,26 @@ export function StoreView() {
     return knownCategories.size > 0 ? raw.filter((c) => knownCategories.has(c)) : raw;
   }, [searchParams, knownCategories]);
 
-  // A subcategory only means something under a selected parent (with no
-  // category selected, every subcategory is fair game).
+  // Any KNOWN subcategory counts, even when its parent chip isn't selected —
+  // a subfilter can stand on its own (see matchesTaxonomy below).
   const activeSubcategories = useMemo(() => {
     const raw = parseListParam(searchParams.get("subcategory"));
     if (subParent.size === 0) return raw;
-    return raw.filter((code) => {
+    return raw.filter((code) => subParent.has(code));
+  }, [searchParams, subParent]);
+
+  /** Selected subcategories bucketed under the category they belong to. */
+  const selectedSubsByParent = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const code of activeSubcategories) {
       const parent = subParent.get(code);
-      if (!parent) return false;
-      return activeCategories.length === 0 || activeCategories.includes(parent);
-    });
-  }, [searchParams, subParent, activeCategories]);
+      if (!parent) continue;
+      const arr = m.get(parent) ?? [];
+      arr.push(code);
+      m.set(parent, arr);
+    }
+    return m;
+  }, [activeSubcategories, subParent]);
 
   const activeFandoms = useMemo(() => {
     const raw = parseListParam(searchParams.get("fandom"));
@@ -249,22 +258,45 @@ export function StoreView() {
 
   /* ------------------------------- results -------------------------------- */
 
+  /**
+   * Category + subcategory matching, refined PER CATEGORY: each selected
+   * category is either taken whole, or narrowed by the subfilters chosen under
+   * it — then those results are OR-ed together. So "all of Football" + "only
+   * Hollow Knight from Games" returns every football item AND the Hollow Knight
+   * games items, instead of the subfilter wiping out the other category.
+   *
+   * A subfilter whose parent chip isn't selected still stands on its own, so
+   * you can pick just "Hollow Knight" without selecting Games.
+   */
+  const matchesTaxonomy = useCallback(
+    (p: (typeof products)[number]) => {
+      if (activeCategories.length === 0 && activeSubcategories.length === 0) return true;
+
+      for (const c of activeCategories) {
+        if (!(p.categories.includes(c) || p.category === c)) continue;
+        const subs = selectedSubsByParent.get(c);
+        // Whole category, or narrowed to the subfilters picked under it.
+        if (!subs || subs.length === 0) return true;
+        if (subs.some((s) => p.subcategories.includes(s))) return true;
+      }
+
+      // Subfilters chosen without their parent category act as their own filter.
+      for (const [parent, subs] of selectedSubsByParent) {
+        if (activeCategories.includes(parent)) continue;
+        if (subs.some((s) => p.subcategories.includes(s))) return true;
+      }
+
+      return false;
+    },
+    [activeCategories, activeSubcategories, selectedSubsByParent],
+  );
+
   const filtered = useMemo(() => {
     const q = urlSearch;
     const list = products.filter((p) => {
-      // OR inside each group, AND across groups. An empty group = no constraint.
-      if (
-        activeCategories.length > 0 &&
-        !activeCategories.some((c) => p.categories.includes(c) || p.category === c)
-      ) {
-        return false;
-      }
-      if (
-        activeSubcategories.length > 0 &&
-        !activeSubcategories.some((s) => p.subcategories.includes(s))
-      ) {
-        return false;
-      }
+      // Category/subcategory first; fandom, waterproof, price and search then
+      // narrow that selection further (AND).
+      if (!matchesTaxonomy(p)) return false;
       if (activeFandoms.length > 0 && !activeFandoms.some((f) => p.fandoms.includes(f))) {
         return false;
       }
@@ -294,8 +326,7 @@ export function StoreView() {
     });
   }, [
     products,
-    activeCategories,
-    activeSubcategories,
+    matchesTaxonomy,
     activeFandoms,
     waterproof,
     urlMaxPrice,
