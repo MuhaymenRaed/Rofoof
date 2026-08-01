@@ -41,11 +41,7 @@ export function Hero() {
 
         {/* Text */}
         <div className="flex flex-1 flex-col justify-center p-7 sm:p-9">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-brand-line bg-brand-soft px-3 py-1 text-[10px] font-bold tracking-[0.12em] text-brand">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-            {t("hero.tag")}
-          </span>
-          <h1 className="mt-3.5 text-2xl font-black leading-tight text-ink sm:text-3xl">
+          <h1 className="text-2xl font-black leading-tight text-ink sm:text-3xl">
             {t("hero.title")}
           </h1>
           <p className="mt-2.5 max-w-md text-[13px] leading-relaxed text-ink-2">

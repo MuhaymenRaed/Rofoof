@@ -30,7 +30,6 @@ export const dict = {
   },
 
   // Hero
-  "hero.tag": { ar: "وصل جديد", en: "New arrivals" },
   "hero.title": {
     ar: "منتجات صناعة عراقية",
     en: "Iraqi-made products",
