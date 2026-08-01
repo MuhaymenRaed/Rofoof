@@ -357,7 +357,8 @@ export async function loadMoreOrdersAction(
  * Let a signed-in buyer cancel their OWN order while it's still in review
  * (not yet accepted). The cancel_order() RPC is SECURITY DEFINER and enforces
  * both ownership (user_id = auth.uid()) and the review-only rule server-side,
- * then hard-deletes the order (order_items cascade). Returns false if the
+ * then removes the order from `orders` (items cascade; an AFTER DELETE
+ * trigger archives it into cancelled_orders). Returns false if the
  * order can't be cancelled (wrong owner, already accepted, or gone).
  */
 export async function cancelOrderAction(
@@ -368,7 +369,7 @@ export async function cancelOrderAction(
 
   const supabase = await createSupabaseServerClient();
 
-  // Snapshot the order BEFORE cancel_order() hard-deletes it, so the
+  // Snapshot the order BEFORE cancel_order() removes it, so the
   // cancellation alert can carry the full details. RLS scopes this read to the
   // buyer's own order, matching what cancel_order() enforces.
   const { data: snap } = await supabase
@@ -434,7 +435,8 @@ export async function cancelOrderAction(
 /**
  * Guest cancellation: a guest who tracked their order (code + phone) can cancel
  * it while it's still in review. cancel_order_guest() (SECURITY DEFINER) re-checks
- * the phone AND the review-only rule, hard-deletes the order, and returns a
+ * the phone AND the review-only rule, removes the order (archived by trigger),
+ * and returns a
  * snapshot — so we fire the SAME Telegram cancellation alert as the authed path.
  */
 export async function cancelGuestOrderAction(input: {
@@ -520,9 +522,13 @@ export async function cancelGuestOrderAction(input: {
 /**
  * Admin cancellation — the same procedure the buyer gets, but allowed at ANY
  * status (a customer can only cancel while the order is still in review).
- * Hard-deletes the order exactly like cancel_order() does, so order_items
- * cascade and the dashboard/stats stop counting it, and fires the same Telegram
+ * Removes the order from `orders` exactly like cancel_order() does, so items
+ * cascade and every list/stat stops counting it, and fires the same Telegram
  * cancellation alert.
+ *
+ * The row is NOT destroyed: an AFTER DELETE trigger copies it (and its items)
+ * into cancelled_orders / cancelled_order_items, so the record survives in the
+ * database while being invisible to the app. See archive-cancelled-orders.sql.
  *
  * Runs through the service-role client (gated by requireAdmin above it) so the
  * delete works regardless of how the orders RLS policies are scoped.

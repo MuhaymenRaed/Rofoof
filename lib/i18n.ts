@@ -36,7 +36,7 @@ export const dict = {
     en: "Iraqi-made products",
   },
   "hero.desc": {
-    ar: " ستكرات وميداليات وبروشات وبوسترات لكل اهتماماتكم ♥",
+    ar: " ستكرات, ميداليات, بروشات, بوسترات لكل اهتماماتكم ♥",
     en: "Stickers, medals, brooches & posters for all your interests ♥",
   },
   "hero.shop": { ar: "تسوّق الآن", en: "Shop now" },
