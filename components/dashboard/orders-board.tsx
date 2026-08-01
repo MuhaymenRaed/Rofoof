@@ -16,6 +16,7 @@ import {
   Sparkles,
   Photo,
   Download,
+  Trash,
 } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { downloadImagesAsZip } from "@/lib/zip";
@@ -31,6 +32,7 @@ import {
   updateOrderStatusAction,
   updateManyOrderStatusesAction,
   loadMoreOrdersAction,
+  cancelOrderAdminAction,
 } from "@/lib/actions/orders";
 import { usePaginatedList } from "@/lib/hooks/use-paginated-list";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -284,6 +286,16 @@ export function OrdersBoard({
           order={detail}
           onClose={() => setDetailCode(null)}
           onSetStatus={(next) => setStatus(detail.code, detail.status, next)}
+          onCancelled={() => {
+            // Optimistic: drop it now; the server already deleted it.
+            setOrders((prev) => prev.filter((o) => o.code !== detail.code));
+            setSelected((prev) => {
+              const next = new Set(prev);
+              next.delete(detail.code);
+              return next;
+            });
+            setDetailCode(null);
+          }}
         />
       )}
     </div>
@@ -296,12 +308,36 @@ function OrderDetailsModal({
   order,
   onClose,
   onSetStatus,
+  onCancelled,
 }: {
   order: Order;
   onClose: () => void;
   onSetStatus: (next: OrderStatus) => void;
+  /** the order was deleted server-side — drop it from the board */
+  onCancelled: () => void;
 }) {
   const { t, lang, getProduct } = useStore();
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelError, setCancelError] = useState(false);
+  const [cancelling, startCancel] = useTransition();
+
+  function cancelOrder() {
+    if (!confirmingCancel) {
+      setConfirmingCancel(true);
+      return;
+    }
+    setCancelError(false);
+    startCancel(async () => {
+      const res = await cancelOrderAdminAction(order.code);
+      if (!res.ok) {
+        setCancelError(true);
+        setConfirmingCancel(false);
+        return;
+      }
+      onCancelled();
+    });
+  }
+
   const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
   const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
 
@@ -431,6 +467,36 @@ function OrderDetailsModal({
                 );
               })}
             </div>
+          </div>
+
+          {/* Admin cancellation — allowed at ANY status (the customer can only
+              cancel while in review). Deletes the order and alerts Telegram. */}
+          <div>
+            <button
+              type="button"
+              onClick={cancelOrder}
+              disabled={cancelling}
+              className={`tap flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition disabled:opacity-60 ${
+                confirmingCancel
+                  ? "bg-red-500 text-white hover:opacity-90"
+                  : "border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white"
+              }`}
+            >
+              <Trash size={15} />
+              {cancelling
+                ? t("orders.cancelling")
+                : confirmingCancel
+                  ? t("dash.confirmDelete")
+                  : t("dash.cancelOrder")}
+            </button>
+            <p className="mt-1.5 text-center text-[11px] text-ink-3">
+              {confirmingCancel ? t("orders.cancelHint") : t("dash.cancelOrderHint")}
+            </p>
+            {cancelError && (
+              <p className="mt-2 rounded-xl bg-red-500/10 px-3 py-2 text-center text-xs font-semibold text-red-500">
+                {t("orders.cancelError")}
+              </p>
+            )}
           </div>
 
           {/* Customer */}

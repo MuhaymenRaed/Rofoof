@@ -518,6 +518,81 @@ export async function cancelGuestOrderAction(input: {
 }
 
 /**
+ * Admin cancellation — the same procedure the buyer gets, but allowed at ANY
+ * status (a customer can only cancel while the order is still in review).
+ * Hard-deletes the order exactly like cancel_order() does, so order_items
+ * cascade and the dashboard/stats stop counting it, and fires the same Telegram
+ * cancellation alert.
+ *
+ * Runs through the service-role client (gated by requireAdmin above it) so the
+ * delete works regardless of how the orders RLS policies are scoped.
+ */
+export async function cancelOrderAdminAction(code: string): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  await requireAdmin();
+  const trimmed = code.trim();
+  if (!trimmed) return { ok: false, error: "invalid_input" };
+
+  const admin = createAdminClient();
+
+  // Snapshot before deleting so the alert can carry the full order.
+  const { data: snap } = await admin
+    .from("orders")
+    .select(
+      "code, customer_name, customer_phone, province_code, address_line, notes, subtotal, discount_total, delivery_fee, is_custom, custom_images, order_items(qty)",
+    )
+    .eq("code", trimmed)
+    .maybeSingle<{
+      code: string;
+      customer_name: string;
+      customer_phone: string;
+      province_code: string | null;
+      address_line: string | null;
+      notes: string | null;
+      subtotal: number;
+      discount_total: number;
+      delivery_fee: number;
+      is_custom: boolean | null;
+      custom_images: string[] | null;
+      order_items: { qty: number }[] | null;
+    }>();
+
+  const { error } = await admin.from("orders").delete().eq("code", trimmed);
+  if (error) {
+    console.error("[cancelOrderAdmin]", error);
+    return { ok: false, error: error.message };
+  }
+
+  if (snap) {
+    const itemCount = snap.is_custom
+      ? snap.custom_images?.length ?? 0
+      : (snap.order_items ?? []).reduce((sum, i) => sum + (i.qty ?? 0), 0);
+    const deliveryFee = snap.delivery_fee ?? 0;
+    await sendOrderCancelledTelegramNotification({
+      code: snap.code,
+      customerName: snap.customer_name,
+      customerPhone: snap.customer_phone,
+      provinceCode: snap.province_code ?? null,
+      addressLine: snap.address_line ?? null,
+      notes: snap.notes ?? null,
+      total: calculateGrandTotal(snap.subtotal ?? 0, snap.discount_total ?? 0, deliveryFee),
+      subtotal: snap.subtotal ?? 0,
+      discountTotal: snap.discount_total ?? 0,
+      deliveryFee,
+      itemCount,
+    });
+  }
+
+  revalidateTag(TAGS.sales, "max");
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/orders");
+  return { ok: true };
+}
+
+/**
  * Bulk status move for the order-cards grid. Each entry carries its own target
  * status (computed client-side as next/previous step per card), validated here.
  */

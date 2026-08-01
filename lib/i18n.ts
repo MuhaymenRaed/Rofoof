@@ -32,12 +32,12 @@ export const dict = {
   // Hero
   "hero.tag": { ar: "وصل جديد", en: "New arrivals" },
   "hero.title": {
-    ar: "ستكرات وميداليات صناعة عراقية",
-    en: "Iraqi-made stickers & medals",
+    ar: "منتحات صناعة عراقية",
+    en: "Iraqi-made products",
   },
   "hero.desc": {
-    ar: "ستكرات، بروشات، ميداليات وبوسترات لكل اهتماماتك — منتجات مرتبة في حانة البوستات ♥",
-    en: "Stickers, brooches, medals & posters for every fandom — curated with love ♥",
+    ar: "♥ ستكرات, ميداليات, بروشات, بوسترات لكل إهتمامكم",
+    en: "Stickers, medals, brooches & posters for all your interests ♥",
   },
   "hero.shop": { ar: "تسوّق الآن", en: "Shop now" },
   "hero.track": { ar: "تتبّع طلبك", en: "Track order" },
@@ -171,7 +171,10 @@ export const dict = {
     en: "No order matches that ID and phone. Double-check both and try again.",
   },
   "orders.trackAnother": { ar: "تتبّع طلب آخر", en: "Track another order" },
-  "orders.trackCancelledTitle": { ar: "تم إلغاء طلبك", en: "Your order was cancelled" },
+  "orders.trackCancelledTitle": {
+    ar: "تم إلغاء طلبك",
+    en: "Your order was cancelled",
+  },
   "orders.trackCancelledHint": {
     ar: "تم إلغاء الطلب بنجاح. يمكنك تقديم طلب جديد في أي وقت.",
     en: "The order was cancelled successfully. You can place a new order anytime.",
@@ -189,7 +192,10 @@ export const dict = {
     ar: "يمكنك المتابعة كضيف، لكن إنشاء حساب يمنحك مزايا إضافية.",
     en: "You can continue as a guest, but creating an account unlocks additional features.",
   },
-  "guest.benefitWishlist": { ar: "احفظ منتجاتك في المفضّلة", en: "Save products to your wishlist" },
+  "guest.benefitWishlist": {
+    ar: "احفظ منتجاتك في المفضّلة",
+    en: "Save products to your wishlist",
+  },
   "guest.benefitAutofill": {
     ar: "تعبئة معلوماتك تلقائياً في طلباتك القادمة",
     en: "Auto-fill your info during future checkouts",
@@ -202,9 +208,15 @@ export const dict = {
     ar: "ملف شخصي وإدارة كاملة لحسابك",
     en: "Personal profile and account management",
   },
-  "guest.benefitFaster": { ar: "تجربة شراء أسرع", en: "Faster checkout experience" },
+  "guest.benefitFaster": {
+    ar: "تجربة شراء أسرع",
+    en: "Faster checkout experience",
+  },
   "guest.continueAsGuest": { ar: "المتابعة كضيف", en: "Continue as guest" },
-  "guest.signIn": { ar: "تسجيل الدخول / إنشاء حساب", en: "Sign in / Create account" },
+  "guest.signIn": {
+    ar: "تسجيل الدخول / إنشاء حساب",
+    en: "Sign in / Create account",
+  },
   // Install app (PWA) banner
   "pwa.title": { ar: "ثبّت تطبيق رفوف", en: "Install the rofoof app" },
   "pwa.hint": {
@@ -464,7 +476,10 @@ export const dict = {
     ar: "يظهر في قسم «المختارات» على الصفحة الرئيسية",
     en: "Shows in the “Featured picks” section on the home page",
   },
-  "dash.featuredTitle": { ar: "اسم قسم المختارات", en: "Showcase section name" },
+  "dash.featuredTitle": {
+    ar: "اسم قسم المختارات",
+    en: "Showcase section name",
+  },
   "dash.featuredTitleHint": {
     ar: "العنوان الظاهر فوق المنتجات المميّزة في الصفحة الرئيسية",
     en: "The heading shown above the featured products on the home page",
@@ -474,10 +489,18 @@ export const dict = {
   "dash.featuredRename": { ar: "تعديل اسم القسم", en: "Rename section" },
   "dash.featuredList": { ar: "المنتجات المميّزة", en: "Featured products" },
   "dash.featuredRemove": { ar: "إزالة", en: "Remove" },
-  "dash.featuredEmpty": { ar: "لا توجد منتجات مميّزة بعد", en: "No featured products yet" },
+  "dash.featuredEmpty": {
+    ar: "لا توجد منتجات مميّزة بعد",
+    en: "No featured products yet",
+  },
   "dash.featuredEmptyHint": {
     ar: "اضغط نجمة ⭐ على أي منتج، أو فعّل «منتج مميّز» في نافذة تعديل المنتج.",
     en: "Tap the ⭐ on any product, or turn on “Featured product” in the product editor.",
+  },
+  "dash.cancelOrder": { ar: "إلغاء / حذف الطلب", en: "Cancel / delete order" },
+  "dash.cancelOrderHint": {
+    ar: "يمكنك إلغاء الطلب في أي مرحلة — سيُحذف نهائياً ويصل إشعار للبوت.",
+    en: "You can cancel at any stage — the order is permanently removed and the bot is notified.",
   },
   "dash.featuredGroups": { ar: "أقسام المختارات", en: "Showcase sections" },
   "dash.featuredGroupsHint": {
@@ -496,7 +519,10 @@ export const dict = {
     en: "Create a section first, then fill it from the ⭐ on any product card or right here.",
   },
   "dash.featuredTargetGroup": { ar: "إلى القسم", en: "Into section" },
-  "dash.featuredBulk": { ar: "إضافة مجموعة دفعة واحدة", en: "Add a whole group at once" },
+  "dash.featuredBulk": {
+    ar: "إضافة مجموعة دفعة واحدة",
+    en: "Add a whole group at once",
+  },
   "dash.featuredBulkHint": {
     ar: "اختر فئة أو تصنيفاً فرعياً أو مجموعة لإضافة كل منتجاتها إلى المختارات.",
     en: "Pick a category, subfilter, or fandom to feature all of its products.",
@@ -836,7 +862,10 @@ export const dict = {
   "product.from": { ar: "يبدأ من", en: "From" },
   "product.feature": { ar: "إضافة إلى المختارات", en: "Add to featured" },
   "product.unfeature": { ar: "إزالة من المختارات", en: "Remove from featured" },
-  "product.tapToExpand": { ar: "اضغط على الصورة لتكبيرها ورؤيتها كاملة", en: "Tap the image to expand and see it fully" },
+  "product.tapToExpand": {
+    ar: "اضغط على الصورة لتكبيرها ورؤيتها كاملة",
+    en: "Tap the image to expand and see it fully",
+  },
   "product.chooseItem": { ar: "اختر التصميم", en: "Pick a design" },
   "product.chooseItems": { ar: "اختر التصاميم", en: "Pick your designs" },
   "product.waterproofOption": {
@@ -927,7 +956,10 @@ export const dict = {
     en: "Keep your order code to track it. We'll confirm via WhatsApp.",
   },
   "checkout.sendWhatsapp": { ar: "إرسال عبر واتساب", en: "Send via WhatsApp" },
-  "checkout.copyCode": { ar: "اضغط لنسخ رقم الطلب", en: "Tap to copy your Order ID" },
+  "checkout.copyCode": {
+    ar: "اضغط لنسخ رقم الطلب",
+    en: "Tap to copy your Order ID",
+  },
   "checkout.codeCopied": { ar: "تم نسخ الرقم ✓", en: "Copied ✓" },
   "checkout.guestSaveId": {
     ar: "احتفظ برقم الطلب لتتبّعه لاحقاً من صفحة «طلباتي».",
