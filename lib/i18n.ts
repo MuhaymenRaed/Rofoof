@@ -32,11 +32,11 @@ export const dict = {
   // Hero
   "hero.tag": { ar: "وصل جديد", en: "New arrivals" },
   "hero.title": {
-    ar: "منتحات صناعة عراقية",
+    ar: "منتجات صناعة عراقية",
     en: "Iraqi-made products",
   },
   "hero.desc": {
-    ar: "♥ ستكرات, ميداليات, بروشات, بوسترات لكل إهتمامكم",
+    ar: " ستكرات وميداليات وبروشات وبوسترات لكل اهتماماتكم ♥",
     en: "Stickers, medals, brooches & posters for all your interests ♥",
   },
   "hero.shop": { ar: "تسوّق الآن", en: "Shop now" },
