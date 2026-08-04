@@ -25,7 +25,7 @@ import {
 import { setProductGroupsAction } from "@/lib/actions/featured";
 import { updateVolumeTiersAction } from "@/lib/actions/offers";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp, DISPLAY_MAX_DIMENSION } from "@/lib/webp";
+import { toWebp, DISPLAY_MAX_DIMENSION, IMAGE_CACHE_CONTROL } from "@/lib/webp";
 import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
@@ -443,7 +443,11 @@ export function ProductEditorModal({
         const path = `${id}/${Date.now()}-${i}.${webp.ext}`;
         const { error: upErr } = await supabase.storage
           .from("product-images")
-          .upload(path, webp.blob, { upsert: true, contentType: webp.contentType });
+          .upload(path, webp.blob, {
+            upsert: true,
+            contentType: webp.contentType,
+            cacheControl: IMAGE_CACHE_CONTROL,
+          });
         if (upErr) {
           setUploading(false);
           setError(upErr.message);

@@ -19,6 +19,7 @@ import {
 } from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Lightbox } from "@/components/ui/lightbox";
+import { tintedBlurDataUrl } from "@/components/ui/product-media";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
 import { tierUnitPrice, type Product } from "@/lib/products";
@@ -31,7 +32,7 @@ import {
   volumeUnitPrice,
 } from "@/lib/pricing";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
+import { toWebp, MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/webp";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -159,7 +160,10 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     const path = `${crypto.randomUUID()}.${webp.ext}`;
     const { error } = await supabase.storage
       .from("custom-artwork")
-      .upload(path, webp.blob, { contentType: webp.contentType });
+      .upload(path, webp.blob, {
+        contentType: webp.contentType,
+        cacheControl: IMAGE_CACHE_CONTROL,
+      });
     setUploadingCustom(false);
     if (!error) {
       setCustomUrl(supabase.storage.from("custom-artwork").getPublicUrl(path).data.publicUrl);
@@ -241,7 +245,16 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             aria-label={name}
             className="tap absolute inset-0 cursor-zoom-in"
           >
-            <Image src={mainImage} alt={name} fill sizes="384px" className="object-contain" />
+            <Image
+              src={mainImage}
+              alt={name}
+              fill
+              sizes="384px"
+              priority
+              placeholder="blur"
+              blurDataURL={tintedBlurDataUrl(product.color)}
+              className="object-contain"
+            />
           </button>
         ) : (
           <span className="text-[120px] drop-shadow-sm">{product.emoji}</span>
@@ -276,7 +289,16 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 aria-label={name}
                 className="tap absolute inset-0 cursor-zoom-in"
               >
-                <Image src={mainImage} alt={name} fill sizes="100vw" className="object-contain" />
+                <Image
+                  src={mainImage}
+                  alt={name}
+                  fill
+                  sizes="100vw"
+                  priority
+                  placeholder="blur"
+                  blurDataURL={tintedBlurDataUrl(product.color)}
+                  className="object-contain"
+                />
               </button>
               {galleryThumbs && (
                 <>

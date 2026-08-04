@@ -8,7 +8,7 @@ import { X, Plus, Cart, Droplet, Sparkles, Info, CUSTOM_TYPE_ICON } from "@/comp
 import { formatPrice } from "@/lib/format";
 import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp, MAX_UPLOAD_BYTES } from "@/lib/webp";
+import { toWebp, MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/webp";
 
 const MAX_IMAGES = 100;
 const TYPES: CustomType[] = ["brooch", "sticker", "poster"];
@@ -130,7 +130,10 @@ function RequestForm({ onClose }: { onClose: () => void }) {
           const path = `${crypto.randomUUID()}-${i}.${a.ext}`;
           const { error: upErr } = await supabase.storage
             .from("custom-artwork")
-            .upload(path, a.blob, { contentType: a.contentType });
+            .upload(path, a.blob, {
+              contentType: a.contentType,
+              cacheControl: IMAGE_CACHE_CONTROL,
+            });
           if (upErr) throw new Error(upErr.message);
           return supabase.storage.from("custom-artwork").getPublicUrl(path).data.publicUrl;
         }),
