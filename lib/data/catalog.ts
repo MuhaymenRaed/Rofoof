@@ -351,7 +351,10 @@ const cachedFeaturedGroups = unstable_cache(
         nameEn: g.name_en,
         order: g.sort_order,
         linkScope: (g.link_scope ?? null) as FeaturedGroup["linkScope"],
-        linkValue: g.link_value ?? null,
+        linkValues: (g.link_value ?? "")
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
         productIds: (g.featured_group_products ?? [])
           .slice()
           .sort((a, b) => a.sort_order - b.sort_order)

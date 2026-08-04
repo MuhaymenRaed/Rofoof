@@ -35,7 +35,7 @@ export function FeaturedSection({
   const [ar, setAr] = useState(group.nameAr);
   const [en, setEn] = useState(group.nameEn);
   const [linkScope, setLinkScope] = useState<FeaturedLinkScope | null>(group.linkScope);
-  const [linkValue, setLinkValue] = useState<string | null>(group.linkValue);
+  const [linkValues, setLinkValues] = useState<string[]>(group.linkValues);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -43,7 +43,7 @@ export function FeaturedSection({
   const canEdit = ready && isAdmin;
   const title = lang === "ar" ? ar : en;
   // Built from the saved scope+code; absent target → no button at all.
-  const viewAllHref = featuredGroupHref({ linkScope, linkValue });
+  const viewAllHref = featuredGroupHref({ linkScope, linkValues });
 
   function save() {
     if (!ar.trim() || !en.trim()) return;
@@ -59,7 +59,7 @@ export function FeaturedSection({
       }
       const linkRes = await setFeaturedGroupLinkAction(group.id, {
         scope: linkScope,
-        value: linkValue,
+        values: linkValues,
       });
       if (!linkRes.ok) {
         setError(true);
@@ -74,7 +74,7 @@ export function FeaturedSection({
     setAr(group.nameAr);
     setEn(group.nameEn);
     setLinkScope(group.linkScope);
-    setLinkValue(group.linkValue);
+    setLinkValues(group.linkValues);
     setEditing(false);
     setError(false);
   }
@@ -127,10 +127,10 @@ export function FeaturedSection({
               <StoreFilterPicker
                 compact
                 scope={linkScope}
-                value={linkValue}
-                onChange={({ scope, value }) => {
+                values={linkValues}
+                onChange={({ scope, values }) => {
                   setLinkScope(scope);
-                  setLinkValue(value);
+                  setLinkValues(values);
                 }}
               />
             </div>

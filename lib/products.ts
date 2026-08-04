@@ -220,8 +220,8 @@ export interface FeaturedGroup {
   productIds: string[];
   /** what the rail's "show all" button filters the store by (null = no button) */
   linkScope: FeaturedLinkScope | null;
-  /** the chosen filter's code */
-  linkValue: string | null;
+  /** the chosen filter codes — several are OR-ed, exactly like the store page */
+  linkValues: string[];
 }
 
 /** Which store filter a rail's "show all" button targets. */
@@ -234,10 +234,12 @@ export type FeaturedLinkScope = "category" | "subcategory" | "fandom";
  */
 export function featuredGroupHref(group: {
   linkScope: FeaturedLinkScope | null;
-  linkValue: string | null;
+  linkValues: string[];
 }): string | undefined {
-  if (!group.linkScope || !group.linkValue) return undefined;
-  return `/store?${group.linkScope}=${encodeURIComponent(group.linkValue)}`;
+  if (!group.linkScope || group.linkValues.length === 0) return undefined;
+  // Comma-separated is how the store reads a multi-select group, and commas are
+  // legal unescaped in a query value — so the link stays readable when shared.
+  return `/store?${group.linkScope}=${group.linkValues.map(encodeURIComponent).join(",")}`;
 }
 
 /** Category codes that can be waterproof (paper/vinyl products). */

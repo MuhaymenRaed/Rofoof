@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { X, ChevronEnd } from "@/components/icons";
@@ -25,6 +25,7 @@ export function Lightbox({
 }) {
   const count = images.length;
   const touchX = useRef<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   // Bounded (no wrap): clamp to the first/last image so the ends are real ends.
   const go = useCallback(
@@ -34,6 +35,12 @@ export function Lightbox({
     },
     [index, count, onIndex],
   );
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setLoaded(false);
+  }, [index]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -93,12 +100,26 @@ export function Lightbox({
           className="relative h-full w-full max-w-4xl"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Full-size art can take a moment on a phone connection — show a
+              quiet spinner rather than an empty black frame, and swap it for
+              the picture only once it's actually decoded. */}
+          {!loaded && (
+            <span className="absolute inset-0 grid place-items-center">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+            </span>
+          )}
           <Image
+            // Re-mounting per image resets the loading state, so moving between
+            // pictures shows the spinner again instead of flashing the old one.
+            key={src}
             src={src}
             alt={alt}
             fill
             sizes="100vw"
-            className="object-contain"
+            onLoad={() => setLoaded(true)}
+            className={`object-contain transition-opacity duration-300 motion-reduce:transition-none ${
+              loaded ? "opacity-100" : "opacity-0"
+            }`}
             priority
           />
         </div>

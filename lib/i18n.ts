@@ -523,6 +523,14 @@ export const dict = {
     en: "Pick the store filter the button opens. Leave empty to hide the button.",
   },
   "dash.linkNone": { ar: "بدون زر", en: "No button" },
+  "dash.linkPickHint": {
+    ar: "اختر واحداً أو أكثر — سيعرض المتجر نتائجها كلها معاً.",
+    en: "Pick one or more — the store shows all of them together.",
+  },
+  "dash.linkPickedHint": {
+    ar: "اضغط على أي خيار لإضافته أو إزالته.",
+    en: "Tap any option to add or remove it.",
+  },
   "dash.featuredTargetGroup": { ar: "إلى القسم", en: "Into section" },
   "dash.featuredBulk": {
     ar: "إضافة مجموعة دفعة واحدة",

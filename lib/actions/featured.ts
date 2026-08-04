@@ -67,7 +67,7 @@ export async function createFeaturedGroupAction(input: {
       nameEn: data.name_en,
       order: data.sort_order,
       linkScope: null,
-      linkValue: null,
+      linkValues: [],
       productIds: [],
     },
   };
@@ -95,7 +95,7 @@ export async function renameFeaturedGroupAction(
 
 const linkSchema = z.object({
   scope: z.enum(["category", "subcategory", "fandom"]).nullable(),
-  value: z.string().trim().max(60).nullable(),
+  values: z.array(z.string().trim().min(1).max(60)).max(30),
 });
 
 /**
@@ -105,15 +105,17 @@ const linkSchema = z.object({
  */
 export async function setFeaturedGroupLinkAction(
   id: string,
-  input: { scope: "category" | "subcategory" | "fandom" | null; value: string | null },
+  input: { scope: "category" | "subcategory" | "fandom" | null; values: string[] },
 ): Promise<Result> {
   await requireAdmin();
   const parsed = linkSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_input" };
 
-  // Both or neither — a scope without a value would render a broken button.
-  const scope = parsed.data.value ? parsed.data.scope : null;
-  const value = scope ? parsed.data.value : null;
+  // Both or neither — a scope with no codes would render a button that filters
+  // nothing. Stored comma-separated, the same shape the store URL uses.
+  const codes = Array.from(new Set(parsed.data.values));
+  const scope = codes.length > 0 ? parsed.data.scope : null;
+  const value = scope ? codes.join(",") : null;
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase

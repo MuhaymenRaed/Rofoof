@@ -109,11 +109,11 @@ export function FeaturedManager({
 
   function setLink(
     id: string,
-    next: { scope: FeaturedLinkScope | null; value: string | null },
+    next: { scope: FeaturedLinkScope | null; values: string[] },
   ) {
     setGroups((prev) =>
       prev.map((g) =>
-        g.id === id ? { ...g, linkScope: next.scope, linkValue: next.value } : g,
+        g.id === id ? { ...g, linkScope: next.scope, linkValues: next.values } : g,
       ),
     );
     startTransition(async () => {
@@ -257,7 +257,7 @@ function GroupCard({
   onRename: (id: string, ar: string, en: string) => void;
   onSetLink: (
     id: string,
-    next: { scope: FeaturedLinkScope | null; value: string | null },
+    next: { scope: FeaturedLinkScope | null; values: string[] },
   ) => void;
   onRemove: (id: string) => void;
   onMove: (id: string, dir: -1 | 1) => void;
@@ -387,7 +387,7 @@ function GroupCard({
         <p className="mb-2 mt-0.5 text-[11px] leading-snug text-ink-3">{tr("dash.linkHint")}</p>
         <StoreFilterPicker
           scope={group.linkScope}
-          value={group.linkValue}
+          values={group.linkValues}
           onChange={(next) => onSetLink(group.id, next)}
         />
       </div>

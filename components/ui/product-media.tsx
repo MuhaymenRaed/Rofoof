@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import type { Product } from "@/lib/products";
 
@@ -19,9 +22,17 @@ export function tintedBlurDataUrl(color: string): string {
 }
 
 /**
- * Product visual. Uses next/image (lazy-loaded, responsive) when the product
- * has a real `image`; otherwise renders the brand emoji tile. The accent color
- * drives the tinted background via color-mix so it adapts to dark mode.
+ * Product visual. Renders the photo when there is one, otherwise the brand
+ * emoji tile. The accent colour drives the tinted background via color-mix, so
+ * it adapts to dark mode.
+ *
+ * Loading is deliberately staged: the tile is already filled with the product's
+ * colour, the blur placeholder sits on top, and the photo cross-fades in once
+ * decoded — no white flash, no pop, and no layout shift (the box is sized by
+ * its parent, not by the image).
+ *
+ * `priority` images skip the fade: they're the largest paint on the screen, and
+ * starting them transparent would delay how soon the page looks ready.
  */
 export function ProductMedia({
   product,
@@ -36,10 +47,12 @@ export function ProductMedia({
   priority?: boolean;
   emojiClassName?: string;
 }) {
+  const [loaded, setLoaded] = useState(false);
   const style: CSSVars = {
     "--c": product.color,
     background: "color-mix(in srgb, var(--c) 11%, var(--surface))",
   };
+  const fading = !priority && !loaded;
 
   return (
     <div className="relative grid h-full w-full place-items-center overflow-hidden" style={style}>
@@ -54,7 +67,12 @@ export function ProductMedia({
           loading={priority ? undefined : "lazy"}
           placeholder="blur"
           blurDataURL={tintedBlurDataUrl(product.color)}
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          onLoad={() => setLoaded(true)}
+          // `motion-reduce` keeps the fade out of the way for anyone who's
+          // asked the OS to limit animation.
+          className={`object-cover transition-[opacity,transform] duration-500 ease-out group-hover:scale-105 motion-reduce:transition-none ${
+            fading ? "opacity-0" : "opacity-100"
+          }`}
         />
       ) : (
         <span className={`${emojiClassName} transition-transform duration-300 group-hover:scale-110`}>
