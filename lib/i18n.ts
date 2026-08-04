@@ -820,6 +820,15 @@ export const dict = {
     ar: "حتى 100 صورة، 20MB لكل صورة — كل صورة = قطعة",
     en: "Up to 100 images, 20MB each — every image = one piece",
   },
+  "custom.minStickers": { ar: "(الحد الأدنى 10)", en: "(minimum 10)" },
+  "cart.stickerMin": {
+    ar: "طلب الستكرات المخصص في سلتك أقل من 10 ستكرات — احذفه وأعد إضافته بـ10 على الأقل.",
+    en: "A custom sticker request in your cart is under 10 designs — remove it and re-add with at least 10.",
+  },
+  "custom.needMore": {
+    ar: "أضف {n} ستكر آخر على الأقل — الحد الأدنى للطلب 10 ستكرات.",
+    en: "Add at least {n} more — sticker orders start at 10 designs.",
+  },
   "custom.oneStickerPerImage": {
     ar: "كل صورة = ستكر واحد فقط. لا تضع أكثر من ستكر داخل نفس الصورة — ارفع كل تصميم بصورة منفصلة.",
     en: "Each image is one sticker only. Don't put several stickers in the same image — upload each design as its own image.",

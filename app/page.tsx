@@ -1,5 +1,4 @@
 import { Hero } from "@/components/home/hero";
-import { CategoryChips } from "@/components/ui/category-chips";
 import { ProductCard } from "@/components/ui/product-card";
 import { SectionTitle } from "@/components/ui/section-title";
 import { FeaturedSection } from "@/components/home/featured-section";
@@ -49,10 +48,6 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Hero />
-
-      <div className="mt-6">
-        <CategoryChips asLinks />
-      </div>
 
       {bestsellers.length > 0 && (
         <>

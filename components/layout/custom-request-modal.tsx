@@ -11,6 +11,12 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp, MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/webp";
 
 const MAX_IMAGES = 100;
+/**
+ * Stickers are produced by the sheet, so a run below this isn't worth cutting —
+ * the order can't be submitted until the customer has uploaded at least this
+ * many designs. Other types have no minimum.
+ */
+const MIN_STICKER_IMAGES = 10;
 const TYPES: CustomType[] = ["brooch", "sticker", "poster"];
 
 interface Artwork {
@@ -83,8 +89,11 @@ function RequestForm({ onClose }: { onClose: () => void }) {
     (pricing?.unitPrice ?? 0) +
     (waterproof && waterproofEligible ? pricing?.waterproofExtra ?? 0 : 0);
   const qty = artworks.length;
+  const minImages = type === "sticker" ? MIN_STICKER_IMAGES : 1;
+  /** how many more designs are still needed before the order can be sent */
+  const missing = Math.max(0, minImages - qty);
   const total = unit * qty;
-  const canSend = qty > 0 && !converting;
+  const canSend = qty >= minImages && !converting;
 
   async function pickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -226,6 +235,11 @@ function RequestForm({ onClose }: { onClose: () => void }) {
             <span className="ms-2 font-semibold text-ink-3">
               {qty}/{MAX_IMAGES}
             </span>
+            {type === "sticker" && (
+              <span className="ms-2 font-bold" style={{ color: CUSTOM_ORDER_COLOR }}>
+                {t("custom.minStickers")}
+              </span>
+            )}
           </p>
           <p className="mt-0.5 text-[11px] text-ink-3">{t("custom.imagesHint")}</p>
 
@@ -286,12 +300,27 @@ function RequestForm({ onClose }: { onClose: () => void }) {
                 disabled={converting}
                 aria-label={t("custom.addImages")}
                 className="tap grid aspect-square place-items-center rounded-xl border border-dashed border-line bg-surface-2 text-ink-3 transition hover:text-brand disabled:opacity-50"
-                style={{ borderColor: qty === 0 ? CUSTOM_ORDER_COLOR : undefined }}
+                style={{ borderColor: missing > 0 ? CUSTOM_ORDER_COLOR : undefined }}
               >
                 {converting ? "…" : <Plus size={20} />}
               </button>
             )}
           </div>
+
+          {/* Sticker runs have a floor — tell them exactly how many are left to
+              add rather than just greying the button out. */}
+          {type === "sticker" && missing > 0 && (
+            <p
+              className="mt-2 rounded-xl border px-3 py-2 text-[11px] font-bold"
+              style={{
+                borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 35%, transparent)`,
+                background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 8%, var(--surface))`,
+                color: CUSTOM_ORDER_COLOR,
+              }}
+            >
+              {t("custom.needMore").replace("{n}", String(missing))}
+            </p>
+          )}
           {skippedBig && (
             <p className="mt-1.5 text-[11px] font-bold text-amber-600">{t("custom.tooBig")}</p>
           )}

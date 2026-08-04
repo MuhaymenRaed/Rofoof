@@ -54,6 +54,9 @@ async function getOrderMoney(
   }
 }
 
+/** Minimum designs in a custom STICKER order — mirrors the request modal. */
+const MIN_STICKER_IMAGES = 10;
+
 /* ------------------------------ Place order ---------------------------- */
 
 const placeOrderSchema = z
@@ -92,12 +95,20 @@ const placeOrderSchema = z
     // mixed basket stays a single order (each carries its own uploaded artwork).
     customs: z
       .array(
-        z.object({
-          type: z.enum(["brooch", "sticker", "poster"]),
-          waterproof: z.boolean().optional().default(false),
-          description: z.string().trim().max(1000).optional().default(""),
-          images: z.array(z.string().url().max(500)).min(1).max(100),
-        }),
+        z
+          .object({
+            type: z.enum(["brooch", "sticker", "poster"]),
+            waterproof: z.boolean().optional().default(false),
+            description: z.string().trim().max(1000).optional().default(""),
+            images: z.array(z.string().url().max(500)).min(1).max(100),
+          })
+          // Sticker runs are cut by the sheet, so they start at 10 designs.
+          // Enforced here too — the modal blocks it, but a crafted request
+          // must not be able to slip a 1-sticker order through.
+          .refine((c) => c.type !== "sticker" || c.images.length >= MIN_STICKER_IMAGES, {
+            message: "sticker_minimum",
+            path: ["images"],
+          }),
       )
       .max(50)
       .optional()

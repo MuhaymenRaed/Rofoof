@@ -32,6 +32,9 @@ import type { DictKey } from "@/lib/i18n";
 type CSSVars = React.CSSProperties & Record<string, string>;
 type Step = "cart" | "form" | "done";
 
+/** Minimum designs in a custom sticker order — mirrors the request modal. */
+const MIN_STICKER_IMAGES = 10;
+
 // The just-placed order code, kept in sessionStorage so the success screen (and
 // the code the buyer must copy) survives a Server-Action revalidation refresh /
 // remount after checkout. Cleared when the buyer dismisses the drawer.
@@ -88,6 +91,8 @@ export function CartDrawer() {
   // A thrown checkout action (network drop, or a Server Action ID that no
   // longer exists after a new deploy) needs a refresh, not a blind retry.
   const [staleError, setStaleError] = useState(false);
+  /** a queued sticker request is under the 10-design minimum */
+  const [stickerMinError, setStickerMinError] = useState(false);
   const [orderCode, setOrderCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [couponInput, setCouponInput] = useState("");
@@ -240,9 +245,18 @@ export function CartDrawer() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !phone.trim() || !province || !address.trim()) return;
+
+    // A sticker request saved before the 10-design minimum existed would be
+    // rejected server-side with a generic error — name the real reason instead.
+    if (customRequests.some((r) => r.type === "sticker" && r.images.length < MIN_STICKER_IMAGES)) {
+      setStickerMinError(true);
+      return;
+    }
+
     setPending(true);
     setError(false);
     setStaleError(false);
+    setStickerMinError(false);
 
     const contact = {
       customerName: name,
@@ -499,6 +513,12 @@ export function CartDrawer() {
               {error && (
                 <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
                   {t("checkout.error")}
+                </p>
+              )}
+
+              {stickerMinError && (
+                <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
+                  {t("cart.stickerMin")}
                 </p>
               )}
 
