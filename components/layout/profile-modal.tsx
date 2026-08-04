@@ -9,6 +9,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { Bag, Heart, Grid, X, Phone } from "@/components/icons";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { updateProfileAction } from "@/lib/actions/profile";
+import { sanitizePhoneInput, isValidPhone, isValidOptionalPhone } from "@/lib/contact";
 
 export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useStore();
@@ -18,6 +19,8 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  /** optional backup number */
+  const [phone2, setPhone2] = useState("");
   const [province, setProvince] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -29,6 +32,7 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
     setEditing(false);
     setName(user.name ?? "");
     setPhone(user.phone ?? "");
+    setPhone2(user.phone2 ?? "");
     setProvince(user.provinceCode ?? "");
   }, [open, user]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -50,6 +54,7 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
       const res = await updateProfileAction({
         fullName: name.trim(),
         phone: phone.trim() || null,
+        phone2: phone2.trim() || null,
         provinceCode: province || null,
       });
       if (res.ok) {
@@ -116,11 +121,35 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
               <Field label={t("checkout.phone")}>
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                   dir="ltr"
-                  inputMode="tel"
+                  inputMode="numeric"
+                  placeholder="07XXXXXXXXX"
                   className="dash-input text-start"
                 />
+                {phone.trim() !== "" && !isValidPhone(phone) && (
+                  <span className="mt-1 block text-[11px] font-semibold text-red-500">
+                    {t("checkout.invalidPhone")}
+                  </span>
+                )}
+              </Field>
+              <Field label={t("checkout.phone2")}>
+                <input
+                  value={phone2}
+                  onChange={(e) => setPhone2(sanitizePhoneInput(e.target.value))}
+                  dir="ltr"
+                  inputMode="numeric"
+                  placeholder="07XXXXXXXXX"
+                  className="dash-input text-start"
+                />
+                <span className="mt-1 block text-[11px] text-ink-3">
+                  {t("checkout.phone2Hint")}
+                </span>
+                {phone2.trim() !== "" && !isValidPhone(phone2) && (
+                  <span className="mt-1 block text-[11px] font-semibold text-red-500">
+                    {t("checkout.invalidPhone")}
+                  </span>
+                )}
               </Field>
               <Field label={t("checkout.province")}>
                 <select
@@ -147,7 +176,9 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
                 <button
                   type="button"
                   onClick={save}
-                  disabled={pending}
+                  disabled={
+                    pending || !isValidOptionalPhone(phone) || !isValidOptionalPhone(phone2)
+                  }
                   className="tap flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
                 >
                   {pending ? t("profile.saving") : t("profile.save")}
@@ -161,6 +192,9 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
               </p>
               <div className="space-y-2">
                 <InfoRow icon={<Phone size={15} />} value={user.phone || t("profile.notSet")} ltr />
+                {user.phone2 && (
+                  <InfoRow icon={<Phone size={15} />} value={user.phone2} ltr />
+                )}
                 <InfoRow icon={<Pin />} value={provinceLabel} />
               </div>
 

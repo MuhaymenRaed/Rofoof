@@ -19,22 +19,38 @@ function toAsciiDigits(s: string): string {
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
 }
 
+/** Every Iraqi mobile is 11 digits in the local form: 07XXXXXXXXX. */
+export const IRAQ_PHONE_LENGTH = 11;
+
 /**
- * Force a phone-only value: digits (incl. Arabic numerals → ASCII) plus at most
- * one leading +. Everything else — letters, spaces, dashes, symbols — is
- * dropped as it's typed, so the field can never hold gibberish like "jkljklj"
- * or "تنمتنمت"; there's nothing to reject after the fact.
+ * Force a phone-only value in Iraqi local form.
+ *
+ * Keeps digits (Arabic numerals included), drops everything else as it's typed,
+ * and folds the common ways people write the same number into `07…`:
+ *   +964 771 234 5678 / 00964… / 964…  →  0771…
+ * Also caps the length, so a stray keypress can't push it past 11 digits.
  */
 export function sanitizePhoneInput(value: string): string {
-  const digitsAndPlus = toAsciiDigits(value).replace(/[^\d+]/g, "");
-  // A + is only meaningful as the very first character.
-  return digitsAndPlus.replace(/(?!^)\+/g, "");
+  let digits = toAsciiDigits(value).replace(/\D/g, "");
+
+  // Country code in any of its written forms → local 0-prefixed form.
+  if (digits.startsWith("00964")) digits = digits.slice(5);
+  else if (digits.startsWith("964")) digits = digits.slice(3);
+  if (digits.startsWith("964")) digits = digits.slice(3);
+  // A pasted number that lost its leading zero ("7712345678").
+  if (digits.startsWith("7") && !digits.startsWith("07")) digits = `0${digits}`;
+
+  return digits.slice(0, IRAQ_PHONE_LENGTH);
 }
 
-/** A plausible phone: 10–15 digits (Iraqi mobile is 11 with the leading 0). */
+/** An Iraqi mobile: exactly 07 followed by 9 more digits. */
 export function isValidPhone(value: string): boolean {
-  const digits = toAsciiDigits(value).replace(/\D/g, "");
-  return digits.length >= 10 && digits.length <= 15;
+  return /^07\d{9}$/.test(toAsciiDigits(value).replace(/\D/g, ""));
+}
+
+/** Optional field: blank is fine, but anything typed must be a real number. */
+export function isValidOptionalPhone(value: string): boolean {
+  return value.trim() === "" || isValidPhone(value);
 }
 
 /** "9647735473375" -> "+964 773 547 3375" for display; falls back to "+<digits>". */

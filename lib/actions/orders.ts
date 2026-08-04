@@ -54,6 +54,9 @@ async function getOrderMoney(
   }
 }
 
+/** Iraqi mobile in local form: 07 followed by 9 digits. */
+const IRAQ_PHONE_RE = /^07\d{9}$/;
+
 /** Minimum designs in a custom STICKER order — mirrors the request modal. */
 const MIN_STICKER_IMAGES = 10;
 
@@ -62,16 +65,21 @@ const MIN_STICKER_IMAGES = 10;
 const placeOrderSchema = z
   .object({
     customerName: z.string().trim().min(2).max(80),
-    // A real phone: 10–15 digits once separators are stripped — rejects junk
-    // like "تنمتنمت" even if the client validation is bypassed.
+    // An Iraqi mobile in local form (07XXXXXXXXX) — the same rule the checkout
+    // enforces, repeated here so a crafted request can't store a junk number.
     customerPhone: z
       .string()
       .trim()
       .max(25)
-      .refine((v) => {
-        const digits = v.replace(/\D/g, "");
-        return digits.length >= 10 && digits.length <= 15;
-      }, "invalid_phone"),
+      .refine((v) => IRAQ_PHONE_RE.test(v.replace(/\D/g, "")), "invalid_phone"),
+    // Optional backup number; blank is fine, but a value must be a real one.
+    customerPhone2: z
+      .string()
+      .trim()
+      .max(25)
+      .nullable()
+      .optional()
+      .refine((v) => !v || IRAQ_PHONE_RE.test(v.replace(/\D/g, "")), "invalid_phone2"),
     // Province and a full address are required at checkout; the note is not.
     provinceCode: z.string().trim().min(1),
     addressLine: z.string().trim().min(3).max(200),
@@ -164,6 +172,9 @@ export async function placeOrderAction(
           })),
         }
       : {}),
+    // Same reasoning: only send the backup number when there IS one, so a
+    // deploy that lands before the migration can't break an ordinary checkout.
+    ...(v.customerPhone2 ? { p_customer_phone2: v.customerPhone2 } : {}),
   });
 
   if (error) {
@@ -195,6 +206,7 @@ export async function placeOrderAction(
     code: result.code,
     customerName: v.customerName,
     customerPhone: v.customerPhone,
+    customerPhone2: v.customerPhone2 ?? null,
     provinceCode: v.provinceCode ?? null,
     addressLine: v.addressLine ?? null,
     notes: v.notes ?? null,
@@ -386,13 +398,14 @@ export async function cancelOrderAction(
   const { data: snap } = await supabase
     .from("orders")
     .select(
-      "code, customer_name, customer_phone, province_code, address_line, notes, subtotal, discount_total, delivery_fee, is_custom, custom_images, order_items(qty)",
+      "code, customer_name, customer_phone, customer_phone2, province_code, address_line, notes, subtotal, discount_total, delivery_fee, is_custom, custom_images, order_items(qty)",
     )
     .eq("code", trimmed)
     .maybeSingle<{
       code: string;
       customer_name: string;
       customer_phone: string;
+      customer_phone2: string | null;
       province_code: string | null;
       address_line: string | null;
       notes: string | null;
@@ -425,6 +438,7 @@ export async function cancelOrderAction(
       code: snap.code,
       customerName: snap.customer_name,
       customerPhone: snap.customer_phone,
+      customerPhone2: snap.customer_phone2 ?? null,
       provinceCode: snap.province_code ?? null,
       addressLine: snap.address_line ?? null,
       notes: snap.notes ?? null,
@@ -474,6 +488,7 @@ export async function cancelGuestOrderAction(input: {
       code: string;
       customer_name: string;
       customer_phone: string;
+      customer_phone2: string | null;
       province_code: string | null;
       address_line: string | null;
       notes: string | null;
@@ -558,13 +573,14 @@ export async function cancelOrderAdminAction(code: string): Promise<{
   const { data: snap } = await admin
     .from("orders")
     .select(
-      "code, customer_name, customer_phone, province_code, address_line, notes, subtotal, discount_total, delivery_fee, is_custom, custom_images, order_items(qty)",
+      "code, customer_name, customer_phone, customer_phone2, province_code, address_line, notes, subtotal, discount_total, delivery_fee, is_custom, custom_images, order_items(qty)",
     )
     .eq("code", trimmed)
     .maybeSingle<{
       code: string;
       customer_name: string;
       customer_phone: string;
+      customer_phone2: string | null;
       province_code: string | null;
       address_line: string | null;
       notes: string | null;
@@ -591,6 +607,7 @@ export async function cancelOrderAdminAction(code: string): Promise<{
       code: snap.code,
       customerName: snap.customer_name,
       customerPhone: snap.customer_phone,
+      customerPhone2: snap.customer_phone2 ?? null,
       provinceCode: snap.province_code ?? null,
       addressLine: snap.address_line ?? null,
       notes: snap.notes ?? null,

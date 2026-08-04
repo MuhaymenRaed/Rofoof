@@ -26,7 +26,12 @@ import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { placeOrderAction } from "@/lib/actions/orders";
 import { previewCouponAction, type CouponPreview } from "@/lib/actions/coupons";
 import { updateProfileAction } from "@/lib/actions/profile";
-import { whatsappMessageUrl, sanitizePhoneInput, isValidPhone } from "@/lib/contact";
+import {
+  whatsappMessageUrl,
+  sanitizePhoneInput,
+  isValidPhone,
+  isValidOptionalPhone,
+} from "@/lib/contact";
 import type { DictKey } from "@/lib/i18n";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
@@ -83,6 +88,8 @@ export function CartDrawer() {
   const [promoDismissed, setPromoDismissed] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  /** optional backup number, so an order is never unreachable */
+  const [phone2, setPhone2] = useState("");
   const [province, setProvince] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
@@ -169,6 +176,7 @@ export function CartDrawer() {
     if (step !== "form" || !user) return;
     setName((v) => v || user.name || "");
     setPhone((v) => v || user.phone || "");
+    setPhone2((v) => v || user.phone2 || "");
     setProvince((v) => v || user.provinceCode || "");
   }, [step, user]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -178,6 +186,7 @@ export function CartDrawer() {
   const canCheckout =
     name.trim() !== "" &&
     isValidPhone(phone) &&
+    isValidOptionalPhone(phone2) &&
     province !== "" &&
     address.trim() !== "";
 
@@ -244,7 +253,8 @@ export function CartDrawer() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !province || !address.trim()) return;
+    if (!name.trim() || !isValidPhone(phone) || !province || !address.trim()) return;
+    if (!isValidOptionalPhone(phone2)) return;
 
     // A sticker request saved before the 10-design minimum existed would be
     // rejected server-side with a generic error — name the real reason instead.
@@ -261,6 +271,7 @@ export function CartDrawer() {
     const contact = {
       customerName: name,
       customerPhone: phone,
+      customerPhone2: phone2.trim() || null,
       provinceCode: province,
       addressLine: address.trim(),
     };
@@ -317,10 +328,16 @@ export function CartDrawer() {
     // Signed-in user typed details their profile was missing (or changed
     // them) — save it now so future checkouts are prefilled automatically
     // instead of asking again every time.
-    if (user && (user.phone !== phone || user.provinceCode !== province)) {
+    if (
+      user &&
+      (user.phone !== phone ||
+        user.phone2 !== (phone2.trim() || null) ||
+        user.provinceCode !== province)
+    ) {
       void updateProfileAction({
         fullName: user.name || name,
         phone,
+        phone2: phone2.trim() || null,
         provinceCode: province,
       }).then((r) => {
         if (r.ok) void refresh();
@@ -466,12 +483,30 @@ export function CartDrawer() {
                   value={phone}
                   onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                   required
-                  inputMode="tel"
+                  inputMode="numeric"
                   dir="ltr"
-                  placeholder="07XX XXX XXXX"
+                  placeholder="07XXXXXXXXX"
                   className="dash-input text-start"
                 />
                 {phone.trim() !== "" && !isValidPhone(phone) && (
+                  <span className="mt-1 block text-[11px] font-semibold text-red-500">
+                    {t("checkout.invalidPhone")}
+                  </span>
+                )}
+              </Field>
+              <Field label={t("checkout.phone2")}>
+                <input
+                  value={phone2}
+                  onChange={(e) => setPhone2(sanitizePhoneInput(e.target.value))}
+                  inputMode="numeric"
+                  dir="ltr"
+                  placeholder="07XXXXXXXXX"
+                  className="dash-input text-start"
+                />
+                <span className="mt-1 block text-[11px] text-ink-3">
+                  {t("checkout.phone2Hint")}
+                </span>
+                {phone2.trim() !== "" && !isValidPhone(phone2) && (
                   <span className="mt-1 block text-[11px] font-semibold text-red-500">
                     {t("checkout.invalidPhone")}
                   </span>

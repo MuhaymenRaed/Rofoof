@@ -19,6 +19,8 @@ export interface AuthUser {
   email: string;
   role: Role;
   phone: string | null;
+  /** optional backup number */
+  phone2: string | null;
   provinceCode: string | null;
 }
 
@@ -50,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (id: string, email: string) => {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, role, phone, default_province_code")
+        .select("full_name, role, phone, phone2, default_province_code")
         .eq("id", id)
         .maybeSingle();
       setUser({
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: profile?.full_name || email.split("@")[0] || "",
         role: (profile?.role ?? "customer") as Role,
         phone: profile?.phone ?? null,
+        phone2: profile?.phone2 ?? null,
         provinceCode: profile?.default_province_code ?? null,
       });
       setReady(true);

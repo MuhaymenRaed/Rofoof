@@ -288,6 +288,8 @@ export interface Order {
   status: OrderStatus;
   customer: string;
   phone: string;
+  /** optional backup number captured at checkout */
+  phone2?: string;
   provinceCode?: string;
   addressLine?: string;
   notes?: string;

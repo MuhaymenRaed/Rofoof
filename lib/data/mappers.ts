@@ -144,6 +144,7 @@ export function mapOrder(row: OrderRowWithItems): Order {
     status: row.status as OrderStatus,
     customer: row.customer_name,
     phone: row.customer_phone,
+    phone2: row.customer_phone2 ?? undefined,
     provinceCode: row.province_code ?? undefined,
     addressLine: row.address_line ?? undefined,
     notes: row.notes ?? undefined,

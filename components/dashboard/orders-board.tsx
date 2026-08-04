@@ -513,6 +513,19 @@ function OrderDetailsModal({
                 {order.phone}
               </a>
             </p>
+            {order.phone2 && (
+              <p className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-2">
+                <Phone size={13} className="shrink-0 text-ink-3" />
+                <a
+                  href={`tel:${order.phone2.replace(/\s/g, "")}`}
+                  dir="ltr"
+                  className="tap font-semibold hover:text-brand"
+                >
+                  {order.phone2}
+                </a>
+                <span className="text-[11px] text-ink-3">({t("checkout.phone2Short")})</span>
+              </p>
+            )}
             {(order.provinceCode || order.addressLine) && (
               <p className="mt-1 flex items-start gap-1.5 text-[13px] text-ink-2">
                 <MapPin size={13} className="mt-0.5 shrink-0 text-brand" />

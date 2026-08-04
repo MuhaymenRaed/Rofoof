@@ -944,8 +944,14 @@ export const dict = {
   },
   "checkout.placing": { ar: "جارٍ الإرسال…", en: "Placing…" },
   "checkout.invalidPhone": {
-    ar: "أدخل رقم هاتف صحيح (أرقام فقط، مثل 07XXXXXXXXX)",
-    en: "Enter a valid phone number (digits only, e.g. 07XXXXXXXXX)",
+    ar: "يجب أن يبدأ الرقم بـ07 ويتكوّن من 11 رقماً (مثال: 07701234567)",
+    en: "Must start with 07 and be 11 digits (e.g. 07701234567)",
+  },
+  "checkout.phone2": { ar: "رقم هاتف احتياطي (اختياري)", en: "Backup phone (optional)" },
+  "checkout.phone2Short": { ar: "احتياطي", en: "backup" },
+  "checkout.phone2Hint": {
+    ar: "رقم بديل نتواصل به إذا تعذّر الوصول إليك على الرقم الأول.",
+    en: "An alternative number we'll try if we can't reach you on the first one.",
   },
   "checkout.stale": {
     ar: "انتهت صلاحية هذه الصفحة بعد تحديث الموقع. حدّث الصفحة ثم أعد المحاولة — لم يتم إنشاء الطلب.",

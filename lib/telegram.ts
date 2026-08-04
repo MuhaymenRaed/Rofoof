@@ -19,6 +19,8 @@ export interface OrderNotification {
   code: string;
   customerName: string;
   customerPhone: string;
+  /** optional backup number captured at checkout */
+  customerPhone2?: string | null;
   provinceCode: string | null;
   addressLine?: string | null;
   notes?: string | null;
@@ -83,6 +85,9 @@ function formatOrderMessage(order: OrderNotification): string {
     `📦 *كود الطلب:* \`${order.code}\``,
     `👤 *الزبون:* ${escapeMarkdown(order.customerName)}`,
     `📞 *الهاتف:* ${escapeMarkdown(order.customerPhone)}`,
+    ...(order.customerPhone2?.trim()
+      ? [`📱 *هاتف احتياطي:* ${escapeMarkdown(order.customerPhone2.trim())}`]
+      : []),
     `📍 *المحافظة:* ${escapeMarkdown(provinceLabel(order.provinceCode))}`,
   ];
   if (order.addressLine?.trim()) {
@@ -103,6 +108,9 @@ function formatCancelMessage(order: OrderNotification): string {
     `📦 *كود الطلب:* \`${order.code}\``,
     `👤 *الزبون:* ${escapeMarkdown(order.customerName)}`,
     `📞 *الهاتف:* ${escapeMarkdown(order.customerPhone)}`,
+    ...(order.customerPhone2?.trim()
+      ? [`📱 *هاتف احتياطي:* ${escapeMarkdown(order.customerPhone2.trim())}`]
+      : []),
     `📍 *المحافظة:* ${escapeMarkdown(provinceLabel(order.provinceCode))}`,
   ];
   if (order.addressLine?.trim()) {

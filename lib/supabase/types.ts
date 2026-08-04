@@ -133,6 +133,7 @@ export interface Database {
           id: string;
           full_name: string | null;
           phone: string | null;
+          phone2: string | null;
           role: UserRole;
           default_province_code: string | null;
         } & Timestamps;
@@ -140,6 +141,7 @@ export interface Database {
           id: string;
           full_name?: string | null;
           phone?: string | null;
+          phone2?: string | null;
           role?: UserRole;
           default_province_code?: string | null;
         };
@@ -381,6 +383,7 @@ export interface Database {
           user_id: string | null;
           customer_name: string;
           customer_phone: string;
+          customer_phone2: string | null;
           province_code: string | null;
           address_line: string | null;
           notes: string | null;
@@ -401,6 +404,7 @@ export interface Database {
           user_id?: string | null;
           customer_name: string;
           customer_phone: string;
+          customer_phone2?: string | null;
           province_code?: string | null;
           address_line?: string | null;
           notes?: string | null;

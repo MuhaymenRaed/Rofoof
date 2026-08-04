@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth/dal";
 const schema = z.object({
   fullName: z.string().trim().min(2).max(80),
   phone: z.string().trim().max(20).nullable().optional(),
+  phone2: z.string().trim().max(20).nullable().optional(),
   provinceCode: z.string().trim().max(30).nullable().optional(),
 });
 
@@ -25,6 +26,7 @@ export async function updateProfileAction(
     .update({
       full_name: parsed.data.fullName,
       phone: parsed.data.phone || null,
+      phone2: parsed.data.phone2 || null,
       default_province_code: parsed.data.provinceCode || null,
     })
     .eq("id", user.id);
