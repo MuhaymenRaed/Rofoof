@@ -8,8 +8,18 @@
  */
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB per source image
-/** Longest edge kept at print-friendly resolution. */
+/**
+ * Longest edge for artwork a customer sends us to PRODUCE — kept at print
+ * resolution because the admin prints from this exact file.
+ */
 const MAX_DIMENSION = 4096;
+/**
+ * Longest edge for catalogue photos, which are only ever *displayed* (largest
+ * on-screen use is a full-width lightbox). Since images are served straight
+ * from storage without a resizing step, keeping the source near display size
+ * is what stops a 4K original being downloaded for a 64px thumbnail.
+ */
+export const DISPLAY_MAX_DIMENSION = 1600;
 const WEBP_QUALITY = 0.85;
 
 export interface WebpResult {
@@ -40,7 +50,10 @@ function loadImage(file: File): Promise<HTMLImageElement> {
  * browser can't encode WebP (ancient Safari) or decoding fails — uploading
  * something beats losing the customer's artwork.
  */
-export async function toWebp(file: File): Promise<WebpResult> {
+export async function toWebp(
+  file: File,
+  maxDimension: number = MAX_DIMENSION,
+): Promise<WebpResult> {
   const fallback: WebpResult = {
     blob: file,
     ext: (file.name.split(".").pop() || "jpg").toLowerCase(),
@@ -49,7 +62,7 @@ export async function toWebp(file: File): Promise<WebpResult> {
 
   try {
     const img = await loadImage(file);
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight));
+    const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.max(1, Math.round(img.naturalWidth * scale));
     const h = Math.max(1, Math.round(img.naturalHeight * scale));
 

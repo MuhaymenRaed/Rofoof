@@ -25,7 +25,7 @@ import {
 import { setProductGroupsAction } from "@/lib/actions/featured";
 import { updateVolumeTiersAction } from "@/lib/actions/offers";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp } from "@/lib/webp";
+import { toWebp, DISPLAY_MAX_DIMENSION } from "@/lib/webp";
 import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
@@ -437,7 +437,9 @@ export function ProductEditorModal({
         if (!r.file) continue;
         // Re-encode to WebP in the browser (handles PNG/JPEG and iPhone
         // HEIC/HEIF) so the bucket only ever stores compact files.
-        const webp = await toWebp(r.file);
+        // Catalogue photos are display-only, so cap them at display size —
+        // they're served straight from storage with no resizing step.
+        const webp = await toWebp(r.file, DISPLAY_MAX_DIMENSION);
         const path = `${id}/${Date.now()}-${i}.${webp.ext}`;
         const { error: upErr } = await supabase.storage
           .from("product-images")

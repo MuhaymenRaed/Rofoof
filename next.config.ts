@@ -22,8 +22,19 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework in responses.
   poweredByHeader: false,
   images: {
-    // next/image lazy-loads + optimizes these. Add real product images from
-    // Supabase Storage (or any CDN) and they stream in below the fold.
+    // Serve straight from Supabase Storage's CDN instead of routing every image
+    // through Vercel's optimizer.
+    //
+    // Why: the optimizer is metered, and on this plan the allowance is finite.
+    // Once it runs out EVERY /_next/image request answers 402 Payment Required,
+    // so the whole catalogue renders as broken thumbnails — a hard outage that
+    // arrives without warning and can't be undone until the quota resets.
+    //
+    // We give up little: uploads are already re-encoded to WebP in the browser
+    // and capped in size (see lib/webp.ts), so the bytes on the wire are close
+    // to what the optimizer would have produced anyway — and now they're served
+    // from a CDN that doesn't meter transformations.
+    unoptimized: true,
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
