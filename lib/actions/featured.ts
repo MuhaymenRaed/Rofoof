@@ -66,6 +66,8 @@ export async function createFeaturedGroupAction(input: {
       nameAr: data.name_ar,
       nameEn: data.name_en,
       order: data.sort_order,
+      linkScope: null,
+      linkValue: null,
       productIds: [],
     },
   };
@@ -84,6 +86,39 @@ export async function renameFeaturedGroupAction(
   const { error } = await supabase
     .from("featured_groups")
     .update({ name_ar: parsed.data.nameAr, name_en: parsed.data.nameEn })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateShowcase();
+  return { ok: true };
+}
+
+const linkSchema = z.object({
+  scope: z.enum(["category", "subcategory", "fandom"]).nullable(),
+  value: z.string().trim().max(60).nullable(),
+});
+
+/**
+ * Point a group's "show all" button at a store filter (or clear it).
+ * Stored as scope + code rather than a URL, so the storefront builds the link
+ * and a filter that gets renamed later can't leave a dead one behind.
+ */
+export async function setFeaturedGroupLinkAction(
+  id: string,
+  input: { scope: "category" | "subcategory" | "fandom" | null; value: string | null },
+): Promise<Result> {
+  await requireAdmin();
+  const parsed = linkSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  // Both or neither — a scope without a value would render a broken button.
+  const scope = parsed.data.value ? parsed.data.scope : null;
+  const value = scope ? parsed.data.value : null;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("featured_groups")
+    .update({ link_scope: scope, link_value: value })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
 

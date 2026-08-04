@@ -315,11 +315,23 @@ const cachedFeaturedGroups = unstable_cache(
   async (): Promise<FeaturedGroup[]> => {
     try {
       const supabase = createAnonClient();
-      const { data, error } = await supabase
-        .from("featured_groups")
-        .select("id, name_ar, name_en, sort_order, featured_group_products(product_id, sort_order)")
-        .eq("is_deleted", false)
-        .order("sort_order", { ascending: true });
+      const BASE = "id, name_ar, name_en, sort_order, featured_group_products(product_id, sort_order)";
+      const WITH_LINK =
+        "id, name_ar, name_en, sort_order, link_scope, link_value, " +
+        "featured_group_products(product_id, sort_order)";
+
+      const load = (columns: string) =>
+        supabase
+          .from("featured_groups")
+          .select(columns)
+          .eq("is_deleted", false)
+          .order("sort_order", { ascending: true });
+
+      // Ask for the "view all" columns, but fall back to the base shape if they
+      // aren't there yet — otherwise deploying ahead of the migration would
+      // fail the whole query and blank every rail on the home page.
+      let { data, error } = await load(WITH_LINK);
+      if (error) ({ data, error } = await load(BASE));
       if (error) throw error;
 
       const rows = (data ?? []) as unknown as {
@@ -327,6 +339,9 @@ const cachedFeaturedGroups = unstable_cache(
         name_ar: string;
         name_en: string;
         sort_order: number;
+        /** absent until the link migration runs (see the fallback above) */
+        link_scope?: string | null;
+        link_value?: string | null;
         featured_group_products?: { product_id: string; sort_order: number }[] | null;
       }[];
 
@@ -335,6 +350,8 @@ const cachedFeaturedGroups = unstable_cache(
         nameAr: g.name_ar,
         nameEn: g.name_en,
         order: g.sort_order,
+        linkScope: (g.link_scope ?? null) as FeaturedGroup["linkScope"],
+        linkValue: g.link_value ?? null,
         productIds: (g.featured_group_products ?? [])
           .slice()
           .sort((a, b) => a.sort_order - b.sort_order)

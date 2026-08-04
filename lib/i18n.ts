@@ -517,6 +517,12 @@ export const dict = {
     ar: "أنشئ قسماً أولاً، ثم أضِف إليه المنتجات بنجمة ⭐ على أي بطاقة أو من هنا.",
     en: "Create a section first, then fill it from the ⭐ on any product card or right here.",
   },
+  "dash.linkLabel": { ar: "زر «عرض الكل»", en: "“View all” button" },
+  "dash.linkHint": {
+    ar: "اختر الفلتر الذي ينتقل إليه الزبون في المتجر. اتركه فارغاً لإخفاء الزر.",
+    en: "Pick the store filter the button opens. Leave empty to hide the button.",
+  },
+  "dash.linkNone": { ar: "بدون زر", en: "No button" },
   "dash.featuredTargetGroup": { ar: "إلى القسم", en: "Into section" },
   "dash.featuredBulk": {
     ar: "إضافة مجموعة دفعة واحدة",

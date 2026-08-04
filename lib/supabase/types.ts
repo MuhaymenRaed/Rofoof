@@ -345,6 +345,8 @@ export interface Database {
           name_ar: string;
           name_en: string;
           sort_order: number;
+          link_scope: string | null;
+          link_value: string | null;
           is_deleted: boolean;
           created_at: string;
         };
@@ -353,6 +355,8 @@ export interface Database {
           name_ar: string;
           name_en: string;
           sort_order?: number;
+          link_scope?: string | null;
+          link_value?: string | null;
           is_deleted?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["featured_groups"]["Insert"]>;

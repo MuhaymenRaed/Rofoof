@@ -218,6 +218,26 @@ export interface FeaturedGroup {
   order: number;
   /** ids of the products in this group, in the admin's order */
   productIds: string[];
+  /** what the rail's "show all" button filters the store by (null = no button) */
+  linkScope: FeaturedLinkScope | null;
+  /** the chosen filter's code */
+  linkValue: string | null;
+}
+
+/** Which store filter a rail's "show all" button targets. */
+export type FeaturedLinkScope = "category" | "subcategory" | "fandom";
+
+/**
+ * The store URL a rail's "show all" button points at, or undefined when the
+ * admin hasn't chosen a target (in which case no button is rendered).
+ * Mirrors the query keys the store page reads.
+ */
+export function featuredGroupHref(group: {
+  linkScope: FeaturedLinkScope | null;
+  linkValue: string | null;
+}): string | undefined {
+  if (!group.linkScope || !group.linkValue) return undefined;
+  return `/store?${group.linkScope}=${encodeURIComponent(group.linkValue)}`;
 }
 
 /** Category codes that can be waterproof (paper/vinyl products). */

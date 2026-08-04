@@ -5,16 +5,23 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { Star, Check, Package, Plus, Trash, ChevronEnd } from "@/components/icons";
+import { StoreFilterPicker } from "@/components/ui/store-filter-picker";
 import {
   addProductsToGroupAction,
   createFeaturedGroupAction,
   deleteFeaturedGroupAction,
   moveFeaturedGroupAction,
   renameFeaturedGroupAction,
+  setFeaturedGroupLinkAction,
   toggleProductInGroupAction,
 } from "@/lib/actions/featured";
 import { formatPrice } from "@/lib/format";
-import { lowestPrice, type FeaturedGroup, type Product } from "@/lib/products";
+import {
+  lowestPrice,
+  type FeaturedGroup,
+  type FeaturedLinkScope,
+  type Product,
+} from "@/lib/products";
 
 type Scope = "category" | "subcategory" | "fandom";
 
@@ -96,6 +103,21 @@ export function FeaturedManager({
     setGroups(next);
     startTransition(async () => {
       const res = await moveFeaturedGroupAction(id, dir);
+      if (!res.ok) fail(res.error);
+    });
+  }
+
+  function setLink(
+    id: string,
+    next: { scope: FeaturedLinkScope | null; value: string | null },
+  ) {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === id ? { ...g, linkScope: next.scope, linkValue: next.value } : g,
+      ),
+    );
+    startTransition(async () => {
+      const res = await setFeaturedGroupLinkAction(id, next);
       if (!res.ok) fail(res.error);
     });
   }
@@ -198,6 +220,7 @@ export function FeaturedManager({
             productById={productById}
             pending={pending}
             onRename={rename}
+            onSetLink={setLink}
             onRemove={remove}
             onMove={move}
             onRemoveProduct={removeProduct}
@@ -219,6 +242,7 @@ function GroupCard({
   productById,
   pending,
   onRename,
+  onSetLink,
   onRemove,
   onMove,
   onRemoveProduct,
@@ -231,6 +255,10 @@ function GroupCard({
   productById: Map<string, Product>;
   pending: boolean;
   onRename: (id: string, ar: string, en: string) => void;
+  onSetLink: (
+    id: string,
+    next: { scope: FeaturedLinkScope | null; value: string | null },
+  ) => void;
   onRemove: (id: string) => void;
   onMove: (id: string, dir: -1 | 1) => void;
   onRemoveProduct: (groupId: string, productId: string) => void;
@@ -351,6 +379,17 @@ function GroupCard({
           <Trash size={13} />
           {confirming ? tr("dash.confirmDelete") : tr("dash.deleteGroup")}
         </button>
+      </div>
+
+      {/* Where this rail's "show all" button sends the shopper */}
+      <div className="mt-4 rounded-xl border border-line-2 bg-surface-2/40 p-3">
+        <p className="text-xs font-bold text-ink-2">{tr("dash.linkLabel")}</p>
+        <p className="mb-2 mt-0.5 text-[11px] leading-snug text-ink-3">{tr("dash.linkHint")}</p>
+        <StoreFilterPicker
+          scope={group.linkScope}
+          value={group.linkValue}
+          onChange={(next) => onSetLink(group.id, next)}
+        />
       </div>
 
       {/* Bulk add into THIS section */}
