@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import Image from "next/image";
+import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { X, Plus, Trash, Droplet, Photo, Cube, Star } from "@/components/icons";
@@ -766,7 +766,7 @@ export function ProductEditorModal({
               {rows.map((r, i) => (
                 <div key={r.itemId ?? r.url ?? r.preview ?? i} className="space-y-1">
                   <div className="relative aspect-square overflow-hidden rounded-xl border border-line-2">
-                    <Image
+                    <RetryImage
                       src={r.url ?? r.preview ?? ""}
                       alt=""
                       fill

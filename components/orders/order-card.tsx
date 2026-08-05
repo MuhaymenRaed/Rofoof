@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { RetryImage } from "@/components/ui/retry-image";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { OrderTracker } from "@/components/ui/order-tracker";
@@ -80,7 +80,7 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
                   className="tap relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition hover:opacity-80"
                   style={{ borderColor: CUSTOM_ORDER_COLOR }}
                 >
-                  <Image src={url} alt="" fill sizes="56px" className="object-cover" />
+                  <RetryImage src={url} alt="" fill sizes="56px" className="object-cover" />
                 </a>
               ))}
             </div>
@@ -105,12 +105,13 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
                     }}
                   >
                     {item.customImageUrl || product?.image ? (
-                      <Image
+                      <RetryImage
                         src={item.customImageUrl ?? product!.image!}
                         alt=""
                         fill
                         sizes="32px"
                         className="object-cover"
+                        fallback={<Package size={15} className="text-ink-3" />}
                       />
                     ) : product?.emoji ? (
                       product.emoji

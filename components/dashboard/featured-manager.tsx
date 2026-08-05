@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import Image from "next/image";
+import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { Star, Check, Package, Plus, Trash, ChevronEnd } from "@/components/icons";
@@ -464,7 +464,7 @@ function GroupCard({
                 style={{ background: `color-mix(in srgb, ${p.color} 14%, var(--surface))` }}
               >
                 {p.image ? (
-                  <Image src={p.image} alt="" fill sizes="44px" className="object-cover" />
+                  <RetryImage src={p.image} alt="" fill sizes="44px" className="object-cover" />
                 ) : (
                   p.emoji || <Package size={16} className="text-ink-3" />
                 )}

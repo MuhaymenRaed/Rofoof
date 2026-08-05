@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
 import {
   X,
@@ -20,6 +19,7 @@ import {
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { Lightbox } from "@/components/ui/lightbox";
 import { tintedBlurDataUrl } from "@/components/ui/product-media";
+import { RetryImage } from "@/components/ui/retry-image";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
 import { tierUnitPrice, type Product } from "@/lib/products";
@@ -245,7 +245,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             aria-label={name}
             className="tap absolute inset-0 cursor-zoom-in"
           >
-            <Image
+            <RetryImage
               src={mainImage}
               alt={name}
               fill
@@ -254,6 +254,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
               placeholder="blur"
               blurDataURL={tintedBlurDataUrl(product.color)}
               className="object-contain"
+              fallback={<span className="grid h-full w-full place-items-center text-[120px]">{product.emoji}</span>}
             />
           </button>
         ) : (
@@ -289,7 +290,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 aria-label={name}
                 className="tap absolute inset-0 cursor-zoom-in"
               >
-                <Image
+                <RetryImage
                   src={mainImage}
                   alt={name}
                   fill
@@ -298,6 +299,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                   placeholder="blur"
                   blurDataURL={tintedBlurDataUrl(product.color)}
                   className="object-contain"
+                  fallback={<span className="grid h-full w-full place-items-center text-6xl">{product.emoji}</span>}
                 />
               </button>
               {galleryThumbs && (
@@ -386,12 +388,20 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                       aria-pressed={on}
                       className="tap block aspect-square w-full"
                     >
-                      <Image
+                      <RetryImage
                         src={it.imageUrl}
                         alt={itemName || ""}
                         width={80}
                         height={80}
                         className="h-full w-full object-cover"
+                        fallback={
+                          <span
+                            className="grid h-full w-full place-items-center text-2xl"
+                            style={{ background: "color-mix(in srgb, var(--c) 14%, var(--surface))" }}
+                          >
+                            {product.emoji}
+                          </span>
+                        }
                       />
                       {on && (
                         <span className="absolute inset-0 grid place-items-center bg-brand/25">
@@ -525,7 +535,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             <input ref={customFileRef} type="file" accept="image/*" onChange={pickCustom} className="hidden" />
             {customUrl ? (
               <div className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2">
-                <Image src={customUrl} alt="" width={48} height={48} className="h-12 w-12 rounded-lg object-cover" />
+                <RetryImage src={customUrl} alt="" width={48} height={48} className="h-12 w-12 rounded-lg object-cover" />
                 <span className="flex-1 text-xs font-bold text-emerald-600">{t("product.customUploaded")}</span>
                 <button
                   type="button"

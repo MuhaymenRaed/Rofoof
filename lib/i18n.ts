@@ -888,6 +888,10 @@ export const dict = {
     ar: "اضغط على الصورة لتكبيرها ورؤيتها كاملة",
     en: "Tap the image to expand and see it fully",
   },
+  "product.imageFailed": {
+    ar: "تعذّر تحميل الصورة، تحقّق من الاتصال",
+    en: "Couldn't load the image — check your connection",
+  },
   "product.chooseItem": { ar: "اختر التصميم", en: "Pick a design" },
   "product.chooseItems": { ar: "اختر التصاميم", en: "Pick your designs" },
   "product.waterproofOption": {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { RetryImage } from "@/components/ui/retry-image";
 import { useStore, cartLineKey } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
@@ -645,7 +645,7 @@ export function CartDrawer() {
                       style={{ background: "color-mix(in srgb, var(--c) 14%, var(--surface))" }}
                     >
                       {thumb ? (
-                        <Image src={thumb} alt={name} fill sizes="64px" className="object-cover" />
+                        <RetryImage src={thumb} alt={name} fill sizes="64px" className="object-cover" />
                       ) : (
                         product.emoji
                       )}
@@ -711,7 +711,7 @@ export function CartDrawer() {
                     }}
                   >
                     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
-                      <Image
+                      <RetryImage
                         src={req.images[0]}
                         alt=""
                         fill

@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { X, ChevronEnd } from "@/components/icons";
+import { useStore } from "@/components/providers/store-provider";
+import { RetryImage } from "@/components/ui/retry-image";
+import { useRetryingImage } from "@/lib/hooks/use-retrying-image";
 
 /**
  * Full-screen image viewer: arrow keys / on-screen arrows / swipe to move
@@ -23,6 +26,7 @@ export function Lightbox({
   onClose: () => void;
   alt?: string;
 }) {
+  const { t } = useStore();
   const count = images.length;
   const touchX = useRef<number | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -58,9 +62,11 @@ export function Lightbox({
     };
   }, [onClose, go]);
 
-  if (typeof document === "undefined" || count === 0) return null;
+  // Resolved before the early return below — hooks can't run conditionally.
+  const rawSrc = count > 0 ? images[Math.min(Math.max(index, 0), count - 1)] : undefined;
+  const { src, failed, onError } = useRetryingImage(rawSrc);
 
-  const src = images[Math.min(Math.max(index, 0), count - 1)];
+  if (typeof document === "undefined" || count === 0) return null;
 
   return createPortal(
     <div
@@ -103,25 +109,34 @@ export function Lightbox({
           {/* Full-size art can take a moment on a phone connection — show a
               quiet spinner rather than an empty black frame, and swap it for
               the picture only once it's actually decoded. */}
-          {!loaded && (
+          {!loaded && !failed && (
             <span className="absolute inset-0 grid place-items-center">
               <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
             </span>
           )}
-          <Image
-            // Re-mounting per image resets the loading state, so moving between
-            // pictures shows the spinner again instead of flashing the old one.
-            key={src}
-            src={src}
-            alt={alt}
-            fill
-            sizes="100vw"
-            onLoad={() => setLoaded(true)}
-            className={`object-contain transition-opacity duration-300 motion-reduce:transition-none ${
-              loaded ? "opacity-100" : "opacity-0"
-            }`}
-            priority
-          />
+          {/* Retries exhausted — say so instead of spinning forever. */}
+          {failed && (
+            <span className="absolute inset-0 grid place-items-center px-6 text-center text-sm font-semibold text-white/70">
+              {t("product.imageFailed")}
+            </span>
+          )}
+          {src && !failed && (
+            <Image
+              // Re-mounting per image resets the loading state, so moving between
+              // pictures shows the spinner again instead of flashing the old one.
+              key={src}
+              src={src}
+              alt={alt}
+              fill
+              sizes="100vw"
+              onLoad={() => setLoaded(true)}
+              onError={onError}
+              className={`object-contain transition-opacity duration-300 motion-reduce:transition-none ${
+                loaded ? "opacity-100" : "opacity-0"
+              }`}
+              priority
+            />
+          )}
         </div>
 
         {/* Previous — hidden on the first image (no wrap). Arrow points outward
@@ -174,7 +189,7 @@ export function Lightbox({
                 i === index ? "border-white" : "border-white/30 opacity-60 hover:opacity-100"
               }`}
             >
-              <Image src={thumb} alt="" fill sizes="56px" className="object-cover" />
+              <RetryImage src={thumb} alt="" fill sizes="56px" className="object-cover" />
             </button>
           ))}
         </div>

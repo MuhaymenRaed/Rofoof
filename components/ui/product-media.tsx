@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useRetryingImage } from "@/lib/hooks/use-retrying-image";
 import type { Product } from "@/lib/products";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
@@ -48,6 +49,7 @@ export function ProductMedia({
   emojiClassName?: string;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const { src, failed, onError } = useRetryingImage(product.image ?? undefined);
   const style: CSSVars = {
     "--c": product.color,
     background: "color-mix(in srgb, var(--c) 11%, var(--surface))",
@@ -57,9 +59,9 @@ export function ProductMedia({
   return (
     <div className="relative grid h-full w-full place-items-center overflow-hidden" style={style}>
       <span className="absolute inset-x-0 top-0 z-10 h-[3px]" style={{ background: "var(--c)" }} />
-      {product.image ? (
+      {src && !failed ? (
         <Image
-          src={product.image}
+          src={src}
           alt={name}
           fill
           sizes={sizes}
@@ -68,6 +70,7 @@ export function ProductMedia({
           placeholder="blur"
           blurDataURL={tintedBlurDataUrl(product.color)}
           onLoad={() => setLoaded(true)}
+          onError={onError}
           // `motion-reduce` keeps the fade out of the way for anyone who's
           // asked the OS to limit animation.
           className={`object-cover transition-[opacity,transform] duration-500 ease-out group-hover:scale-105 motion-reduce:transition-none ${

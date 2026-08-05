@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import Image from "next/image";
+import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -568,7 +568,7 @@ function OrderDetailsModal({
                     rel="noopener noreferrer"
                     className="tap relative aspect-square overflow-hidden rounded-lg border border-line-2 transition hover:opacity-80"
                   >
-                    <Image src={url} alt="" fill sizes="72px" className="object-cover" />
+                    <RetryImage src={url} alt="" fill sizes="72px" className="object-cover" />
                   </a>
                 ))}
               </div>
@@ -588,7 +588,7 @@ function OrderDetailsModal({
                   {/* The design to print, so the admin sees it without opening links */}
                   {itemImage(it) ? (
                     <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line-2">
-                      <Image src={itemImage(it)!} alt="" fill sizes="40px" className="object-cover" />
+                      <RetryImage src={itemImage(it)!} alt="" fill sizes="40px" className="object-cover" />
                     </span>
                   ) : (
                     <Package size={13} className="shrink-0 text-ink-3" />
