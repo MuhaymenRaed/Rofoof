@@ -314,6 +314,27 @@ export const Whatsapp = (p: IconProps) => (
   </Base>
 );
 
+/** Wi-Fi arcs struck through — no connection. */
+export const WifiOff = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 3l18 18" />
+    <path d="M10.6 6.1A13 13 0 0 1 22 9.2l-2 2.1a10 10 0 0 0-3.2-1.9" />
+    <path d="M2 9.2a13 13 0 0 1 4.3-2.7" />
+    <path d="M5 12.9a8.5 8.5 0 0 1 2.6-1.7" />
+    <path d="M16.9 16.9a8.5 8.5 0 0 0-3.4-2.1" />
+    <path d="M8.5 16.5a4.5 4.5 0 0 1 5.2-.6" />
+    <path d="M12 20h.01" />
+  </Base>
+);
+
+/** Circular arrow — retry a failed action. */
+export const Refresh = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20 11.5A8 8 0 1 0 18.4 17" />
+    <path d="M20 4.5V11h-6.5" />
+  </Base>
+);
+
 /**
  * Elegant stroke icons for the three custom-request types — shared by the
  * request modal and the admin pricing editor so they never diverge.

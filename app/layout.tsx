@@ -27,6 +27,7 @@ import { CartDrawer } from "@/components/layout/cart-drawer";
 import { QuickViewModal } from "@/components/layout/quick-view-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { InstallPrompt } from "@/components/layout/install-prompt";
+import { OfflineBanner } from "@/components/layout/offline-banner";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -174,6 +175,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <Footer />
               </div>
               <MobileTabBar />
+              <OfflineBanner />
               <CartDrawer />
               <QuickViewModal />
               <CustomRequestModal />

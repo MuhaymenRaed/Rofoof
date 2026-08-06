@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 900;
+/**
+ * How long to wait before each retry, in ms.
+ *
+ * The tail is deliberately long. On the mobile connections this shop is
+ * actually used on, a drop routinely takes several seconds to clear — giving up
+ * inside of three would abandon shoppers whose signal was about to come back.
+ * Waiting costs nothing here: images load lazily and nothing blocks on them.
+ */
+const RETRY_DELAYS_MS = [900, 1800, 3000, 5500, 8000];
+const MAX_RETRIES = RETRY_DELAYS_MS.length;
 
 /**
  * Product photos are served straight from Supabase Storage — no optimizer or
@@ -31,6 +39,23 @@ export function useRetryingImage(src: string | undefined) {
     [],
   );
 
+  /**
+   * Give up on the giving-up: one more attempt with a fresh cache-buster.
+   * Bumping the counter past the limit means a still-broken image settles back
+   * into the failed state after a single try rather than looping forever.
+   */
+  const retry = useCallback(() => {
+    setState((s) => (s.failed ? { src: s.src, attempt: s.attempt + 1, failed: false } : s));
+  }, []);
+
+  // The connection coming back is the signal we were waiting for — reload the
+  // picture the moment it does, so a shopper who fixes their Wi-Fi sees the
+  // page heal itself instead of having to know to refresh.
+  useEffect(() => {
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [retry]);
+
   function onError() {
     if (state.failed || state.src !== src) return;
     if (state.attempt >= MAX_RETRIES) {
@@ -38,10 +63,11 @@ export function useRetryingImage(src: string | undefined) {
       return;
     }
     const next = state.attempt + 1;
+    const delay = RETRY_DELAYS_MS[state.attempt] ?? RETRY_DELAYS_MS[MAX_RETRIES - 1];
     timerRef.current = setTimeout(() => {
       // Ignore a timer left over from an image we've since navigated away from.
       setState((s) => (s.src === src ? { ...s, attempt: next } : s));
-    }, RETRY_DELAY_MS * next);
+    }, delay);
   }
 
   const current = state.src === src ? state : { src, attempt: 0, failed: false };
@@ -50,5 +76,5 @@ export function useRetryingImage(src: string | undefined) {
       ? `${src}${src.includes("?") ? "&" : "?"}retry=${current.attempt}`
       : src;
 
-  return { src: current.failed ? undefined : resolvedSrc, failed: current.failed, onError };
+  return { src: current.failed ? undefined : resolvedSrc, failed: current.failed, onError, retry };
 }

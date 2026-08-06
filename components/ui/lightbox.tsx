@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { X, ChevronEnd } from "@/components/icons";
+import { X, ChevronEnd, WifiOff, Refresh } from "@/components/icons";
 import { useStore } from "@/components/providers/store-provider";
 import { RetryImage } from "@/components/ui/retry-image";
+import { useOnline } from "@/lib/hooks/use-online";
 import { useRetryingImage } from "@/lib/hooks/use-retrying-image";
 
 /**
@@ -64,7 +65,8 @@ export function Lightbox({
 
   // Resolved before the early return below — hooks can't run conditionally.
   const rawSrc = count > 0 ? images[Math.min(Math.max(index, 0), count - 1)] : undefined;
-  const { src, failed, onError } = useRetryingImage(rawSrc);
+  const { src, failed, onError, retry } = useRetryingImage(rawSrc);
+  const online = useOnline();
 
   if (typeof document === "undefined" || count === 0) return null;
 
@@ -114,11 +116,31 @@ export function Lightbox({
               <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
             </span>
           )}
-          {/* Retries exhausted — say so instead of spinning forever. */}
+          {/* Retries exhausted. There's room here for the full explanation, and
+              it's tuned for the dark backdrop rather than reusing the
+              surface-toned notice the rest of the site shows. */}
           {failed && (
-            <span className="absolute inset-0 grid place-items-center px-6 text-center text-sm font-semibold text-white/70">
-              {t("product.imageFailed")}
-            </span>
+            <div className="absolute inset-0 grid animate-fade-in place-items-center px-6">
+              <div className="flex max-w-xs flex-col items-center gap-3 text-center">
+                <span className="grid h-16 w-16 place-items-center rounded-full bg-white/10">
+                  <WifiOff className="h-8 w-8 animate-pulse text-white/70 motion-reduce:animate-none" />
+                </span>
+                <p className="text-base font-bold text-white">
+                  {online ? t("net.imageFailed") : t("net.offline")}
+                </p>
+                <p className="text-[13px] leading-relaxed text-white/60">
+                  {online ? t("net.checkWeak") : t("net.checkOffline")}
+                </p>
+                <button
+                  type="button"
+                  onClick={retry}
+                  className="tap mt-1 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white transition hover:bg-white/25"
+                >
+                  <Refresh size={15} />
+                  {t("net.retry")}
+                </button>
+              </div>
+            </div>
           )}
           {src && !failed && (
             <Image

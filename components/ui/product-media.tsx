@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { OfflineNotice } from "@/components/ui/offline-notice";
 import { useRetryingImage } from "@/lib/hooks/use-retrying-image";
 import type { Product } from "@/lib/products";
 
@@ -77,6 +78,13 @@ export function ProductMedia({
             fading ? "opacity-0" : "opacity-100"
           }`}
         />
+      ) : failed ? (
+        // A photo that exists but wouldn't load is a connection problem worth
+        // naming — unlike a product with no photo at all, where the emoji tile
+        // is the intended look rather than a failure.
+        <span className="absolute inset-0">
+          <OfflineNotice />
+        </span>
       ) : (
         <span className={`${emojiClassName} transition-transform duration-300 group-hover:scale-110`}>
           {product.emoji}

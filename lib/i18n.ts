@@ -888,10 +888,20 @@ export const dict = {
     ar: "اضغط على الصورة لتكبيرها ورؤيتها كاملة",
     en: "Tap the image to expand and see it fully",
   },
-  "product.imageFailed": {
-    ar: "تعذّر تحميل الصورة، تحقّق من الاتصال",
-    en: "Couldn't load the image — check your connection",
+  /* Connection trouble. Worded so a shopper blames their signal, not the shop —
+     and always says what to do next, not just what went wrong. */
+  "net.offline": { ar: "لا يوجد اتصال بالإنترنت", en: "No internet connection" },
+  "net.checkOffline": {
+    ar: "جهازك غير متصل بالإنترنت. شغّل الواي فاي أو بيانات الهاتف، ثم أعد تحميل الصفحة.",
+    en: "Your device is offline. Turn on Wi-Fi or mobile data, then reload the page.",
   },
+  "net.imageFailed": { ar: "تعذّر تحميل الصورة", en: "Couldn't load the image" },
+  "net.checkWeak": {
+    ar: "يبدو أن اتصالك بالإنترنت ضعيف. تحقّق من الاتصال ثم أعد تحميل الصفحة.",
+    en: "Your internet connection looks weak. Check it, then reload the page.",
+  },
+  "net.retry": { ar: "إعادة المحاولة", en: "Try again" },
+  "net.backOnline": { ar: "عاد الاتصال بالإنترنت", en: "You're back online" },
   "product.chooseItem": { ar: "اختر التصميم", en: "Pick a design" },
   "product.chooseItems": { ar: "اختر التصاميم", en: "Pick your designs" },
   "product.waterproofOption": {

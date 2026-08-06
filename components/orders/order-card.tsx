@@ -111,7 +111,6 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
                         fill
                         sizes="32px"
                         className="object-cover"
-                        fallback={<Package size={15} className="text-ink-3" />}
                       />
                     ) : product?.emoji ? (
                       product.emoji
