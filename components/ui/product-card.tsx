@@ -72,11 +72,12 @@ export function ProductCard({
         <ProductMedia product={product} name={name} priority={priority} />
 
         {sale.active && (
-          <span
-            dir="ltr"
-            className="absolute top-2 end-2 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white shadow-md"
-          >
-            -{sale.percent}%
+          /* Opposite top corner from the wishlist heart. Keep `dir` off this
+             span: inset-inline-* resolves against the element's own direction,
+             so an ltr one would put `end` back under the heart. The ltr run
+             only has to cover the number. */
+          <span className="absolute top-2 end-2 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white shadow-md">
+            <span dir="ltr">-{sale.percent}%</span>
           </span>
         )}
 
@@ -140,7 +141,7 @@ export function ProductCard({
 
         {sale.active && (
           <div className="mt-2">
-            <DiscountBar percent={sale.percent} endsAt={sale.flash?.endsAt} />
+            <DiscountBar percent={sale.percent} />
           </div>
         )}
 
