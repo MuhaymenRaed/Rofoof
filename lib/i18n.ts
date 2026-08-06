@@ -921,6 +921,8 @@ export const dict = {
   "product.tierTable": { ar: "سعر الكمية", en: "Volume pricing" },
   "product.perUnit": { ar: "للقطعة", en: "each" },
   "offer.endsIn": { ar: "ينتهي خلال", en: "Ends in" },
+  "offer.discount": { ar: "خصم", en: "Save" },
+  "offer.youSave": { ar: "توفّر", en: "You save" },
   "cart.free": { ar: "مجاناً", en: "FREE" },
   "cart.pieces": { ar: "قطعة", en: "pieces" },
   "cart.discount": { ar: "الخصم", en: "Discount" },

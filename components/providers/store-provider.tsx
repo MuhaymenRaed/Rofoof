@@ -75,6 +75,12 @@ interface StoreContextValue {
   volumeTiers: VolumeTier[];
   /** delivery fees + landing stats */
   siteSettings: SiteSettings;
+  /**
+   * Wall clock for offer expiry, or null until mounted. Reading the clock while
+   * the page prerenders is not allowed, so anything rendered there (product
+   * cards) trusts the server's offer snapshot first and re-checks on mount.
+   */
+  now: number | null;
   getProduct: (id: string) => Product | undefined;
   categoryLabel: (code: string) => string;
   /** display-only pricing for a cart line (server recomputes at checkout) */
@@ -164,6 +170,7 @@ export function StoreProvider({
   const [ann, setAnn] = useState<AnnouncementSettings>(
     initialAnnouncement ?? { ar: "", en: "", active: false },
   );
+  const [now, setNow] = useState<number | null>(null);
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const getProduct = useCallback((id: string) => productMap.get(id), [productMap]);
@@ -185,6 +192,17 @@ export function StoreProvider({
     } catch {
       /* ignore */
     }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // --- real clock, once we're past the prerender (see `now` on the context).
+  // Re-read every minute so a flash sale that lapses while the shopper is
+  // browsing stops advertising a price they can no longer get.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -419,9 +437,15 @@ export function StoreProvider({
       const volumeUnit = p.volumePriced
         ? volumeUnitPrice(volumeCount, volumeTiers) ?? undefined
         : undefined;
-      return linePricing(p, line.qty, { item, waterproof: line.waterproof, volumeUnit }, offers);
+      return linePricing(
+        p,
+        line.qty,
+        { item, waterproof: line.waterproof, volumeUnit },
+        offers,
+        now,
+      );
     },
-    [productMap, offers, volumeCount, volumeTiers],
+    [productMap, offers, volumeCount, volumeTiers, now],
   );
 
   // Counts/totals span products AND queued custom requests (one piece per
@@ -459,6 +483,7 @@ export function StoreProvider({
     offers,
     volumeTiers,
     siteSettings,
+    now,
     getProduct,
     categoryLabel,
     pricingFor,

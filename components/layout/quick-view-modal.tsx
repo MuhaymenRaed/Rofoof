@@ -11,7 +11,7 @@ import {
   Droplet,
   Plus,
   Minus,
-  Zap,
+  Tag,
   Gift,
   ChevronEnd,
   Search,
@@ -25,6 +25,7 @@ import { formatPrice } from "@/lib/format";
 import { tierUnitPrice, type Product } from "@/lib/products";
 import {
   bundleOfferFor,
+  discountView,
   freeUnitsFor,
   linePricing,
   liveFlashOffer,
@@ -61,7 +62,8 @@ export function QuickViewModal() {
 }
 
 function Content({ product, onClose }: { product: Product; onClose: () => void }) {
-  const { lang, t, addToCart, openCart, isWished, toggleWish, offers, volumeTiers } = useStore();
+  const { lang, t, addToCart, openCart, isWished, toggleWish, offers, volumeTiers, now } =
+    useStore();
   const supabase = createSupabaseBrowserClient();
   const customFileRef = useRef<HTMLInputElement>(null);
 
@@ -89,8 +91,13 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const wished = isWished(product.id);
   const style: CSSVars = { "--c": product.color };
 
-  const flash = liveFlashOffer(product, offers);
+  // One clock for the whole modal (the store's, ticking every minute), so the
+  // offer note, the headline percentage and the price below can never disagree
+  // about whether a flash sale is still running.
+  const flash = liveFlashOffer(product, offers, now);
   const bundle = bundleOfferFor(product, offers);
+  /** headline discount — the same number the product's card advertises */
+  const sale = discountView(product, offers, now);
 
   // Package: price/quantity summed across every chosen item.
   // Volume-priced products share ONE by-count ladder: the unit price falls as
@@ -107,7 +114,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         .filter((it) => (selections[it.id] ?? 0) > 0)
         .map((it) => {
           const q = selections[it.id] ?? 0;
-          const p = linePricing(product, q, { item: it, waterproof, volumeUnit }, offers);
+          const p = linePricing(product, q, { item: it, waterproof, volumeUnit }, offers, now);
           const baseUnit =
             (volumeUnit ?? it.price ?? product.price) +
             (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
@@ -120,7 +127,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const packageFree = packageLines.reduce((s, l) => s + l.free, 0);
 
   // Standard/tiered pricing.
-  const unit = unitPriceFor(product, qty, { waterproof, volumeUnit }, offers);
+  const unit = unitPriceFor(product, qty, { waterproof, volumeUnit }, offers, now);
   const free = freeUnitsFor(product, qty, offers);
   const lineTotal = unit * Math.max(qty - free, 0);
   const stdBaseUnit =
@@ -131,6 +138,10 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const displayBase = isPackage ? packageBase : stdBaseUnit * Math.max(qty - free, 0);
   const displayFree = isPackage ? packageFree : free;
   const showStruck = displayBase > displayTotal;
+  // What this exact selection saves — waterproof and every other add-on are
+  // already inside both figures, so the percentage is off what's really paid.
+  const savedAmount = Math.max(displayBase - displayTotal, 0);
+  const savedPercent = displayBase > 0 ? Math.round((savedAmount / displayBase) * 100) : 0;
   const canAdd = !product.soldOut && (isPackage ? packageCount > 0 : true);
 
   // Left media: the previewed package item, or the gallery image.
@@ -334,18 +345,36 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         )}
 
         {/* Live offer notes */}
-        {(flash || bundle) && (
+        {(flash || bundle || sale.active) && (
           <div className="mt-3 space-y-1.5">
-            {flash && flash.endsAt && (
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-line bg-brand-soft px-3 py-2 text-[12px] font-bold text-brand">
+            {flash && flash.endsAt ? (
+              /* The offer's name, what it takes off, and how long it lasts —
+                 the timer alone never said how big the discount actually is. */
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-brand-line bg-brand-soft px-3 py-2 text-[12px] font-bold text-brand">
                 <span className="flex items-center gap-1.5">
-                  <Zap size={13} />
+                  <Tag size={13} />
                   {lang === "ar" ? flash.titleAr : flash.titleEn}
                 </span>
+                {sale.percent > 0 && (
+                  <span
+                    dir="ltr"
+                    className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-black text-white"
+                  >
+                    -{sale.percent}%
+                  </span>
+                )}
                 <span className="ms-auto flex items-center gap-1.5">
                   {t("offer.endsIn")} <Countdown endsAt={flash.endsAt} />
                 </span>
               </div>
+            ) : (
+              /* A standing discount has no timer, but still deserves saying. */
+              sale.active && (
+                <div className="flex items-center gap-1.5 rounded-xl border border-brand-line bg-brand-soft px-3 py-2 text-[12px] font-bold text-brand">
+                  <Tag size={13} />
+                  {t("offer.discount")} {sale.percent}%
+                </div>
+              )
             )}
             {bundle && (
               <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] font-bold text-emerald-600">
@@ -569,14 +598,22 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         </div>
 
         {/* Price */}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="text-2xl font-black" style={{ color: "var(--c)" }}>
             {formatPrice(displayTotal, lang)}
           </span>
           {showStruck && (
-            <span className="text-sm font-bold text-ink-3 line-through">
-              {formatPrice(displayBase, lang)}
-            </span>
+            <>
+              <span className="text-sm font-bold text-ink-3 line-through">
+                {formatPrice(displayBase, lang)}
+              </span>
+              <span
+                dir="ltr"
+                className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-black text-white"
+              >
+                -{savedPercent}%
+              </span>
+            </>
           )}
           {displayFree > 0 && (
             <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white">
@@ -584,6 +621,11 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             </span>
           )}
         </div>
+        {savedAmount > 0 && (
+          <p className="mt-1.5 text-[12px] font-bold text-emerald-600">
+            {t("offer.youSave")} {formatPrice(savedAmount, lang)}
+          </p>
+        )}
 
         {/* Notes */}
         <label className="mt-5 block text-xs font-bold text-ink-2">{t("product.notes")}</label>

@@ -1,4 +1,5 @@
 import {
+  lowestBasePrice,
   tierUnitPrice,
   type Offer,
   type Product,
@@ -49,12 +50,26 @@ export function cheapestVolumePrice(tiers: VolumeTier[]): number | null {
   return tiers.length > 0 ? Math.min(...tiers.map((t) => t.unitPrice)) : null;
 }
 
-export function liveFlashOffer(product: Pick<Product, "id">, offers: Offer[]): Offer | undefined {
-  const now = Date.now();
+/**
+ * The best live flash offer on a product.
+ *
+ * `now` is a parameter rather than a `Date.now()` read because product cards
+ * render while the page is being prerendered, where the clock is off limits.
+ * Passing `null` means "don't second-guess the server's list" — the offers
+ * snapshot is ISR-fresh, the same contract as every other price on the page —
+ * and cards switch to a real timestamp on mount, so an offer that lapses during
+ * the visit still drops off. Interactive paths omit it and get the clock.
+ */
+export function liveFlashOffer(
+  product: Pick<Product, "id">,
+  offers: Offer[],
+  now: number | null = Date.now(),
+): Offer | undefined {
   let best: Offer | undefined;
   for (const o of offers) {
     if (o.kind !== "flash" || o.productId !== product.id) continue;
-    if (!o.endsAt || new Date(o.endsAt).getTime() <= now) continue;
+    if (!o.endsAt) continue;
+    if (now !== null && new Date(o.endsAt).getTime() <= now) continue;
     if (!best || (o.percent ?? 0) > (best.percent ?? 0)) best = o;
   }
   return best;
@@ -76,19 +91,46 @@ export function bundleOfferFor(product: Pick<Product, "id">, offers: Offer[]): O
 }
 
 /** Effective percent off for a product = better of its own discount vs live flash. */
-export function percentOff(product: Product, offers: Offer[]): number {
-  return Math.max(product.discountPercent, liveFlashOffer(product, offers)?.percent ?? 0);
+export function percentOff(
+  product: Product,
+  offers: Offer[],
+  now: number | null = Date.now(),
+): number {
+  return Math.max(product.discountPercent, liveFlashOffer(product, offers, now)?.percent ?? 0);
+}
+
+/**
+ * Take a product's best money discount off an amount: percent (own discount or
+ * a live flash offer, whichever is larger) vs its fixed IQD off — the cheaper
+ * of the two wins, exactly like the server.
+ */
+export function applyProductDiscount(
+  product: Product,
+  amount: number,
+  offers: Offer[],
+  now: number | null = Date.now(),
+): number {
+  const pct = percentOff(product, offers, now);
+  const afterPct = pct > 0 ? Math.floor((amount * (100 - pct)) / 100) : amount;
+  const afterFixed =
+    product.discountFixed > 0 ? Math.max(0, amount - product.discountFixed) : amount;
+  return Math.min(afterPct, afterFixed);
 }
 
 /**
  * Unit price for one cart line, mirroring the server:
- *  base (tier / item / product) → minus percent-off → plus waterproof surcharge.
+ *  base (tier / item / product) → plus waterproof surcharge → minus discount.
+ *
+ * The surcharge is part of what gets discounted, not something added back at
+ * full price afterwards: a 2,000 sheet plus 1,000 waterproof at −50% is 1,500,
+ * not 2,000. Same for every other add-on that moves the line's price.
  */
 export function unitPriceFor(
   product: Product,
   qty: number,
   sel: LineSelection,
   offers: Offer[],
+  now: number | null = Date.now(),
 ): number {
   // base: volume tier (if provided) → per-product tier → item/product price
   let unit =
@@ -98,14 +140,9 @@ export function unitPriceFor(
         ? tierUnitPrice(product, qty)
         : sel.item?.price ?? product.price;
 
-  // best (lowest) of percent-off (product/flash) vs product fixed-off
-  const pct = percentOff(product, offers);
-  const afterPct = pct > 0 ? Math.floor((unit * (100 - pct)) / 100) : unit;
-  const afterFixed = product.discountFixed > 0 ? Math.max(0, unit - product.discountFixed) : unit;
-  unit = Math.min(afterPct, afterFixed);
-
   if (sel.waterproof && product.waterproof) unit += product.waterproofSurcharge;
-  return unit;
+
+  return applyProductDiscount(product, unit, offers, now);
 }
 
 /** Bundle freebies for a quantity: floor(qty / (buy+free)) × free. */
@@ -126,8 +163,9 @@ export function linePricing(
   qty: number,
   sel: LineSelection,
   offers: Offer[],
+  now: number | null = Date.now(),
 ): LinePricing {
-  const unit = unitPriceFor(product, qty, sel, offers);
+  const unit = unitPriceFor(product, qty, sel, offers, now);
   const free = freeUnitsFor(product, qty, offers);
   return { unit, free, total: unit * Math.max(qty - free, 0) };
 }
@@ -156,6 +194,53 @@ export function deliveryOfferFor(subtotal: number, offers: Offer[]): Offer | nul
     if (!best || (o.deliveryFee ?? 0) < (best.deliveryFee ?? 0)) best = o;
   }
   return best;
+}
+
+/* ------------------------------ Sale display ---------------------------- */
+
+/** Everything a card / modal needs to advertise a product's discount. */
+export interface DiscountView {
+  /** the shopper really pays less than list — nothing below matters otherwise */
+  active: boolean;
+  /** list price before the discount (the struck-through number) */
+  base: number;
+  /** what they pay */
+  price: number;
+  /** whole percent off `base`, rounded — what the ribbon and the bar show */
+  percent: number;
+  /** IQD off a single piece */
+  saved: number;
+  /** the flash offer driving it, when one does — carries the countdown */
+  flash?: Offer;
+}
+
+/**
+ * The sale as a shopper sees it, from the product's cheapest rung. Unlike
+ * `lowestPrice()` this folds in live flash offers, so a product on a timed
+ * offer shows its real price on the card and not just in the quick view.
+ */
+export function discountView(
+  product: Product,
+  offers: Offer[],
+  /** see `liveFlashOffer` — cards pass the store's mount-time clock */
+  now: number | null,
+): DiscountView {
+  const base = lowestBasePrice(product);
+  const price = applyProductDiscount(product, base, offers, now);
+  const saved = base - price;
+  const flash = liveFlashOffer(product, offers, now);
+  return {
+    active: saved > 0,
+    base,
+    price,
+    // Derived from what's actually saved, so a fixed IQD discount advertises a
+    // percentage too rather than showing nothing.
+    percent: base > 0 ? Math.round((saved / base) * 100) : 0,
+    saved,
+    // Only when the timer is honest about the price: a bigger standing discount
+    // outlives the flash, so its countdown would promise a rise that won't come.
+    flash: flash && (flash.percent ?? 0) >= product.discountPercent ? flash : undefined,
+  };
 }
 
 /** Product-page notes: every live offer touching this product. */

@@ -51,6 +51,18 @@ export const Gift = (p: IconProps) => (
   </Base>
 );
 
+/**
+ * Price tag — the mark for a discounted product, on the card and in the quick
+ * view. Softer than a lightning bolt against the warm palette, and it reads as
+ * "this costs less" whether or not a countdown sits next to it.
+ */
+export const Tag = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z" />
+    <circle cx="7.5" cy="7.5" r="1.25" />
+  </Base>
+);
+
 /** Percent — cart-total discounts. */
 export const Percent = (p: IconProps) => (
   <Base {...p}>

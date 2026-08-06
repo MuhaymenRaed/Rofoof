@@ -7,10 +7,12 @@ import { badgeMeta, ProductBadge } from "@/components/ui/badge";
 import { ProductMedia } from "@/components/ui/product-media";
 import { FeaturedStarPicker } from "@/components/ui/featured-star-picker";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
+import { DiscountBar } from "@/components/ui/discount-bar";
 import { Pencil } from "@/components/dashboard/dash-icons";
 import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { hasVariablePrice, lowestPrice, type Product } from "@/lib/products";
+import { discountView } from "@/lib/pricing";
+import { hasVariablePrice, type Product } from "@/lib/products";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -22,7 +24,8 @@ export function ProductCard({
   /** Skip lazy-loading for above-the-fold cards (improves LCP). */
   priority?: boolean;
 }) {
-  const { lang, t, addToCart, openQuickView, isWished, toggleWish, openCart } = useStore();
+  const { lang, t, addToCart, openQuickView, isWished, toggleWish, openCart, offers, now } =
+    useStore();
   const { isAdmin, ready } = useAuth();
   const [justAdded, setJustAdded] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -31,8 +34,9 @@ export function ProductCard({
   const sub = lang === "ar" ? product.subAr : product.subEn;
   const wished = isWished(product.id);
   const badge = product.badge ? badgeMeta[product.badge] : null;
-  const onSale = product.discountPercent > 0;
-  const price = lowestPrice(product);
+  // Offer-aware: a product whose only discount is a live flash offer used to
+  // look full-price here, with the sale first appearing inside the quick view.
+  const sale = discountView(product, offers, now);
   const showFrom = hasVariablePrice(product);
   const isPackage = product.kind === "package" && product.items.length > 0;
 
@@ -67,9 +71,12 @@ export function ProductCard({
       >
         <ProductMedia product={product} name={name} priority={priority} />
 
-        {onSale && (
-          <span className="absolute top-2 end-2 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white shadow-md">
-            -{product.discountPercent}%
+        {sale.active && (
+          <span
+            dir="ltr"
+            className="absolute top-2 end-2 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white shadow-md"
+          >
+            -{sale.percent}%
           </span>
         )}
 
@@ -131,28 +138,36 @@ export function ProductCard({
         </button>
         <p className="mt-0.5 line-clamp-1 text-[11px] text-ink-3">{sub}</p>
 
-        <div className="mt-auto flex items-center justify-between pt-3">
-          <span className="flex flex-col leading-tight">
-            {onSale && (
-              <span className="text-[10px] font-semibold text-ink-3 line-through">
-                {formatPrice(product.price, lang)}
-              </span>
-            )}
+        {sale.active && (
+          <div className="mt-2">
+            <DiscountBar percent={sale.percent} endsAt={sale.flash?.endsAt} />
+          </div>
+        )}
+
+        <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+          {/* New price first, list price struck beside it — same reading order
+              as the quick view, so the card and the modal tell one story. */}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 leading-tight">
             <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
               {showFrom && (
                 <span className="me-1 text-[10px] font-semibold text-ink-3">
                   {t("product.from")}
                 </span>
               )}
-              {formatPrice(price, lang)}
+              {formatPrice(sale.price, lang)}
             </span>
+            {sale.active && (
+              <span className="text-[10px] font-semibold text-ink-3 line-through">
+                {sale.base.toLocaleString("en-US")}
+              </span>
+            )}
           </span>
           <button
             type="button"
             onClick={handleAdd}
             disabled={product.soldOut}
             aria-label={t("product.add")}
-            className="tap grid h-9 w-9 place-items-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-40"
+            className="tap grid h-9 w-9 shrink-0 place-items-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-40"
             style={{
               background: justAdded ? "var(--c)" : "color-mix(in srgb, var(--c) 13%, transparent)",
               color: justAdded ? "#fff" : "var(--c)",

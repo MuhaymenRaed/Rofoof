@@ -175,17 +175,29 @@ export function tierUnitPrice(p: Pick<Product, "price" | "tiers">, qty: number):
   return best ?? p.price;
 }
 
-/** The lowest price a product can be bought at — used for "from X" display. */
-export function lowestPrice(p: Product): number {
+/**
+ * The list price a product starts from BEFORE any discount — the cheapest rung
+ * for tiered/package products. This is the number a sale strikes through.
+ */
+export function lowestBasePrice(p: Product): number {
   if (p.kind === "tiered" && p.tiers.length > 0) {
-    const base = Math.min(...p.tiers.map((t) => t.unitPrice));
-    return p.discountPercent > 0 ? Math.floor((base * (100 - p.discountPercent)) / 100) : base;
+    return Math.min(...p.tiers.map((t) => t.unitPrice));
   }
   if (p.kind === "package" && p.items.length > 0) {
-    const base = Math.min(...p.items.map((i) => i.price ?? p.price));
-    return p.discountPercent > 0 ? Math.floor((base * (100 - p.discountPercent)) / 100) : base;
+    return Math.min(...p.items.map((i) => i.price ?? p.price));
   }
-  return effectivePrice(p);
+  return p.price;
+}
+
+/**
+ * The lowest price a product can be bought at — used for "from X" display.
+ * Offer-blind on purpose: this is what the store's price filter and sort read,
+ * so it stays a pure function of the row. Cards go through `discountView()`,
+ * which also folds in live flash offers.
+ */
+export function lowestPrice(p: Product): number {
+  const base = lowestBasePrice(p);
+  return effectivePrice({ ...p, price: base });
 }
 
 /** Whether a package/tiered product has per-variant prices (show "from"). */
