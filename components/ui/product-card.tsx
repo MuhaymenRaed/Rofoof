@@ -7,7 +7,6 @@ import { badgeMeta, ProductBadge } from "@/components/ui/badge";
 import { ProductMedia } from "@/components/ui/product-media";
 import { FeaturedStarPicker } from "@/components/ui/featured-star-picker";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
-import { DiscountBar } from "@/components/ui/discount-bar";
 import { Pencil } from "@/components/dashboard/dash-icons";
 import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
@@ -138,12 +137,6 @@ export function ProductCard({
           </h3>
         </button>
         <p className="mt-0.5 line-clamp-1 text-[11px] text-ink-3">{sub}</p>
-
-        {sale.active && (
-          <div className="mt-2">
-            <DiscountBar percent={sale.percent} />
-          </div>
-        )}
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-3">
           {/* New price first, list price struck beside it — same reading order
