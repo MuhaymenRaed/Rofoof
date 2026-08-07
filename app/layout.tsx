@@ -31,9 +31,20 @@ import { OfflineBanner } from "@/components/layout/offline-banner";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
   variable: "--font-cairo",
   display: "swap",
+  // No `weight` list: Cairo is a variable font (wght 200–1000), so one file per
+  // subset already carries every weight. Naming six of them only multiplied the
+  // @font-face rules — eighteen of them pointing at the same three files —
+  // without changing a single byte downloaded.
+  //
+  // `preload: false` because the hint never arrived in time to be worth
+  // anything. Next emits font preloads through the RSC flight stream, which
+  // React only processes once the main bundle has run; by then the stylesheet
+  // in <head> has long since requested the font itself. All the hint managed to
+  // do was make Chrome log "preloaded but not used within a few seconds". The
+  // stylesheet link is the real discovery path, and it is already immediate.
+  preload: false,
 });
 
 // Canonical origin for metadata/OG/canonical URLs. www is the Production host

@@ -261,7 +261,11 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
               alt={name}
               fill
               sizes="384px"
-              priority
+              // Eager, but no preload hint: this only renders once the modal is
+              // already open, so a hint injected at that moment races the <img>
+              // beside it and Chrome reports it unused. (`priority` is also
+              // deprecated in Next 16.)
+              loading="eager"
               placeholder="blur"
               blurDataURL={tintedBlurDataUrl(product.color)}
               className="object-contain"
@@ -306,7 +310,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                   alt={name}
                   fill
                   sizes="100vw"
-                  priority
+                  loading="eager"
                   placeholder="blur"
                   blurDataURL={tintedBlurDataUrl(product.color)}
                   className="object-contain"

@@ -36,7 +36,12 @@ export function Header() {
             alt=""
             width={34}
             height={34}
-            priority
+            // Not `priority`: that prop is deprecated in Next 16 and its only
+            // extra effect here was a ReactDOM.preload() hint injected during
+            // hydration — long after this <img> (which ships in the initial
+            // HTML) had already been fetched, so Chrome logged it as an unused
+            // preload. Eager loading is the part that was actually wanted.
+            loading="eager"
             className="h-8 w-8 shrink-0 object-contain"
           />
           <span className="text-xl font-black text-brand">{t("brand.name")}</span>

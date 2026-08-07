@@ -156,7 +156,10 @@ export function Lightbox({
               className={`object-contain transition-opacity duration-300 motion-reduce:transition-none ${
                 loaded ? "opacity-100" : "opacity-0"
               }`}
-              priority
+              // Eager rather than the deprecated `priority` — the viewer only
+              // exists once opened, so a preload hint would just duplicate the
+              // request this <img> is already making.
+              loading="eager"
             />
           )}
         </div>

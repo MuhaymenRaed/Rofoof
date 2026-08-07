@@ -63,12 +63,27 @@ function defaultValue(grain: RangeGrain): string {
 export function RangeStats() {
   const { t, lang } = useStore();
   const [grain, setGrain] = useState<RangeGrain>("month");
-  const [value, setValue] = useState(() => defaultValue("month"));
+  /**
+   * Empty until mounted, then resolved from the clock.
+   *
+   * This panel is prerendered, so picking the default period during render read
+   * the clock on the SERVER and baked the BUILD month into the static HTML. The
+   * client computes the real one, so from the moment the calendar rolled past
+   * the month the site was built in, every dashboard load hydrated with a
+   * different <input value> than it was sent — a mismatch that only got worse
+   * the longer a build stayed up.
+   */
+  const [value, setValue] = useState("");
   const [stats, setStats] = useState<RangeStats | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Reload whenever the period changes.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => setValue((v) => v || defaultValue("month")), []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Reload whenever the period changes (and once the default has landed).
   useEffect(() => {
+    if (!value) return;
     const { from, to } = boundsFor(grain, value);
     startTransition(async () => {
       const res = await loadRangeStatsAction(from, to, grain);
