@@ -306,6 +306,25 @@ export async function getBestSellerCounts(): Promise<Record<string, number>> {
 }
 
 /**
+ * Product ids ranked by units actually ordered, most first — the signal behind
+ * the store's "most popular" sort. Built from the same cached aggregate as the
+ * home page's "الأكثر طلباً" rail, so the two can't disagree about what's
+ * popular.
+ *
+ * Only the ORDER crosses to the browser, never the counts: the sort needs
+ * nothing more, and how many of each item the shop has sold is its business.
+ * Products that have never sold are left out entirely — the caller ranks those
+ * by the admin's curation instead.
+ */
+export async function getPopularityRanking(): Promise<string[]> {
+  const sold = await getBestSellerCounts();
+  return Object.entries(sold)
+    .filter(([, units]) => units > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id);
+}
+
+/**
  * Every showcase group with its product ids, in the admin's order. Catches
  * inside the cached function so a missing table (before the SQL is applied) or
  * a transient error resolves to an empty list instead of registering an

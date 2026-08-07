@@ -42,6 +42,9 @@ const SORT_OPTIONS: { id: Sort; key: DictKey }[] = [
 
 const DEFAULT_SORT: Sort = "popular";
 
+/** Rank given to a product with no sales, so it sorts after every ranked one. */
+const UNRANKED = Number.MAX_SAFE_INTEGER;
+
 /**
  * The storefront catalogue.
  *
@@ -56,7 +59,12 @@ const DEFAULT_SORT: Sort = "popular";
  * single pass over the unique product list, so an item matching two selected
  * filters still appears exactly once.
  */
-export function StoreView() {
+export function StoreView({
+  popularity = [],
+}: {
+  /** product ids by units ordered, most first — see getPopularityRanking() */
+  popularity?: string[];
+}) {
   const { t, lang, products, categories, subcategories, fandoms } = useStore();
   const { isAdmin, ready } = useAuth();
   const router = useRouter();
@@ -136,6 +144,12 @@ export function StoreView() {
   );
 
   const urlPage = useMemo(() => parseIntParam(searchParams.get("page"), 1), [searchParams]);
+
+  /** product id → its place in the units-sold ranking (0 = best seller). */
+  const popularityRank = useMemo(
+    () => new Map(popularity.map((id, i) => [id, i])),
+    [popularity],
+  );
 
   /* --------------------------- writing to the URL ------------------------- */
 
@@ -318,10 +332,19 @@ export function StoreView() {
         case "priceDesc":
           return lowestPrice(b) - lowestPrice(a);
         case "newest":
-          return b.order - a.order;
+          // When the row was CREATED, newest first — the same signal the home
+          // page's "وصل حديثاً" rail uses. Deliberately not the admin's manual
+          // sort_order (which is curation, not age) and not any edit: fixing a
+          // typo in a year-old product must not make it new again.
+          return b.createdAt.localeCompare(a.createdAt);
         default:
-          // "Popular" = the admin's curated ordering (sort_order desc).
-          return b.order - a.order;
+          // "Popular" = units actually ordered, most first. Anything that has
+          // never sold has no place in that ranking, so it sorts below all of
+          // it, by the admin's curated order as before.
+          return (
+            (popularityRank.get(a.id) ?? UNRANKED) - (popularityRank.get(b.id) ?? UNRANKED) ||
+            b.order - a.order
+          );
       }
     });
   }, [
@@ -333,6 +356,7 @@ export function StoreView() {
     urlSearch,
     sort,
     dbMatchIds,
+    popularityRank,
   ]);
 
   // Subcategories grouped by their parent category → drives the per-chip menu.

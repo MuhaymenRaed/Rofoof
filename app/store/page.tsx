@@ -1,7 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { StoreView } from "@/components/store/store-view";
-import { getCategories, getFandoms, getSubcategories } from "@/lib/data/catalog";
+import {
+  getCategories,
+  getFandoms,
+  getPopularityRanking,
+  getSubcategories,
+} from "@/lib/data/catalog";
 import { parseListParam } from "@/lib/url-params";
 import StoreLoading from "./loading";
 
@@ -92,10 +97,16 @@ export async function generateMetadata({
   };
 }
 
-export default function StorePage() {
+export default async function StorePage() {
+  // Ranked on the server: order_items isn't publicly readable, so the browser
+  // can't work out what sells. Cached (tag: sales) alongside the rest of the
+  // catalogue, so this stays part of the prerendered shell rather than a
+  // per-request read.
+  const popularity = await getPopularityRanking();
+
   return (
     <Suspense fallback={<StoreLoading />}>
-      <StoreView />
+      <StoreView popularity={popularity} />
     </Suspense>
   );
 }
