@@ -56,7 +56,18 @@ export function useRetryingImage(src: string | undefined) {
     return () => window.removeEventListener("online", retry);
   }, [retry]);
 
-  function onError() {
+  /**
+   * Memoized because next/image rebuilds its internal ref callback whenever
+   * `onError` changes identity, and React re-attaching that ref makes the
+   * component re-assign the <img>'s own src. The browser treats that as a new
+   * load: it drops the picture it was already showing and fetches it again, so
+   * the tile blinks empty and fades back in.
+   *
+   * A fresh function every render meant that happened on EVERY re-render — the
+   * offer clock ticking, an item going into the cart, a heart being toggled —
+   * blanking every photo on screen at once for no reason.
+   */
+  const onError = useCallback(() => {
     if (state.failed || state.src !== src) return;
     if (state.attempt >= MAX_RETRIES) {
       setState((s) => ({ ...s, failed: true }));
@@ -68,7 +79,7 @@ export function useRetryingImage(src: string | undefined) {
       // Ignore a timer left over from an image we've since navigated away from.
       setState((s) => (s.src === src ? { ...s, attempt: next } : s));
     }, delay);
-  }
+  }, [state, src]);
 
   const current = state.src === src ? state : { src, attempt: 0, failed: false };
   const resolvedSrc =

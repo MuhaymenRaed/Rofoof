@@ -94,10 +94,13 @@ export function FeaturedStarPicker({ productId }: { productId: string }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("product.feature")}
-        className={`reveal-on-hover tap absolute top-20 start-2 grid h-8 w-8 place-items-center rounded-full border backdrop-blur transition ${
+        // Opaque, no backdrop filter — one more per card is one more backdrop
+        // the compositor re-blurs every scrolled frame. See the wishlist
+        // toggle in product-card.tsx.
+        className={`reveal-on-hover tap absolute top-20 start-2 grid h-8 w-8 place-items-center rounded-full border transition ${
           isFeatured
             ? "border-amber-400 bg-amber-400 text-white"
-            : "border-line-2 bg-surface/90 text-ink-2 hover:border-amber-400 hover:text-amber-500"
+            : "border-line-2 bg-surface text-ink-2 hover:border-amber-400 hover:text-amber-500"
         }`}
       >
         <Star size={14} filled={isFeatured} />

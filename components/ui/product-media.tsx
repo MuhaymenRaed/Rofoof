@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { OfflineNotice } from "@/components/ui/offline-notice";
+import { useNearViewport } from "@/lib/hooks/use-near-viewport";
 import { useRetryingImage } from "@/lib/hooks/use-retrying-image";
 import type { Product } from "@/lib/products";
 
@@ -28,13 +28,18 @@ export function tintedBlurDataUrl(color: string): string {
  * emoji tile. The accent colour drives the tinted background via color-mix, so
  * it adapts to dark mode.
  *
- * Loading is deliberately staged: the tile is already filled with the product's
- * colour, the blur placeholder sits on top, and the photo cross-fades in once
- * decoded — no white flash, no pop, and no layout shift (the box is sized by
- * its parent, not by the image).
+ * Loading is staged so the slot is never blank: the tile is already filled with
+ * the product's colour, next/image's blur placeholder sits on top of that, and
+ * the photo replaces it once decoded — no white flash and no layout shift (the
+ * box is sized by its parent, not by the image).
  *
- * `priority` images skip the fade: they're the largest paint on the screen, and
- * starting them transparent would delay how soon the page looks ready.
+ * Nothing dims the <img> itself. The blur placeholder is that element's own
+ * background, so fading the image in from transparent took the placeholder down
+ * with it and left a flat empty square for as long as the photo took to arrive
+ * — the opposite of what the staging is for.
+ *
+ * `priority` marks the cards above the fold: they load eagerly at high fetch
+ * priority because one of them is the largest paint on the screen.
  */
 export function ProductMedia({
   product,
@@ -49,16 +54,21 @@ export function ProductMedia({
   priority?: boolean;
   emojiClassName?: string;
 }) {
-  const [loaded, setLoaded] = useState(false);
+  // Start fetching a screen before the card is reached, so a fast scroll finds
+  // the photo already on its way instead of an empty tile.
+  const [slotRef, near] = useNearViewport<HTMLDivElement>();
   const { src, failed, onError } = useRetryingImage(product.image ?? undefined);
   const style: CSSVars = {
     "--c": product.color,
     background: "color-mix(in srgb, var(--c) 11%, var(--surface))",
   };
-  const fading = !priority && !loaded;
 
   return (
-    <div className="relative grid h-full w-full place-items-center overflow-hidden" style={style}>
+    <div
+      ref={slotRef}
+      className="relative grid h-full w-full place-items-center overflow-hidden"
+      style={style}
+    >
       <span className="absolute inset-x-0 top-0 z-10 h-[3px]" style={{ background: "var(--c)" }} />
       {src && !failed ? (
         <Image
@@ -66,17 +76,16 @@ export function ProductMedia({
           alt={name}
           fill
           sizes={sizes}
-          priority={priority}
-          loading={priority ? undefined : "lazy"}
+          // Next 16 deprecates `priority` in favour of saying this outright.
+          // `near` promotes a lazy image the moment it's within reach.
+          loading={priority || near ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
           placeholder="blur"
           blurDataURL={tintedBlurDataUrl(product.color)}
-          onLoad={() => setLoaded(true)}
           onError={onError}
-          // `motion-reduce` keeps the fade out of the way for anyone who's
-          // asked the OS to limit animation.
-          className={`object-cover transition-[opacity,transform] duration-500 ease-out group-hover:scale-105 motion-reduce:transition-none ${
-            fading ? "opacity-0" : "opacity-100"
-          }`}
+          // `motion-reduce` keeps the hover zoom out of the way for anyone
+          // who's asked the OS to limit animation.
+          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105 motion-reduce:transition-none"
         />
       ) : failed ? (
         // A photo that exists but wouldn't load is a connection problem worth

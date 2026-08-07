@@ -87,7 +87,7 @@ export function ProductCard({
         )}
 
         {product.soldOut && (
-          <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] backdrop-blur-[1px]">
+          <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--surface)_72%,transparent)]">
             <span className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-bold text-surface">
               {t("badge.soldout")}
             </span>
@@ -101,10 +101,16 @@ export function ProductCard({
         onClick={() => toggleWish(product.id)}
         aria-pressed={wished}
         aria-label={t("aria.favorites")}
+        // No backdrop-blur on these overlay controls. A backdrop filter makes
+        // the compositor re-read and re-blur what's behind it on every scrolled
+        // frame, and the catalogue puts one on screen per card — enough of them
+        // that Chrome falls behind rastering and leaves cards blank until it
+        // catches up. At full opacity over a photo there was nothing to see
+        // through anyway.
         className={`tap absolute top-2 start-2 grid h-8 w-8 place-items-center rounded-full border transition ${
           wished
             ? "border-brand bg-brand text-white"
-            : "reveal-on-hover border-line-2 bg-surface/90 text-ink-2 backdrop-blur hover:border-brand hover:text-brand"
+            : "reveal-on-hover border-line-2 bg-surface text-ink-2 hover:border-brand hover:text-brand"
         }`}
       >
         <Heart size={15} filled={wished} />
@@ -116,7 +122,7 @@ export function ProductCard({
           type="button"
           onClick={() => setEditorOpen(true)}
           aria-label={t("dash.editProduct")}
-          className="reveal-on-hover tap absolute top-11 start-2 grid h-8 w-8 place-items-center rounded-full border border-line-2 bg-surface/90 text-ink-2 backdrop-blur transition hover:border-brand hover:text-brand"
+          className="reveal-on-hover tap absolute top-11 start-2 grid h-8 w-8 place-items-center rounded-full border border-line-2 bg-surface text-ink-2 transition hover:border-brand hover:text-brand"
         >
           <Pencil size={14} />
         </button>

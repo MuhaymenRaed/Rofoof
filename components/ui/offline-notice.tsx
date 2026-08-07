@@ -37,7 +37,10 @@ export function OfflineNotice() {
 
   return (
     <span
-      className="@container grid h-full w-full place-items-center overflow-hidden bg-surface-2/75 text-center backdrop-blur-[1px]"
+      // Opaque rather than frosted: there is no picture behind this to see
+      // through (it's here because one failed), and a backdrop filter inside a
+      // scrolling grid costs the compositor a readback per frame.
+      className="@container grid h-full w-full place-items-center overflow-hidden bg-surface-2 text-center"
       role="status"
       // Reaches anyone who hovers, including at the icon-only size.
       title={`${title} — ${hint}`}
