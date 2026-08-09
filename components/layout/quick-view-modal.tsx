@@ -11,7 +11,6 @@ import {
   Truck,
   Droplet,
   Plus,
-  Minus,
   Tag,
   Gift,
   ChevronEnd,
@@ -23,7 +22,13 @@ import { tintedBlurDataUrl } from "@/components/ui/product-media";
 import { RetryImage } from "@/components/ui/retry-image";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
-import { isSoldOut, itemInStock, tierUnitPrice, type Product } from "@/lib/products";
+import {
+  isSoldOut,
+  itemInStock,
+  stockCeilingFor,
+  tierUnitPrice,
+  type Product,
+} from "@/lib/products";
 import {
   bundleOfferFor,
   discountView,
@@ -164,10 +169,10 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     : product.images[galleryIndex] ?? product.images[0];
 
   function setItemQty(itemId: string, next: number) {
-    // Never let the stepper climb past what's actually left of THIS design.
-    // A null stock means the column isn't there yet, so the old ceiling stands.
-    const item = product?.items.find((i) => i.id === itemId);
-    const ceiling = item?.stock != null ? Math.min(99, item.stock) : 99;
+    // The picker is a toggle now, so this only ever gets 0 or 1 — but the cap
+    // stays, because nothing should be able to put more into the selection than
+    // the shop has, whatever ends up calling this.
+    const ceiling = stockCeilingFor(product, itemId) ?? 99;
     setSelections((prev) => {
       const copy = { ...prev };
       if (next <= 0) delete copy[itemId];
@@ -434,7 +439,6 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 // which drops as the buyer picks more.
                 const itemPrice = volumeUnit ?? it.price ?? product.price;
                 const out = !itemInStock(it);
-                const atCeiling = it.stock != null && q >= it.stock;
                 return (
                   <div
                     key={it.id}
@@ -500,37 +504,12 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                       <span className="text-[9px] font-black" style={{ color: "var(--c)" }}>
                         {itemPrice.toLocaleString("en-US")}
                       </span>
-                      {on ? (
-                        <span className="flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setItemQty(it.id, q - 1)}
-                            aria-label={t("cart.remove")}
-                            className="tap grid h-4 w-4 place-items-center rounded bg-surface-2 text-ink-2 hover:text-brand"
-                          >
-                            <Minus size={10} />
-                          </button>
-                          <span className="min-w-3 text-center text-[10px] font-bold text-ink">{q}</span>
-                          <button
-                            type="button"
-                            onClick={() => setItemQty(it.id, q + 1)}
-                            disabled={atCeiling}
-                            aria-label={t("product.add")}
-                            className="tap grid h-4 w-4 place-items-center rounded bg-surface-2 text-ink-2 hover:text-brand disabled:opacity-35 disabled:hover:text-ink-2"
-                          >
-                            <Plus size={10} />
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setItemQty(it.id, 1)}
-                          aria-label={t("product.add")}
-                          className="tap grid h-4 w-4 place-items-center rounded bg-brand/12 text-brand"
-                        >
-                          <Plus size={10} />
-                        </button>
-                      )}
+                      {/* No stepper here. Picking designs and counting them are
+                          two different jobs, and a pair of 16px buttons under a
+                          thumbnail is a poor place to do the second one — the
+                          cart has room for it and is where quantities are
+                          reviewed anyway. The tile is now purely "do I want
+                          this design", answered by tapping it. */}
                     </div>
                   </div>
                 );
@@ -710,7 +689,14 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
           {/* Standard/tiered keep a single quantity stepper; packages use the
               per-item controls in the grid above. */}
-          {!isPackage && <QtyStepper value={qty} onChange={(q) => setQty(Math.max(1, q))} />}
+          {/* One-photo product: its own count is the ceiling. */}
+          {!isPackage && (
+            <QtyStepper
+              value={qty}
+              onChange={(q) => setQty(Math.max(1, q))}
+              max={stockCeilingFor(product) ?? undefined}
+            />
+          )}
 
           <button
             type="button"

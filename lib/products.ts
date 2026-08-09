@@ -66,6 +66,26 @@ export function itemInStock(item: Pick<ProductItem, "stock">): boolean {
 }
 
 /**
+ * The most of one thing a shopper may hold: the count left of the exact design
+ * they picked, or of the product itself when it isn't a package.
+ *
+ * null means "no ceiling" — either the stock column isn't there yet, or the
+ * design has already run out, in which case the line is refused outright rather
+ * than clamped to zero. Clamping to zero would delete a line out from under
+ * someone mid-edit; letting checkout name the reason is kinder and clearer.
+ */
+export function stockCeilingFor(
+  product: Pick<Product, "items"> | undefined,
+  itemId?: string,
+): number | null {
+  if (!product) return null;
+  const stock = itemId
+    ? product.items.find((i) => i.id === itemId)?.stock
+    : (product as Product).stock;
+  return stock != null && stock > 0 ? stock : null;
+}
+
+/**
  * Whether a package has anything left to sell. A package is only sold out once
  * every one of its designs is — a single design running out must not take the
  * whole product off the shelf.

@@ -23,6 +23,7 @@ import type {
   SubcategoryInfo,
   VolumeTier,
 } from "@/lib/products";
+import { stockCeilingFor } from "@/lib/products";
 import { linePricing, volumeUnitPrice, type LinePricing } from "@/lib/pricing";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -322,41 +323,62 @@ export function StoreProvider({
     [categoryMap, lang],
   );
 
-  const addToCart = useCallback((id: string, qty = 1, opts?: AddToCartOptions) => {
-    setCart((prev) => {
-      const next: CartLine = {
-        id,
-        itemId: opts?.itemId,
-        qty,
-        waterproof: opts?.waterproof,
-        customImageUrl: opts?.customImageUrl,
-        note: opts?.note,
-      };
-      const key = cartLineKey(next);
-      const existing = prev.find((l) => cartLineKey(l) === key);
-      if (existing) {
-        return prev.map((l) =>
-          cartLineKey(l) === key
-            ? {
-                ...l,
-                qty: l.qty + qty,
-                note: opts?.note ?? l.note,
-                customImageUrl: opts?.customImageUrl ?? l.customImageUrl,
-              }
-            : l,
-        );
-      }
-      return [...prev, next];
-    });
-  }, []);
+  const addToCart = useCallback(
+    (id: string, qty = 1, opts?: AddToCartOptions) => {
+      setCart((prev) => {
+        const next: CartLine = {
+          id,
+          itemId: opts?.itemId,
+          qty,
+          waterproof: opts?.waterproof,
+          customImageUrl: opts?.customImageUrl,
+          note: opts?.note,
+        };
+        // Adding the same line again ADDS to it, so the ceiling has to be
+        // checked on the way in too — otherwise pressing "add" five times gets
+        // past a cap the stepper would have refused in one step.
+        const ceiling = stockCeilingFor(productMap.get(id), opts?.itemId);
+        const cap = (n: number) => (ceiling == null ? n : Math.min(n, ceiling));
+        const key = cartLineKey(next);
+        const existing = prev.find((l) => cartLineKey(l) === key);
+        if (existing) {
+          return prev.map((l) =>
+            cartLineKey(l) === key
+              ? {
+                  ...l,
+                  qty: cap(l.qty + qty),
+                  note: opts?.note ?? l.note,
+                  customImageUrl: opts?.customImageUrl ?? l.customImageUrl,
+                }
+              : l,
+          );
+        }
+        return [...prev, { ...next, qty: cap(qty) }];
+      });
+    },
+    [productMap],
+  );
 
-  const setQty = useCallback((lineKey: string, qty: number) => {
-    setCart((prev) =>
-      qty <= 0
-        ? prev.filter((l) => cartLineKey(l) !== lineKey)
-        : prev.map((l) => (cartLineKey(l) === lineKey ? { ...l, qty } : l)),
-    );
-  }, []);
+  /**
+   * Every quantity change in the cart funnels through here, which is why the
+   * stock ceiling is enforced HERE rather than in the stepper. A cap that lives
+   * in one control is a cap the next control forgets; this one holds however
+   * the number is arrived at.
+   */
+  const setQty = useCallback(
+    (lineKey: string, qty: number) => {
+      setCart((prev) =>
+        qty <= 0
+          ? prev.filter((l) => cartLineKey(l) !== lineKey)
+          : prev.map((l) => {
+              if (cartLineKey(l) !== lineKey) return l;
+              const ceiling = stockCeilingFor(productMap.get(l.id), l.itemId);
+              return { ...l, qty: ceiling == null ? qty : Math.min(qty, ceiling) };
+            }),
+      );
+    },
+    [productMap],
+  );
 
   const removeFromCart = useCallback((lineKey: string) => {
     setCart((prev) => prev.filter((l) => cartLineKey(l) !== lineKey));

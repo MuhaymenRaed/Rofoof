@@ -21,7 +21,12 @@ import { GuestBenefitsCard } from "@/components/checkout/guest-benefits-card";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
-import { CUSTOM_ORDER_COLOR, CUSTOM_TYPE_LABEL, deliveryFeeFor } from "@/lib/products";
+import {
+  CUSTOM_ORDER_COLOR,
+  CUSTOM_TYPE_LABEL,
+  deliveryFeeFor,
+  stockCeilingFor,
+} from "@/lib/products";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { placeOrderAction } from "@/lib/actions/orders";
 import { previewCouponAction, type CouponPreview } from "@/lib/actions/coupons";
@@ -694,10 +699,14 @@ export function CartDrawer() {
                         </button>
                       </div>
                       <div className="mt-auto flex items-center justify-between pt-2">
+                        {/* Quantities are chosen here, not on the package
+                            thumbnails, so this is where the ceiling shows: the
+                            + stops at whatever is left of this exact design. */}
                         <QtyStepper
                           value={line.qty}
                           onChange={(q) => setQty(key, q)}
                           min={1}
+                          max={stockCeilingFor(getProduct(line.id), line.itemId) ?? undefined}
                           size="sm"
                         />
                         <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>

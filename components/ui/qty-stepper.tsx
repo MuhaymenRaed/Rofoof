@@ -6,13 +6,17 @@ export function QtyStepper({
   value,
   onChange,
   min = 1,
+  max,
   size = "md",
 }: {
   value: number;
   onChange: (next: number) => void;
   min?: number;
+  /** units left — the + stops here. Undefined means no ceiling. */
+  max?: number;
   size?: "sm" | "md";
 }) {
+  const atMax = max != null && value >= max;
   const btn =
     size === "sm"
       ? "h-7 w-7"
@@ -33,7 +37,8 @@ export function QtyStepper({
         type="button"
         aria-label="+"
         onClick={() => onChange(value + 1)}
-        className={`tap grid ${btn} place-items-center rounded-lg text-ink-2 transition hover:bg-surface hover:text-brand`}
+        disabled={atMax}
+        className={`tap grid ${btn} place-items-center rounded-lg text-ink-2 transition hover:bg-surface hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-2`}
       >
         <Plus size={size === "sm" ? 14 : 16} />
       </button>
