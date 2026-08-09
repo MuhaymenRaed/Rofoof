@@ -47,6 +47,11 @@ export const dict = {
   // Sections
   "section.bestsellers": { ar: "الأكثر طلباً", en: "Best sellers" },
   "section.fresh": { ar: "وصل حديثاً", en: "Just landed" },
+
+  // Delivery notice (home page, under the best-sellers rail)
+  "delivery.title": { ar: "توصيل لكل محافظات العراق", en: "Delivery to every Iraqi province" },
+  "delivery.flat": { ar: "بأجرة ثابتة", en: "One flat fee" },
+  "delivery.karbala": { ar: "كربلاء", en: "Karbala" },
   "section.track": { ar: "تتبّع طلبك", en: "Track your order" },
   "section.viewAll": { ar: "عرض الكل", en: "View all" },
 
@@ -618,6 +623,11 @@ export const dict = {
   "dash.bulkPrice": {
     ar: "سعر موحّد لكل الصور",
     en: "One price for all images",
+  },
+  "dash.itemStock": { ar: "المخزون", en: "Stock" },
+  "dash.bulkStock": {
+    ar: "مخزون موحّد لكل الصور",
+    en: "One stock count for all images",
   },
   "dash.applyToAll": { ar: "طبّق على الكل", en: "Apply to all" },
   "dash.fixedAmount": { ar: "مبلغ", en: "Amount" },
