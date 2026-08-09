@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Trash, Droplet, Photo, Cube, Star } from "@/components/icons";
+import { X, Plus, Trash, Droplet, Photo, Cube, Star, Package } from "@/components/icons";
 import {
   canBeWaterproof,
   type CategoryInfo,
@@ -63,6 +63,8 @@ interface ImageRow {
   file?: File;
   preview?: string;
   price: string;
+  /** units left of this design (package products only); "" → inherits 0 */
+  stock: string;
 }
 
 function slugify(input: string, seed: number) {
@@ -148,6 +150,7 @@ export function ProductEditorModal({
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const [rows, setRows] = useState<ImageRow[]>([]);
   const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkStock, setBulkStock] = useState("");
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [catNameAr, setCatNameAr] = useState("");
@@ -208,10 +211,13 @@ export function ProductEditorModal({
           itemId: it.id,
           url: it.imageUrl,
           price: it.price === null ? "" : String(it.price),
+          // null = the stock column isn't in the database yet; leave the field
+          // blank rather than showing a 0 the admin never typed.
+          stock: it.stock === null ? "" : String(it.stock),
         })),
       );
     } else {
-      setRows((product?.images ?? []).map((url) => ({ url, price: "" })));
+      setRows((product?.images ?? []).map((url) => ({ url, price: "", stock: "" })));
     }
     setTiers(
       product?.tiers?.length
@@ -219,6 +225,7 @@ export function ProductEditorModal({
         : DEFAULT_TIERS,
     );
     setBulkPrice("");
+    setBulkStock("");
     setExtraCats([]);
     setExtraSubs([]);
     setExtraFandoms([]);
@@ -270,7 +277,7 @@ export function ProductEditorModal({
     const accepted = picked.slice(0, room);
     setRows((prev) => [
       ...prev,
-      ...accepted.map((f) => ({ file: f, preview: URL.createObjectURL(f), price: "" })),
+      ...accepted.map((f) => ({ file: f, preview: URL.createObjectURL(f), price: "", stock: "" })),
     ]);
     e.target.value = "";
   }
@@ -285,6 +292,10 @@ export function ProductEditorModal({
 
   function setRowPrice(i: number, value: string) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, price: value } : r)));
+  }
+
+  function setRowStock(i: number, value: string) {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, stock: value } : r)));
   }
 
   function setVolTier(i: number, field: "minQty" | "unitPrice", value: string) {
@@ -317,6 +328,13 @@ export function ProductEditorModal({
     const v = bulkPrice.trim();
     if (v === "") return;
     setRows((prev) => prev.map((r) => ({ ...r, price: v })));
+  }
+
+  /** Same idea for stock — a restock is usually the same count across designs. */
+  function applyBulkStock() {
+    const v = bulkStock.trim();
+    if (v === "") return;
+    setRows((prev) => prev.map((r) => ({ ...r, stock: v })));
   }
 
   function toggleCat(code: string) {
@@ -425,13 +443,13 @@ export function ProductEditorModal({
 
     startTransition(async () => {
       // upload new files to product-images/<id>/…
-      const finalRows: { itemId?: string; url: string; price: string }[] = [];
+      const finalRows: { itemId?: string; url: string; price: string; stock: string }[] = [];
       const toUpload = rows.filter((r) => r.file);
       if (toUpload.length > 0) setUploading(true);
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (r.url) {
-          finalRows.push({ itemId: r.itemId, url: r.url, price: r.price });
+          finalRows.push({ itemId: r.itemId, url: r.url, price: r.price, stock: r.stock });
           continue;
         }
         if (!r.file) continue;
@@ -456,6 +474,7 @@ export function ProductEditorModal({
         finalRows.push({
           url: supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl,
           price: r.price,
+          stock: r.stock,
         });
       }
       setUploading(false);
@@ -477,6 +496,7 @@ export function ProductEditorModal({
             id: r.itemId,
             imageUrl: r.url,
             price: r.price.trim() === "" ? null : Math.max(0, Number(r.price) || 0),
+            stock: Math.max(0, Number(r.stock) || 0),
           }))
         : [];
       const tiersPayload = isTiered
@@ -558,6 +578,7 @@ export function ProductEditorModal({
             nameAr: "",
             nameEn: "",
             price: it.price,
+            stock: it.stock,
           })),
           tiers: tiersPayload,
           soldOut: false,
@@ -789,15 +810,32 @@ export function ProductEditorModal({
                     )}
                   </div>
                   {isPackage && (
-                    <input
-                      type="number"
-                      min={0}
-                      value={r.price}
-                      onChange={(e) => setRowPrice(i, e.target.value)}
-                      placeholder={price || t("dash.itemPrice")}
-                      aria-label={t("dash.itemPrice")}
-                      className="dash-input h-8 px-2 text-center text-xs"
-                    />
+                    <>
+                      <input
+                        type="number"
+                        min={0}
+                        value={r.price}
+                        onChange={(e) => setRowPrice(i, e.target.value)}
+                        placeholder={price || t("dash.itemPrice")}
+                        aria-label={t("dash.itemPrice")}
+                        className="dash-input h-8 px-2 text-center text-xs"
+                      />
+                      {/* Stock sits directly under the price it belongs to, so a
+                          design's price and its remaining count read as one unit. */}
+                      <label className="flex items-center gap-1 rounded-lg border border-line-2 bg-surface-2/50 ps-2">
+                        <Package size={11} className="shrink-0 text-ink-3" />
+                        <input
+                          type="number"
+                          min={0}
+                          value={r.stock}
+                          onChange={(e) => setRowStock(i, e.target.value)}
+                          placeholder="0"
+                          aria-label={t("dash.itemStock")}
+                          title={t("dash.itemStock")}
+                          className="h-7 w-full min-w-0 bg-transparent px-1 text-center text-xs font-bold text-ink outline-none"
+                        />
+                      </label>
+                    </>
                   )}
                 </div>
               ))}
@@ -812,26 +850,48 @@ export function ProductEditorModal({
                 </button>
               )}
             </div>
-            {/* Bulk price: type once, apply to every image/item at once */}
+            {/* Bulk price / stock: type once, apply to every item at once —
+                a restock is nearly always the same count across every design. */}
             {isPackage && rows.length > 0 && (
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  value={bulkPrice}
-                  onChange={(e) => setBulkPrice(e.target.value)}
-                  placeholder={t("dash.bulkPrice")}
-                  aria-label={t("dash.bulkPrice")}
-                  className="dash-input h-9 flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={applyBulkPrice}
-                  disabled={bulkPrice.trim() === ""}
-                  className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
-                >
-                  {t("dash.applyToAll")}
-                </button>
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={bulkPrice}
+                    onChange={(e) => setBulkPrice(e.target.value)}
+                    placeholder={t("dash.bulkPrice")}
+                    aria-label={t("dash.bulkPrice")}
+                    className="dash-input h-9 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyBulkPrice}
+                    disabled={bulkPrice.trim() === ""}
+                    className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {t("dash.applyToAll")}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={bulkStock}
+                    onChange={(e) => setBulkStock(e.target.value)}
+                    placeholder={t("dash.bulkStock")}
+                    aria-label={t("dash.bulkStock")}
+                    className="dash-input h-9 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyBulkStock}
+                    disabled={bulkStock.trim() === ""}
+                    className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {t("dash.applyToAll")}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -849,8 +909,11 @@ export function ProductEditorModal({
             />
           </Field>
 
-          {/* Price / discount / stock */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Price / stock. A package has no single stock to speak of — each
+              design is counted separately above — so the field would be a
+              number with nothing behind it. It stays for one-photo products,
+              where the product IS the thing being counted. */}
+          <div className={`grid gap-3 ${isPackage ? "grid-cols-1" : "grid-cols-2"}`}>
             <Field label={t("dash.fieldPrice")}>
               <input
                 type="number"
@@ -861,15 +924,17 @@ export function ProductEditorModal({
                 required
               />
             </Field>
-            <Field label={t("dash.fieldStock")}>
-              <input
-                type="number"
-                min={0}
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
-                className="dash-input"
-              />
-            </Field>
+            {!isPackage && (
+              <Field label={t("dash.fieldStock")}>
+                <input
+                  type="number"
+                  min={0}
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  className="dash-input"
+                />
+              </Field>
+            )}
           </div>
 
           {/* Discount — a segmented control picks the unit, so the value field

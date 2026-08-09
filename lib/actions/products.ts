@@ -52,6 +52,8 @@ const upsertProductSchema = z.object({
         nameAr: z.string().trim().max(120).optional().default(""),
         nameEn: z.string().trim().max(120).optional().default(""),
         price: z.number().int().min(0).max(10_000_000).nullable().optional(),
+        /** units left of this design; the package's own stock column is unused */
+        stock: z.number().int().min(0).max(100000).optional().default(0),
       }),
     )
     .max(120)
@@ -161,12 +163,17 @@ export async function upsertProductAction(
   if (p.kind === "package") {
     const { error: itemsErr } = await supabase.rpc("admin_set_product_items", {
       p_id: p.id,
+      // `stock` rides along in the JSON unconditionally: admin_set_product_items
+      // reads the payload through jsonb_to_recordset, which ignores keys it has
+      // no column for. So this is inert until the RPC is taught about stock,
+      // rather than failing the save — the deploy doesn't wait on the migration.
       p_items: p.items.map((it, i) => ({
         id: it.id ?? null,
         image_url: it.imageUrl,
         name_ar: it.nameAr,
         name_en: it.nameEn,
         price: it.price ?? null,
+        stock: it.stock,
         sort_order: i,
       })),
     });

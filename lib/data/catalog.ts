@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   mapProduct,
   mapOffer,
-  PRODUCT_SELECT,
+  selectProducts,
   type ProductRowWithFandoms,
   type OfferRowLike,
 } from "./mappers";
@@ -31,11 +31,13 @@ import type {
 const cachedProducts = unstable_cache(
   async (): Promise<Product[]> => {
     const supabase = createAnonClient();
-    const { data, error } = await supabase
-      .from("products")
-      .select(PRODUCT_SELECT)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: false });
+    const { data, error } = await selectProducts((select) =>
+      supabase
+        .from("products")
+        .select(select)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: false }),
+    );
     if (error) throw error;
     // hand-written types don't model PostgREST embeds; the DB FK resolves it
     return (data as unknown as ProductRowWithFandoms[]).map(mapProduct);

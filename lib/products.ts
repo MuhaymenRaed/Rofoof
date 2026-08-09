@@ -50,6 +50,29 @@ export interface ProductItem {
   nameEn: string;
   /** null → inherits the parent product's price */
   price: number | null;
+  /**
+   * Units left of THIS design, or null when the column isn't in the database
+   * yet. null means "not tracked", never "none left": schema and code land at
+   * different times here, so mapping an absent column to 0 would read as sold
+   * out and grey out every design in the shop the moment this deployed ahead of
+   * its migration. Unknown has to fail open.
+   */
+  stock: number | null;
+}
+
+/** Units left of a design, treating "not tracked" as freely available. */
+export function itemInStock(item: Pick<ProductItem, "stock">): boolean {
+  return item.stock === null || item.stock > 0;
+}
+
+/**
+ * Whether a package has anything left to sell. A package is only sold out once
+ * every one of its designs is — a single design running out must not take the
+ * whole product off the shelf.
+ */
+export function packageSoldOut(p: Pick<Product, "kind" | "items">): boolean {
+  if (p.kind !== "package" || p.items.length === 0) return false;
+  return p.items.every((i) => !itemInStock(i));
 }
 
 /** "min_qty and above → this unit price". */

@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { mapProduct, PRODUCT_SELECT, type ProductRowWithFandoms } from "./mappers";
+import { mapProduct, selectProducts, type ProductRowWithFandoms } from "./mappers";
 import type { Product, OrderStatus } from "@/lib/products";
 
 export interface TopProduct {
@@ -323,12 +323,14 @@ export interface InventoryPage {
  */
 export async function getInventory(offset = 0, limit = 30): Promise<InventoryPage> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("is_deleted", false) // deleted products are soft-deleted; never list them
-    .order("sort_order", { ascending: false })
-    .range(offset, offset + limit);
+  const { data, error } = await selectProducts((select) =>
+    supabase
+      .from("products")
+      .select(select)
+      .eq("is_deleted", false) // deleted products are soft-deleted; never list them
+      .order("sort_order", { ascending: false })
+      .range(offset, offset + limit),
+  );
 
   if (error || !data) {
     console.error("[dashboard] inventory:", error);

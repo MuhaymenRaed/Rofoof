@@ -19,11 +19,43 @@ import type { OrderItemRow, OrderRow, ProductRow } from "@/lib/supabase/types";
  * category/fandom codes, package items, and volume-price tiers. Shared by the
  * public catalog and the admin inventory so the embed can never drift.
  */
-export const PRODUCT_SELECT =
+const productSelect = (itemColumns: string) =>
   "*, product_fandoms(fandom_code), product_categories(category_code), " +
   "product_subcategories(subcategory_code), " +
-  "product_items(id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted), " +
+  `product_items(${itemColumns}), ` +
   "product_price_tiers(min_qty, unit_price)";
+
+const ITEM_COLUMNS = "id, image_url, name_ar, name_en, price, sort_order, is_active, is_deleted";
+
+export const PRODUCT_SELECT = productSelect(`${ITEM_COLUMNS}, stock`);
+
+/**
+ * The same select without per-item stock, for the window where this code is
+ * live but `ALTER TABLE product_items ADD COLUMN stock` has not been run yet.
+ * PostgREST rejects the WHOLE query when one embedded column is unknown, so
+ * without this every product read — the entire storefront — would fail.
+ */
+export const PRODUCT_SELECT_LEGACY = productSelect(ITEM_COLUMNS);
+
+/** PostgREST's undefined_column, i.e. "the migration hasn't been run yet". */
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "42703" || /column .*stock.* does not exist/i.test(error.message ?? "");
+}
+
+/**
+ * Run a products query with per-item stock, falling back to the old column set
+ * if the database hasn't got there yet. Schema and code deploy independently in
+ * this project and in either order, so the read has to tolerate both shapes —
+ * see the database note in AGENTS.md.
+ */
+export async function selectProducts<T>(
+  run: (select: string) => PromiseLike<{ data: T[] | null; error: { code?: string; message?: string } | null }>,
+): Promise<{ data: T[] | null; error: { code?: string; message?: string } | null }> {
+  const withStock = await run(PRODUCT_SELECT);
+  if (!isMissingColumn(withStock.error)) return withStock;
+  return run(PRODUCT_SELECT_LEGACY);
+}
 
 /** A products row joined with its fandom/category codes, items and tiers. */
 export type ProductRowWithFandoms = ProductRow & {
@@ -37,6 +69,8 @@ export type ProductRowWithFandoms = ProductRow & {
         name_ar: string;
         name_en: string;
         price: number | null;
+        /** absent on the legacy select — see PRODUCT_SELECT_LEGACY */
+        stock?: number | null;
         sort_order: number;
         is_active: boolean;
         is_deleted: boolean;
@@ -58,6 +92,9 @@ export function mapProduct(row: ProductRowWithFandoms): Product {
       nameAr: i.name_ar,
       nameEn: i.name_en,
       price: i.price,
+      // `?? null` and never `?? 0`: an absent column means the migration hasn't
+      // run, which is "not tracked", not "sold out". See ProductItem.stock.
+      stock: i.stock ?? null,
     }));
 
   const tiers: PriceTier[] = (row.product_price_tiers ?? [])

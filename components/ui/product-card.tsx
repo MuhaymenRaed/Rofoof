@@ -11,7 +11,7 @@ import { Pencil } from "@/components/dashboard/dash-icons";
 import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { discountView } from "@/lib/pricing";
-import { hasVariablePrice, type Product } from "@/lib/products";
+import { hasVariablePrice, packageSoldOut, type Product } from "@/lib/products";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -38,12 +38,16 @@ export function ProductCard({
   const sale = discountView(product, offers, now);
   const showFrom = hasVariablePrice(product);
   const isPackage = product.kind === "package" && product.items.length > 0;
+  // A package runs out only when every design inside it has. Deliberately no
+  // count on the card: the card is the package, and a package has no single
+  // number — the per-design counts live in the quick view, admin-only.
+  const soldOut = product.soldOut || packageSoldOut(product);
 
   const style: CSSVars = { "--c": product.color };
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
-    if (product.soldOut) return;
+    if (soldOut) return;
     // Packages need an item choice (and tiered products benefit from the
     // quantity ladder) — open the quick view instead of blind-adding.
     if (isPackage || product.kind === "tiered") {
@@ -86,7 +90,7 @@ export function ProductCard({
           </span>
         )}
 
-        {product.soldOut && (
+        {soldOut && (
           <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--surface)_72%,transparent)]">
             <span className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-bold text-surface">
               {t("badge.soldout")}
@@ -165,7 +169,7 @@ export function ProductCard({
           <button
             type="button"
             onClick={handleAdd}
-            disabled={product.soldOut}
+            disabled={soldOut}
             aria-label={t("product.add")}
             className="tap grid h-9 w-9 shrink-0 place-items-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-40"
             style={{

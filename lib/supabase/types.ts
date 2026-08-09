@@ -222,6 +222,8 @@ export interface Database {
           name_ar: string;
           name_en: string;
           price: number | null;
+          /** units left of THIS design; absent until the migration lands */
+          stock?: number;
           sort_order: number;
           is_active: boolean;
           is_deleted: boolean;
@@ -233,6 +235,7 @@ export interface Database {
           name_ar?: string;
           name_en?: string;
           price?: number | null;
+          stock?: number;
           sort_order?: number;
           is_active?: boolean;
         };

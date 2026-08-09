@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/components/providers/store-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 import {
   X,
   Heart,
@@ -22,7 +23,7 @@ import { tintedBlurDataUrl } from "@/components/ui/product-media";
 import { RetryImage } from "@/components/ui/retry-image";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
-import { tierUnitPrice, type Product } from "@/lib/products";
+import { itemInStock, packageSoldOut, tierUnitPrice, type Product } from "@/lib/products";
 import {
   bundleOfferFor,
   discountView,
@@ -64,6 +65,8 @@ export function QuickViewModal() {
 function Content({ product, onClose }: { product: Product; onClose: () => void }) {
   const { lang, t, addToCart, openCart, isWished, toggleWish, offers, volumeTiers, now } =
     useStore();
+  // Stock counts are shown to the shop, not to the shopper — see the picker grid.
+  const { isAdmin, ready } = useAuth();
   const supabase = createSupabaseBrowserClient();
   const customFileRef = useRef<HTMLInputElement>(null);
 
@@ -73,10 +76,16 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   // Standard/tiered use a single quantity; a package keeps a per-item quantity
   // map so the buyer can pick several distinct designs from the one package.
   const [qty, setQty] = useState(1);
+  // Open on the first design that can actually be bought, not simply the first
+  // one: preselecting something sold out would put the modal in a state the
+  // shopper can't check out from and can't see the cause of.
+  const firstAvailable = isPackage
+    ? (product.items.find(itemInStock) ?? product.items[0])
+    : undefined;
   const [selections, setSelections] = useState<Record<string, number>>(
-    isPackage ? { [product.items[0].id]: 1 } : {},
+    firstAvailable && itemInStock(firstAvailable) ? { [firstAvailable.id]: 1 } : {},
   );
-  const [previewId, setPreviewId] = useState<string | null>(isPackage ? product.items[0].id : null);
+  const [previewId, setPreviewId] = useState<string | null>(firstAvailable?.id ?? null);
   const [note, setNote] = useState("");
   const [added, setAdded] = useState(false);
   const [waterproof, setWaterproof] = useState(false);
@@ -142,7 +151,10 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   // already inside both figures, so the percentage is off what's really paid.
   const savedAmount = Math.max(displayBase - displayTotal, 0);
   const savedPercent = displayBase > 0 ? Math.round((savedAmount / displayBase) * 100) : 0;
-  const canAdd = !product.soldOut && (isPackage ? packageCount > 0 : true);
+  // A package whose every design has run out cannot be added at all, however
+  // the product row itself is flagged.
+  const soldOut = product.soldOut || packageSoldOut(product);
+  const canAdd = !soldOut && (isPackage ? packageCount > 0 : true);
 
   // Left media: the previewed package item, or the gallery image.
   const previewItem = isPackage ? product.items.find((it) => it.id === previewId) : undefined;
@@ -151,10 +163,14 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     : product.images[galleryIndex] ?? product.images[0];
 
   function setItemQty(itemId: string, next: number) {
+    // Never let the stepper climb past what's actually left of THIS design.
+    // A null stock means the column isn't there yet, so the old ceiling stands.
+    const item = product?.items.find((i) => i.id === itemId);
+    const ceiling = item?.stock != null ? Math.min(99, item.stock) : 99;
     setSelections((prev) => {
       const copy = { ...prev };
       if (next <= 0) delete copy[itemId];
-      else copy[itemId] = Math.min(99, next);
+      else copy[itemId] = Math.min(ceiling, next);
       return copy;
     });
     if (next > 0) setPreviewId(itemId);
@@ -286,9 +302,19 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             />
           </>
         )}
-        {product.soldOut && (
+        {soldOut && (
           <span className="absolute bottom-5 z-20 rounded-full bg-ink px-4 py-2 text-xs font-bold text-surface">
             {t("badge.soldout")}
+          </span>
+        )}
+        {/* One-photo products keep counting themselves, so the admin gets the
+            same at-a-glance number here that each design gets in a package. */}
+        {ready && isAdmin && !isPackage && product.stock != null && (
+          <span
+            className="absolute top-3 start-3 z-20 rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-black text-surface backdrop-blur-[1px]"
+            title={t("dash.itemStock")}
+          >
+            {product.stock}
           </span>
         )}
       </div>
@@ -406,11 +432,13 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 // Volume-priced: every design costs the current tier price,
                 // which drops as the buyer picks more.
                 const itemPrice = volumeUnit ?? it.price ?? product.price;
+                const out = !itemInStock(it);
+                const atCeiling = it.stock != null && q >= it.stock;
                 return (
                   <div
                     key={it.id}
                     className={`relative overflow-hidden rounded-xl border-2 transition ${
-                      on ? "border-brand" : "border-line-2"
+                      out ? "border-line-2 opacity-55 grayscale" : on ? "border-brand" : "border-line-2"
                     }`}
                   >
                     <button
@@ -419,7 +447,8 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                       onMouseEnter={() => setPreviewId(it.id)}
                       aria-label={itemName || name}
                       aria-pressed={on}
-                      className="tap block aspect-square w-full"
+                      disabled={out}
+                      className="tap block aspect-square w-full disabled:cursor-not-allowed"
                     >
                       <RetryImage
                         src={it.imageUrl}
@@ -436,11 +465,33 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                           </span>
                         }
                       />
-                      {on && (
+                      {on && !out && (
                         <span className="absolute inset-0 grid place-items-center bg-brand/25">
                           <span className="grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow">
                             <Check size={14} />
                           </span>
+                        </span>
+                      )}
+
+                      {/* Sold out is the one stock fact a shopper gets to see:
+                          it explains why the design can't be picked. The count
+                          behind it is the shop's business, not theirs. */}
+                      {out && (
+                        <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--surface)_65%,transparent)]">
+                          <span className="rounded-full bg-ink px-2 py-0.5 text-[9px] font-black text-surface">
+                            {t("badge.soldout")}
+                          </span>
+                        </span>
+                      )}
+
+                      {/* Admin-only: how many are left, so stock can be tracked
+                          from the same screen the shopper sees. */}
+                      {ready && isAdmin && it.stock != null && !out && (
+                        <span
+                          className="absolute top-1 start-1 min-w-4 rounded-full bg-ink/80 px-1 text-center text-[9px] font-black text-surface backdrop-blur-[1px]"
+                          title={t("dash.itemStock")}
+                        >
+                          {it.stock}
                         </span>
                       )}
                     </button>
@@ -462,8 +513,9 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                           <button
                             type="button"
                             onClick={() => setItemQty(it.id, q + 1)}
+                            disabled={atCeiling}
                             aria-label={t("product.add")}
-                            className="tap grid h-4 w-4 place-items-center rounded bg-surface-2 text-ink-2 hover:text-brand"
+                            className="tap grid h-4 w-4 place-items-center rounded bg-surface-2 text-ink-2 hover:text-brand disabled:opacity-35 disabled:hover:text-ink-2"
                           >
                             <Plus size={10} />
                           </button>
@@ -665,7 +717,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             disabled={!canAdd || uploadingCustom}
             className="tap flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-ink-3"
           >
-            {product.soldOut ? (
+            {soldOut ? (
               t("product.soldout")
             ) : added ? (
               <>
