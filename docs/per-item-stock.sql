@@ -154,6 +154,48 @@ select tgname as trigger_name,
 
 
 -- ============================================================================
+--  STEP 3.6 — Why some products aren't at 5 any more
+-- ============================================================================
+--  You sorted products by stock and saw 0, 1, 3, 4, 4 among the 5s, and read
+--  that as STEP 2 having missed some rows. It didn't — that update has no way
+--  to skip a row. Those products have been SOLD DOWN since you ran it.
+--
+--  Until STEP 6 is applied, place_order() still takes stock the moment an order
+--  is PLACED. Every test order you made came straight off these numbers. A
+--  product at 1 has had four pieces ordered; the one at 0 hit zero, which is
+--  what set its sold_out flag and stranded it.
+--
+--  RUN THIS FIRST — it tells you which explanation is true. If `expected`
+--  matches `stock` on every row, the numbers are simply the result of orders
+--  and nothing is broken:
+-- ----------------------------------------------------------------------------
+
+select p.id,
+       p.name_ar,
+       p.stock,
+       coalesce(sum(oi.qty), 0)          as units_ordered,
+       5 - coalesce(sum(oi.qty), 0)      as expected,
+       p.sold_out
+  from public.products p
+  left join public.order_items oi on oi.product_id = p.id
+ where p.is_deleted = false
+   and p.stock <> 5
+ group by p.id, p.name_ar, p.stock, p.sold_out
+ order by p.stock;
+
+--  To put everything back to 5 and clear the stranded flags, re-run STEP 2 and
+--  STEP 3.5. Do that AFTER applying STEP 5 and STEP 6, or ordinary orders will
+--  start eating into the numbers again straight away.
+--
+--  Note the packages: a package's own products.stock is meaningless now (its
+--  designs carry the counts), but place_order was still decrementing it, which
+--  is exactly what dragged packages into the dashboard's "out of stock" figure.
+--  The dashboard no longer reads that column — it adds up the designs — so that
+--  particular wrong number is already fixed in the app, with no SQL needed.
+
+
+
+-- ============================================================================
 --  STEP 4 — (optional) Health check
 -- ============================================================================
 --  Run this any time to see the stock numbers the shop is working from.

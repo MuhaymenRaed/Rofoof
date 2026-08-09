@@ -1,7 +1,8 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapProduct, selectProducts, type ProductRowWithFandoms } from "./mappers";
-import type { Product, OrderStatus } from "@/lib/products";
+import { LOW_STOCK_AT, totalStockFor, type Product, type OrderStatus } from "@/lib/products";
+import { getProducts } from "./catalog";
 
 export interface TopProduct {
   id: string;
@@ -127,11 +128,39 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const d = data as Record<string, unknown>;
   const n = (key: string) => Number(d[key] ?? 0);
   const top = Array.isArray(d.top_products) ? (d.top_products as Record<string, unknown>[]) : [];
+
+  /**
+   * The three stock counts are recomputed here instead of taken from the RPC.
+   *
+   * dashboard_stats() predates per-design stock, so it can only count
+   * products.stock — which means nothing for a package. Every package order
+   * drags that column down while the designs themselves stay full, so packages
+   * slide into "out of stock" and stay there, and no amount of resetting the
+   * data brings them back. Counting from the catalogue, where a package is the
+   * sum of its designs, is the only figure that stays true.
+   *
+   * Everything else still comes from the RPC.
+   */
+  const products = await getProducts();
+  const counts = products.reduce(
+    (acc, p) => {
+      const stock = totalStockFor(p);
+      if (stock === null) return acc; // not tracked yet — counts as neither
+      if (stock === 0) acc.out += 1;
+      else {
+        acc.in += 1;
+        if (stock <= LOW_STOCK_AT) acc.low += 1;
+      }
+      return acc;
+    },
+    { in: 0, low: 0, out: 0 },
+  );
+
   return {
-    inStock: n("in_stock"),
+    inStock: counts.in,
     totalProducts: n("total_products"),
-    lowStock: n("low_stock"),
-    outOfStock: n("out_of_stock"),
+    lowStock: counts.low,
+    outOfStock: counts.out,
     onDiscount: n("on_discount"),
     newUsers: n("new_users"),
     totalCustomers: n("total_customers"),

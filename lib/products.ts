@@ -86,6 +86,36 @@ export function stockCeilingFor(
 }
 
 /**
+ * At or below this many pieces, a product is flagged as running low — in the
+ * inventory list and in the dashboard's KPI card, from this one definition.
+ * It used to live inside dashboard_stats() where nothing could see it.
+ */
+export const LOW_STOCK_AT = 3;
+
+/**
+ * Pieces on the shelf for a whole product: a package counts its designs, and
+ * anything else counts itself.
+ *
+ * This is the number that matters now, and it's why the dashboard's stock KPIs
+ * are worked out in the app rather than read from dashboard_stats(). That RPC
+ * predates per-design stock, so it can only be reading products.stock — a
+ * column that means nothing for a package. Every order taken drags a package's
+ * own stock down while its designs stay full, so packages drift into the
+ * "out of stock" count and sit there. No amount of resetting the data fixes
+ * that; the sum is the only honest figure.
+ *
+ * null means not tracked (the column isn't there yet) — never zero.
+ */
+export function totalStockFor(p: Product): number | null {
+  if (p.kind === "package" && p.items.length > 0) {
+    const counted = p.items.filter((i) => i.stock != null);
+    if (counted.length === 0) return null;
+    return counted.reduce((sum, i) => sum + (i.stock ?? 0), 0);
+  }
+  return p.stock ?? null;
+}
+
+/**
  * Whether a package has anything left to sell. A package is only sold out once
  * every one of its designs is — a single design running out must not take the
  * whole product off the shelf.
