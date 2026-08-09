@@ -49,8 +49,11 @@ export const dict = {
   "section.fresh": { ar: "وصل حديثاً", en: "Just landed" },
 
   // Delivery notice (home page, directly under the hero)
-  "delivery.title": { ar: "يطبق خصم على التوصيل", en: "A delivery discount applies" },
-  "delivery.flat": { ar: "الحد الأدنى لقيمة الطلب", en: "Minimum order value" },
+  "delivery.title": {
+    ar: "يطبق خصم توصيل",
+    en: "A delivery discount applies",
+  },
+  "delivery.flat": { ar: "بحد ادنى للطلب", en: "Minimum order value" },
   "section.track": { ar: "تتبّع طلبك", en: "Track your order" },
   "section.viewAll": { ar: "عرض الكل", en: "View all" },
 
@@ -911,12 +914,18 @@ export const dict = {
   },
   /* Connection trouble. Worded so a shopper blames their signal, not the shop —
      and always says what to do next, not just what went wrong. */
-  "net.offline": { ar: "لا يوجد اتصال بالإنترنت", en: "No internet connection" },
+  "net.offline": {
+    ar: "لا يوجد اتصال بالإنترنت",
+    en: "No internet connection",
+  },
   "net.checkOffline": {
     ar: "جهازك غير متصل بالإنترنت. شغّل الواي فاي أو بيانات الهاتف، ثم أعد تحميل الصفحة.",
     en: "Your device is offline. Turn on Wi-Fi or mobile data, then reload the page.",
   },
-  "net.imageFailed": { ar: "تعذّر تحميل الصورة", en: "Couldn't load the image" },
+  "net.imageFailed": {
+    ar: "تعذّر تحميل الصورة",
+    en: "Couldn't load the image",
+  },
   "net.checkWeak": {
     ar: "يبدو أن اتصالك بالإنترنت ضعيف. تحقّق من الاتصال ثم أعد تحميل الصفحة.",
     en: "Your internet connection looks weak. Check it, then reload the page.",
@@ -1002,7 +1011,10 @@ export const dict = {
     ar: "يجب أن يبدأ الرقم بـ07 ويتكوّن من 11 رقماً (مثال: 07701234567)",
     en: "Must start with 07 and be 11 digits (e.g. 07701234567)",
   },
-  "checkout.phone2": { ar: "رقم هاتف احتياطي (اختياري)", en: "Backup phone (optional)" },
+  "checkout.phone2": {
+    ar: "رقم هاتف احتياطي (اختياري)",
+    en: "Backup phone (optional)",
+  },
   "checkout.phone2Short": { ar: "احتياطي", en: "backup" },
   "checkout.phone2Hint": {
     ar: "رقم بديل نتواصل به إذا تعذّر الوصول إليك على الرقم الأول.",
