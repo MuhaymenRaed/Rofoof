@@ -1,7 +1,7 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapProduct, selectProducts, type ProductRowWithFandoms } from "./mappers";
-import { LOW_STOCK_AT, totalStockFor, type Product, type OrderStatus } from "@/lib/products";
+import { LOW_STOCK_BELOW, totalStockFor, type Product, type OrderStatus } from "@/lib/products";
 import { getProducts } from "./catalog";
 
 export interface TopProduct {
@@ -149,7 +149,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       if (stock === 0) acc.out += 1;
       else {
         acc.in += 1;
-        if (stock <= LOW_STOCK_AT) acc.low += 1;
+        if (stock < LOW_STOCK_BELOW) acc.low += 1;
       }
       return acc;
     },

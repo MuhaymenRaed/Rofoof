@@ -7,7 +7,7 @@ import { ProductEditorModal } from "@/components/dashboard/product-editor-modal"
 import { Pencil } from "@/components/dashboard/dash-icons";
 import { Plus } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { LOW_STOCK_AT, effectivePrice, totalStockFor, type Product } from "@/lib/products";
+import { LOW_STOCK_BELOW, effectivePrice, totalStockFor, type Product } from "@/lib/products";
 import { usePaginatedList } from "@/lib/hooks/use-paginated-list";
 import { setProductActiveAction, loadMoreInventoryAction } from "@/lib/actions/products";
 
@@ -130,7 +130,7 @@ export function InventoryView({
                   className={`shrink-0 rounded-lg px-2 py-1 text-xs font-black tabular-nums ${
                     empty
                       ? "bg-red-500/10 text-red-500"
-                      : stock <= LOW_STOCK_AT
+                      : stock < LOW_STOCK_BELOW
                         ? "bg-amber-500/10 text-amber-600"
                         : "bg-surface-2 text-ink-2"
                   }`}

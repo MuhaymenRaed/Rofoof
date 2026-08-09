@@ -86,11 +86,14 @@ export function stockCeilingFor(
 }
 
 /**
- * At or below this many pieces, a product is flagged as running low — in the
+ * Under this many pieces, a product is flagged as running low — in the
  * inventory list and in the dashboard's KPI card, from this one definition.
  * It used to live inside dashboard_stats() where nothing could see it.
+ *
+ * Named "below" and compared with `<`, so the boundary can't drift: 4 is low,
+ * 5 is not. Zero is counted as out of stock, not low, at both call sites.
  */
-export const LOW_STOCK_AT = 3;
+export const LOW_STOCK_BELOW = 5;
 
 /**
  * Pieces on the shelf for a whole product: a package counts its designs, and
