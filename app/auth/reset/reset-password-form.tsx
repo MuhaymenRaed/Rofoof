@@ -1,11 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Sparkles, Check, X } from "@/components/icons";
+import { Check, X } from "@/components/icons";
 
 type Status = "verifying" | "ready" | "invalid" | "done";
 
@@ -124,8 +125,10 @@ export function ResetPasswordForm() {
         {status === "ready" && (
           <>
             <div className="mb-6 text-center">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand">
-                <Sparkles size={24} />
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft">
+                {/* Same mark as the header, so signing in clearly belongs to rofoof.
+                    Bundled asset, so plain next/image — nothing to retry. */}
+                <Image src="/logo.png" alt="" width={34} height={34} loading="eager" className="h-8 w-8 object-contain" />
               </div>
               <h1 className="mt-4 text-xl font-black text-ink">{t("reset.newTitle")}</h1>
               <p className="mt-1 text-sm text-ink-3">{t("reset.newSub")}</p>

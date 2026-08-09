@@ -1,10 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/components/providers/store-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Sparkles, Check } from "@/components/icons";
+import { Check } from "@/components/icons";
 
 export function ForgotPasswordForm() {
   const { t } = useStore();
@@ -57,8 +58,10 @@ export function ForgotPasswordForm() {
         ) : (
           <>
             <div className="mb-6 text-center">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand">
-                <Sparkles size={24} />
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft">
+                {/* Same mark as the header, so signing in clearly belongs to rofoof.
+                    Bundled asset, so plain next/image — nothing to retry. */}
+                <Image src="/logo.png" alt="" width={34} height={34} loading="eager" className="h-8 w-8 object-contain" />
               </div>
               <h1 className="mt-4 text-xl font-black text-ink">{t("reset.requestTitle")}</h1>
               <p className="mt-1 text-sm text-ink-3">{t("reset.requestSub")}</p>

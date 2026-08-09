@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,7 +9,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
 import { safeNextPath } from "@/lib/safe-redirect";
 import { signInAction } from "@/lib/actions/auth";
-import { Sparkles } from "@/components/icons";
 import type { DictKey } from "@/lib/i18n";
 import type { AuthError } from "@supabase/supabase-js";
 
@@ -164,8 +164,10 @@ export function LoginForm() {
     <div className="mx-auto grid min-h-[70vh] max-w-md place-items-center px-4 py-10">
       <div className="w-full rounded-3xl border border-line-2 bg-surface p-7 card-shadow">
         <div className="mb-6 text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand">
-            <Sparkles size={24} />
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft">
+            {/* Same mark as the header, so signing in clearly belongs to rofoof.
+                Bundled asset, so plain next/image — nothing to retry. */}
+            <Image src="/logo.png" alt="" width={34} height={34} loading="eager" className="h-8 w-8 object-contain" />
           </div>
           <h1 className="mt-4 text-xl font-black text-ink">
             {isSignup ? t("auth.signupTitle") : t("auth.signinTitle")}
