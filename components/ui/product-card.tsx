@@ -11,7 +11,7 @@ import { Pencil } from "@/components/dashboard/dash-icons";
 import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { discountView } from "@/lib/pricing";
-import { hasVariablePrice, packageSoldOut, type Product } from "@/lib/products";
+import { hasVariablePrice, isSoldOut, type Product } from "@/lib/products";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -38,10 +38,10 @@ export function ProductCard({
   const sale = discountView(product, offers, now);
   const showFrom = hasVariablePrice(product);
   const isPackage = product.kind === "package" && product.items.length > 0;
-  // A package runs out only when every design inside it has. Deliberately no
-  // count on the card: the card is the package, and a package has no single
+  // From the count, not the stale sold_out flag — see isSoldOut(). Deliberately
+  // no count on the card: the card is the package, and a package has no single
   // number — the per-design counts live in the quick view, admin-only.
-  const soldOut = product.soldOut || packageSoldOut(product);
+  const soldOut = isSoldOut(product);
 
   const style: CSSVars = { "--c": product.color };
 

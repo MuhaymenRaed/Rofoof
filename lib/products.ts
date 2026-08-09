@@ -75,6 +75,27 @@ export function packageSoldOut(p: Pick<Product, "kind" | "items">): boolean {
   return p.items.every((i) => !itemInStock(i));
 }
 
+/**
+ * Whether a product is out of stock, from the count rather than the flag.
+ *
+ * `products.sold_out` is written by the DATABASE when stock reaches zero and is
+ * never cleared when stock comes back. Nothing in this app writes it — the
+ * editor has no control for it and upsertProductAction doesn't touch it — so
+ * once it was set there was no way to unset it: restocking a product to 5 left
+ * it greyed out and unbuyable with "5" showing on it.
+ *
+ * The count is the thing the admin actually controls, so the count decides.
+ * A tracked stock therefore overrides the flag entirely, and marking something
+ * unavailable by hand is done by setting its stock to 0 — one number, one
+ * meaning. The flag is still honoured for anything with no count at all.
+ */
+export function isSoldOut(p: Product): boolean {
+  // A package is its designs; the row's own stock and flag say nothing about it.
+  if (p.kind === "package" && p.items.length > 0) return packageSoldOut(p);
+  if (p.stock != null) return p.stock <= 0;
+  return p.soldOut ?? false;
+}
+
 /** "min_qty and above → this unit price". */
 export interface PriceTier {
   minQty: number;

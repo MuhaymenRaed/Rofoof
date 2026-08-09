@@ -97,11 +97,17 @@ export type UpsertProductInput = z.input<typeof upsertProductSchema>;
  * isn't there yet, which is not a failure — the save still stands).
  */
 async function writeItemStock(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   productId: string,
   items: { imageUrl: string; stock: number }[],
 ): Promise<string | null> {
   if (items.length === 0) return null;
+
+  // Service role deliberately. admin_set_product_items is SECURITY DEFINER, so
+  // it writes these rows with the function's rights; a plain update from the
+  // request-scoped client is subject to RLS instead, and an update that matches
+  // no rows under RLS reports no error — it just silently does nothing. Stock
+  // that quietly fails to save is worse than stock that fails loudly.
+  const supabase = createAdminClient();
 
   const { data: saved, error: readErr } = await supabase
     .from("product_items")
@@ -228,7 +234,7 @@ export async function upsertProductAction(
     });
     if (itemsErr) return { ok: false, error: itemsErr.message };
 
-    const stockErr = await writeItemStock(supabase, p.id, p.items);
+    const stockErr = await writeItemStock(p.id, p.items);
     if (stockErr) return { ok: false, error: stockErr };
   }
 

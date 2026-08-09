@@ -23,7 +23,7 @@ import { tintedBlurDataUrl } from "@/components/ui/product-media";
 import { RetryImage } from "@/components/ui/retry-image";
 import { Countdown } from "@/components/ui/countdown";
 import { formatPrice } from "@/lib/format";
-import { itemInStock, packageSoldOut, tierUnitPrice, type Product } from "@/lib/products";
+import { isSoldOut, itemInStock, tierUnitPrice, type Product } from "@/lib/products";
 import {
   bundleOfferFor,
   discountView,
@@ -151,9 +151,10 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   // already inside both figures, so the percentage is off what's really paid.
   const savedAmount = Math.max(displayBase - displayTotal, 0);
   const savedPercent = displayBase > 0 ? Math.round((savedAmount / displayBase) * 100) : 0;
-  // A package whose every design has run out cannot be added at all, however
-  // the product row itself is flagged.
-  const soldOut = product.soldOut || packageSoldOut(product);
+  // From the count, never the sold_out flag: the database sets that flag when
+  // stock reaches zero and nothing in this app can clear it, so a restocked
+  // product stayed unbuyable with its new count showing on it. See isSoldOut().
+  const soldOut = isSoldOut(product);
   const canAdd = !soldOut && (isPackage ? packageCount > 0 : true);
 
   // Left media: the previewed package item, or the gallery image.

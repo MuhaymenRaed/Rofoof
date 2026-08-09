@@ -109,6 +109,46 @@ alter table public.settings
 
 
 -- ============================================================================
+--  STEP 3.5 — Clear the stuck "sold out" flags   ← RUN THIS, it fixes a bug
+-- ============================================================================
+--  THE BUG YOU HIT
+--  A product went to 0, went grey, and STAYED grey after you restocked it —
+--  showing "5" in the corner while refusing to sell.
+--
+--  WHY
+--  `products.sold_out` is a separate true/false column from `stock`. Something
+--  in the database sets it to true when stock reaches 0, and nothing sets it
+--  back. The website has never had a control for it either — the product
+--  editor cannot change it and never writes it — so once it was set, there was
+--  no way from the app to unset it. Restocking changed `stock` and left
+--  `sold_out` stuck on true.
+--
+--  THE FIX
+--  Already deployed on the website: it now decides from the COUNT and ignores
+--  that flag entirely, so restocking works immediately with no SQL. This step
+--  just tidies the column so the database agrees with what the site shows.
+--
+--  FROM NOW ON: to mark something unavailable by hand, set its stock to 0.
+--  One number, one meaning.
+-- ----------------------------------------------------------------------------
+
+update public.products
+   set sold_out = false
+ where sold_out = true
+   and stock > 0;
+
+--  Optional: find whatever is setting the flag, if you want it gone for good.
+--  Anything listed here is a trigger on the products table.
+
+select tgname as trigger_name,
+       pg_get_triggerdef(t.oid) as definition
+  from pg_trigger t
+ where t.tgrelid = 'public.products'::regclass
+   and not t.tgisinternal;
+
+
+
+-- ============================================================================
 --  STEP 4 — (optional) Health check
 -- ============================================================================
 --  Run this any time to see the stock numbers the shop is working from.
