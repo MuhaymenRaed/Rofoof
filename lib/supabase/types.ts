@@ -490,6 +490,8 @@ export interface Database {
           promo_code: string | null;
           delivery_fee_default: number;
           delivery_fee_karbala: number;
+          /** home-page delivery banner on/off; absent until the migration lands */
+          delivery_notice_active?: boolean;
           stat_followers: string;
           stat_products: string;
           stat_rating: string;
@@ -505,6 +507,7 @@ export interface Database {
           promo_code?: string | null;
           delivery_fee_default?: number;
           delivery_fee_karbala?: number;
+          delivery_notice_active?: boolean;
           stat_followers?: string;
           stat_products?: string;
           stat_rating?: string;

@@ -48,10 +48,9 @@ export const dict = {
   "section.bestsellers": { ar: "الأكثر طلباً", en: "Best sellers" },
   "section.fresh": { ar: "وصل حديثاً", en: "Just landed" },
 
-  // Delivery notice (home page, under the best-sellers rail)
+  // Delivery notice (home page, directly under the hero)
   "delivery.title": { ar: "توصيل لكل محافظات العراق", en: "Delivery to every Iraqi province" },
   "delivery.flat": { ar: "بأجرة ثابتة", en: "One flat fee" },
-  "delivery.karbala": { ar: "كربلاء", en: "Karbala" },
   "section.track": { ar: "تتبّع طلبك", en: "Track your order" },
   "section.viewAll": { ar: "عرض الكل", en: "View all" },
 
@@ -651,6 +650,14 @@ export const dict = {
     en: "That phone number doesn't look valid",
   },
   "dash.deliveryFees": { ar: "أجور التوصيل", en: "Delivery fees" },
+  "dash.deliveryNotice": {
+    ar: "إظهار شريط التوصيل في الرئيسية",
+    en: "Show the delivery bar on the home page",
+  },
+  "dash.deliveryNoticeHint": {
+    ar: "يظهر تحت القسم الرئيسي مباشرة، ويعرض أجرة التوصيل لبقية المحافظات",
+    en: "Sits directly under the hero and shows the all-provinces fee",
+  },
   "dash.deliveryFeesHint": {
     ar: "تُحتسب تلقائياً على كل طلب حسب المحافظة",
     en: "Applied automatically to every order based on the province",

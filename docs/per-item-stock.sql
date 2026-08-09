@@ -1,133 +1,177 @@
 -- ============================================================================
--- Per-design stock for package products.
+--  ROFOOF — database changes for per-design stock + the delivery banner
 --
--- Run this by hand in the Supabase SQL editor (DDL can't go through the
--- service-role client). The frontend is already deployed and survives without
--- it: reads fall back to the old column set, and until this runs every design
--- reports "not tracked" and stays freely buyable. Nothing breaks either way.
+--  HOW TO USE THIS FILE
+--  Open the Supabase SQL editor and run STEP 1, then STEP 2, then STEP 3.
+--  Run them one at a time and read the note above each one first.
 --
--- Run the sections in order. 1 and 2 are what make the feature work at all;
--- 3 is what stops the shop overselling.
+--  It is safe to run this file more than once. Every statement is written to
+--  do nothing if it has already been applied.
+--
+--  STEP 4 is optional (a health check you can run any time).
+--  STEP 5 is NOT ready to run — it needs something from you first.
+--
+--  Nothing here can break the live site. The website already copes with these
+--  columns being missing: until you run this, stock is simply "not tracked"
+--  and every design stays buyable, exactly as it behaves today.
 -- ============================================================================
 
 
--- 1. The column ---------------------------------------------------------------
--- NOT NULL DEFAULT 0 means every existing design starts sold out, which is the
--- safe direction: nothing gets oversold while you fill the real numbers in.
--- If you would rather everything stay buyable until you've counted, change the
--- default to a number you're comfortable with and re-run the UPDATE below.
+
+-- ============================================================================
+--  STEP 1 — Add the stock column to package designs
+-- ============================================================================
+--  WHAT THIS DOES
+--  Adds a `stock` number to each design inside a package, so the Kirby sheet
+--  and the Stitch sheet can be counted separately instead of sharing one
+--  number on the package.
+--
+--  WHY IT STARTS AT 0
+--  New columns need a starting value. 0 (sold out) is the safe direction —
+--  nothing can be oversold in the gap before you set the real numbers.
+--  STEP 2 immediately sets them all to 5, so nothing stays sold out.
+-- ----------------------------------------------------------------------------
 
 alter table public.product_items
   add column if not exists stock integer not null default 0;
 
-alter table public.product_items
-  add constraint product_items_stock_non_negative check (stock >= 0);
-
--- Seed every existing design from its parent product's old package-wide stock,
--- so nothing is sold out the moment this lands. Run once.
-update public.product_items i
-   set stock = greatest(coalesce(p.stock, 0), 0)
-  from public.products p
- where p.id = i.product_id
-   and i.stock = 0;
-
-
--- 2. Let the admin save it ----------------------------------------------------
--- admin_set_product_items already receives `stock` in its JSON payload (the
--- frontend sends it now, and jsonb_to_recordset ignores keys it has no column
--- for — which is why sending it early was safe). This teaches it to read it.
---
--- IMPORTANT: replace the body below with your ACTUAL function body if it
--- differs — this is the shape the app expects, not necessarily what you have.
--- Send me the output of:
---     select pg_get_functiondef('public.admin_set_product_items'::regproc);
--- and I'll adapt it exactly rather than you merging it by hand.
-
-create or replace function public.admin_set_product_items(p_id text, p_items jsonb)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
+-- Stops a negative count ever being written, whatever writes it.
+do $$
 begin
-  -- Soft-delete designs that are no longer in the payload.
-  update product_items
-     set is_deleted = true
-   where product_id = p_id
-     and id not in (
-       select (x->>'id')::uuid
-         from jsonb_array_elements(p_items) x
-        where x->>'id' is not null
-     );
-
-  -- Upsert the ones that are.
-  insert into product_items (id, product_id, image_url, name_ar, name_en, price, stock, sort_order)
-  select coalesce((x->>'id')::uuid, gen_random_uuid()),
-         p_id,
-         x->>'image_url',
-         coalesce(x->>'name_ar', ''),
-         coalesce(x->>'name_en', ''),
-         nullif(x->>'price', '')::integer,
-         coalesce(nullif(x->>'stock', '')::integer, 0),
-         coalesce((x->>'sort_order')::integer, 0)
-    from jsonb_array_elements(p_items) x
-  on conflict (id) do update
-     set image_url  = excluded.image_url,
-         name_ar    = excluded.name_ar,
-         name_en    = excluded.name_en,
-         price      = excluded.price,
-         stock      = excluded.stock,
-         sort_order = excluded.sort_order,
-         is_deleted = false;
-end;
-$$;
+  alter table public.product_items
+    add constraint product_items_stock_non_negative check (stock >= 0);
+exception
+  when duplicate_object then null;  -- already added on an earlier run
+end $$;
 
 
--- 3. Stop overselling at checkout ---------------------------------------------
--- The client greys out a design at 0 and clamps the stepper, but the client is
--- only ever a suggestion — two shoppers can hold the last piece at the same
--- time. place_order() is the only place that can actually decide.
+
+-- ============================================================================
+--  STEP 2 — Put every product in the shop at 5 in stock
+-- ============================================================================
+--  WHAT THIS DOES
+--  Sets the count to 5 for BOTH kinds of product:
+--    - every design inside every package  (product_items)
+--    - every one-photo product            (products)
 --
--- Add this INSIDE place_order(), in the loop that walks the order items, before
--- any row is written. `for update` takes a row lock so two concurrent orders
--- serialise instead of both reading the same remaining count.
-
---   -- for each order item that names a package design (v_item_id is not null):
---   select stock into v_stock
---     from product_items
---    where id = v_item_id
---      for update;
+--  This is a starting point, not a permanent setting. From now on you change
+--  these numbers in the dashboard: open a product, and each design has a stock
+--  box under its price, with a "one stock count for all images" box that fills
+--  them all at once.
 --
---   if v_stock < v_qty then
---     raise exception 'out_of_stock:%', v_item_id;
---   end if;
+--  RE-RUNNING THIS RESETS EVERYTHING BACK TO 5. Run it once now; after that,
+--  use the dashboard instead, or you will wipe out counts you have edited.
+-- ----------------------------------------------------------------------------
+
+update public.product_items
+   set stock = 5
+ where is_deleted = false;
+
+update public.products
+   set stock = 5
+ where is_deleted = false;
+
+
+
+-- ============================================================================
+--  STEP 3 — Add the on/off switch for the home-page delivery bar
+-- ============================================================================
+--  WHAT THIS DOES
+--  Backs the "Show the delivery bar on the home page" checkbox, which is in
+--  the dashboard next to the delivery fees. Until you run this, the bar always
+--  shows and that checkbox quietly does nothing (ticking it won't error, and
+--  it won't stop the fees next to it from saving).
+-- ----------------------------------------------------------------------------
+
+alter table public.settings
+  add column if not exists delivery_notice_active boolean not null default true;
+
+
+--  ---------------------------------------------------------------------------
+--  IMPORTANT — what number the bar shows
 --
---   update product_items
---      set stock = stock - v_qty
---    where id = v_item_id;
+--  The bar shows `delivery_fee_default`, which is the fee EVERY province pays
+--  except Karbala. Karbala has its own cheaper fee, and the bar deliberately
+--  does not quote that one: advertising 3,000 while most of the country is
+--  charged 5,000 would be found out at checkout.
+--
+--  Right now those two are different (5,000 and 3,000), so the bar will read
+--  5,000. You said you want one flat 3,000 for the whole country — that means
+--  setting BOTH to 3,000. Uncomment and run this, or do the same thing in the
+--  dashboard under the delivery fees, which is easier:
+--  ---------------------------------------------------------------------------
 
--- And the equivalent for one-photo products, which count on products.stock:
---   update products set stock = stock - v_qty where id = v_product_id;
-
--- Send me the current place_order() source and I'll write this into it
--- properly, including how the error surfaces to the checkout UI:
---     select pg_get_functiondef('public.place_order'::regproc);
+-- update public.settings
+--    set delivery_fee_default = 3000,
+--        delivery_fee_karbala = 3000
+--  where id = true;
 
 
--- 4. Check delivery is never discounted ---------------------------------------
--- Confirms the thing you asked me to verify: whatever the discount, delivery is
--- added on top at full price. The client side is proven; this is the server.
--- Expect delivery_fee to equal your configured fee on EVERY row, including any
--- order whose subtotal fully discounted away.
+
+-- ============================================================================
+--  STEP 4 — (optional) Health check
+-- ============================================================================
+--  Run this any time to see the stock numbers the shop is working from.
+--  `designs_in_stock = 0` on a package means that package now reads as sold
+--  out on the site.
+-- ----------------------------------------------------------------------------
+
+select p.id,
+       p.name_ar,
+       p.kind,
+       count(i.id)                            as designs,
+       count(i.id) filter (where i.stock > 0) as designs_in_stock,
+       sum(i.stock)                           as total_pieces,
+       p.stock                                as one_photo_stock
+  from public.products p
+  left join public.product_items i
+    on i.product_id = p.id
+   and i.is_deleted = false
+ where p.is_deleted = false
+ group by p.id, p.name_ar, p.kind, p.stock
+ order by designs_in_stock asc, p.name_ar;
+
+
+--  And the delivery check you asked me to confirm: on every row `maths_ok`
+--  must be true, which means the delivery fee was added on top at full price
+--  no matter how large the discount was.
 
 select code,
        subtotal,
        discount_total,
        delivery_fee,
        total,
-       total - delivery_fee                          as goods_paid,
-       greatest(subtotal - discount_total, 0)        as goods_expected,
        total = greatest(subtotal - discount_total, 0) + delivery_fee as maths_ok
   from public.orders
  order by created_at desc
  limit 50;
+
+
+
+-- ============================================================================
+--  STEP 5 — DO NOT RUN YET — stop the shop overselling
+-- ============================================================================
+--  THIS IS THE ONE THING STILL MISSING, and it is the important one.
+--
+--  The website greys out a sold-out design and stops the + button going past
+--  what is left. But that is only the shopper's screen. Two people can be
+--  holding the last piece at the same moment, and neither screen knows about
+--  the other. Only place_order() — the function that actually takes the order
+--  — can settle that, and it does not check stock yet.
+--
+--  So today: stock numbers display correctly and update correctly, but nothing
+--  yet stops a design being ordered past 0 if two people buy at once.
+--
+--  I have NOT written it here on purpose. Doing that means editing your live
+--  place_order() function, and my last attempt at guessing a function body is
+--  what gave you the "cannot change return type" error. I am not repeating
+--  that on the function that takes your customers' money.
+--
+--  WHAT I NEED FROM YOU — run this one line and send me what it prints:
+-- ----------------------------------------------------------------------------
+
+select pg_get_functiondef('public.place_order'::regproc);
+
+--  Then I will write the stock check into your actual function, and give you
+--  a single statement to run that replaces it safely.
+-- ============================================================================

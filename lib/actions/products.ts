@@ -79,6 +79,60 @@ const upsertProductSchema = z.object({
 
 export type UpsertProductInput = z.input<typeof upsertProductSchema>;
 
+/**
+ * Persist per-design stock as a plain row update, deliberately NOT through
+ * admin_set_product_items.
+ *
+ * Teaching that function about stock would mean rewriting it, and rewriting it
+ * means DROP FUNCTION first — Postgres won't change a function's return type in
+ * place. Dropping and recreating a live function from a body nobody has read is
+ * a bad trade for one integer column. Rows can be written directly with the
+ * service-role client; only DDL can't (see AGENTS.md), so this stays in the app.
+ *
+ * Matching is by image_url because new designs are assigned their ids by the
+ * RPC we just called, so the client has no id for them yet. Within one product
+ * a design's image is unique — it IS the design.
+ *
+ * Returns an error message, or null when it worked (or when the column simply
+ * isn't there yet, which is not a failure — the save still stands).
+ */
+async function writeItemStock(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  productId: string,
+  items: { imageUrl: string; stock: number }[],
+): Promise<string | null> {
+  if (items.length === 0) return null;
+
+  const { data: saved, error: readErr } = await supabase
+    .from("product_items")
+    .select("id, image_url")
+    .eq("product_id", productId)
+    .eq("is_deleted", false);
+  if (readErr || !saved) return readErr?.message ?? null;
+
+  const wanted = new Map(items.map((it) => [it.imageUrl, it.stock]));
+  // One statement per distinct count rather than per design: a package is
+  // nearly always restocked to a single number across every design, so this is
+  // usually a single round trip instead of twenty.
+  const idsByStock = new Map<number, string[]>();
+  for (const row of saved) {
+    const stock = wanted.get(row.image_url);
+    if (stock === undefined) continue;
+    const bucket = idsByStock.get(stock);
+    if (bucket) bucket.push(row.id);
+    else idsByStock.set(stock, [row.id]);
+  }
+
+  for (const [stock, ids] of idsByStock) {
+    const { error } = await supabase.from("product_items").update({ stock }).in("id", ids);
+    if (!error) continue;
+    // Column not there yet → the rest of the product still saved correctly.
+    if (error.code === "42703" || /stock/.test(error.message)) return null;
+    return error.message;
+  }
+  return null;
+}
+
 function revalidateCatalog() {
   revalidateTag(TAGS.products, "max");
   revalidatePath("/");
@@ -163,21 +217,19 @@ export async function upsertProductAction(
   if (p.kind === "package") {
     const { error: itemsErr } = await supabase.rpc("admin_set_product_items", {
       p_id: p.id,
-      // `stock` rides along in the JSON unconditionally: admin_set_product_items
-      // reads the payload through jsonb_to_recordset, which ignores keys it has
-      // no column for. So this is inert until the RPC is taught about stock,
-      // rather than failing the save — the deploy doesn't wait on the migration.
       p_items: p.items.map((it, i) => ({
         id: it.id ?? null,
         image_url: it.imageUrl,
         name_ar: it.nameAr,
         name_en: it.nameEn,
         price: it.price ?? null,
-        stock: it.stock,
         sort_order: i,
       })),
     });
     if (itemsErr) return { ok: false, error: itemsErr.message };
+
+    const stockErr = await writeItemStock(supabase, p.id, p.items);
+    if (stockErr) return { ok: false, error: stockErr };
   }
 
   // Volume-pricing ladder: replace-all for tiered products.

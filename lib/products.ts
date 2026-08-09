@@ -91,6 +91,8 @@ export interface VolumeTier {
 export interface SiteSettings {
   deliveryFeeDefault: number;
   deliveryFeeKarbala: number;
+  /** admin switch for the delivery banner under the home-page hero */
+  deliveryNoticeActive: boolean;
   statFollowers: string;
   statProducts: string;
   statRating: string;

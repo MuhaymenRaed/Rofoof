@@ -3,7 +3,12 @@ import { ProductCard } from "@/components/ui/product-card";
 import { SectionTitle } from "@/components/ui/section-title";
 import { FeaturedSection } from "@/components/home/featured-section";
 import { DeliveryNotice } from "@/components/home/delivery-notice";
-import { getProducts, getBestSellerCounts, getFeaturedGroups } from "@/lib/data/catalog";
+import {
+  getProducts,
+  getBestSellerCounts,
+  getFeaturedGroups,
+  getSiteSettings,
+} from "@/lib/data/catalog";
 import type { Product } from "@/lib/products";
 
 /**
@@ -18,10 +23,11 @@ const RAIL_SIZE = 4;
 // (revalidateTag("products")) or when an order is placed (revalidateTag("sales")).
 
 export default async function HomePage() {
-  const [products, sold, featuredGroups] = await Promise.all([
+  const [products, sold, featuredGroups, siteSettings] = await Promise.all([
     getProducts(),
     getBestSellerCounts(),
     getFeaturedGroups(),
+    getSiteSettings(),
   ]);
 
   // "الأكثر طلباً" — ranked by units actually ordered. Before the store has any
@@ -58,18 +64,21 @@ export default async function HomePage() {
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Hero />
 
+      {/* Directly under the hero, before any price is shown — so the delivery
+          cost is part of the first impression rather than a surprise found
+          further down. The admin can switch it off from the dashboard. */}
+      {siteSettings.deliveryNoticeActive && (
+        <div className="mt-6">
+          <DeliveryNotice />
+        </div>
+      )}
+
       {bestsellers.length > 0 && (
         <>
           <section className="mt-9">
             <SectionTitle titleKey="section.bestsellers" viewAllHref="/store" />
             <Grid products={bestsellers} priorityCount={2} />
           </section>
-
-          {/* Straight under the best sellers: the shopper has just seen prices,
-              so this is the moment the delivery cost is actually a question. */}
-          <div className="mt-6">
-            <DeliveryNotice />
-          </div>
 
           <div className="my-8 h-px bg-line-2" />
         </>

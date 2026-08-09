@@ -25,6 +25,7 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
   const [feeKarbala, setFeeKarbala] = useState(
     String(initial.deliveryFeeKarbala),
   );
+  const [noticeActive, setNoticeActive] = useState(initial.deliveryNoticeActive);
   const [followers, setFollowers] = useState(initial.statFollowers);
   const [productsStat, setProductsStat] = useState(initial.statProducts);
   const [rating, setRating] = useState(initial.statRating);
@@ -37,6 +38,7 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
       const res = await updateDeliveryFeesAction({
         deliveryFeeDefault: Math.max(0, Number(feeDefault) || 0),
         deliveryFeeKarbala: Math.max(0, Number(feeKarbala) || 0),
+        deliveryNoticeActive: noticeActive,
       });
       if (!res.ok) {
         setError(res.error ?? t("checkout.error"));
@@ -103,6 +105,27 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
             />
           </label>
         </div>
+
+        {/* Whether the home page advertises the fee at all. Saved by the same
+            button as the fees, so the number and the banner showing it are
+            never a step out of sync. */}
+        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line-2 bg-surface-2/40 p-3">
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold text-ink">
+              {t("dash.deliveryNotice")}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-ink-3">
+              {t("dash.deliveryNoticeHint")}
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={noticeActive}
+            onChange={(e) => setNoticeActive(e.target.checked)}
+            className="h-5 w-5 shrink-0 accent-brand"
+          />
+        </label>
+
         <button
           type="button"
           onClick={saveDelivery}

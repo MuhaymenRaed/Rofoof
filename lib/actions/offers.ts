@@ -333,25 +333,36 @@ export async function updateVolumeTiersAction(input: {
 const deliverySchema = z.object({
   deliveryFeeDefault: z.number().int().min(0).max(1_000_000),
   deliveryFeeKarbala: z.number().int().min(0).max(1_000_000),
+  deliveryNoticeActive: z.boolean().optional().default(true),
 });
 
 export async function updateDeliveryFeesAction(input: {
   deliveryFeeDefault: number;
   deliveryFeeKarbala: number;
+  deliveryNoticeActive?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   await requireAdmin();
   const parsed = deliverySchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_input" };
 
   const supabase = createAdminClient();
-  const { error } = await supabase
-    .from("settings")
-    .update({
-      delivery_fee_default: parsed.data.deliveryFeeDefault,
-      delivery_fee_karbala: parsed.data.deliveryFeeKarbala,
-    })
-    .eq("id", true);
+  const fees = {
+    delivery_fee_default: parsed.data.deliveryFeeDefault,
+    delivery_fee_karbala: parsed.data.deliveryFeeKarbala,
+  };
+  // The banner switch shares this form. It's written in a second statement so a
+  // database that hasn't got the column yet still saves the fees rather than
+  // rejecting the whole update — the fees are the part that charges money.
+  const { error } = await supabase.from("settings").update(fees).eq("id", true);
   if (error) return { ok: false, error: error.message };
+
+  const { error: noticeErr } = await supabase
+    .from("settings")
+    .update({ delivery_notice_active: parsed.data.deliveryNoticeActive })
+    .eq("id", true);
+  if (noticeErr && noticeErr.code !== "42703" && !/delivery_notice_active/.test(noticeErr.message)) {
+    return { ok: false, error: noticeErr.message };
+  }
 
   revalidateTag(TAGS.settings, "max");
   revalidatePath("/");

@@ -230,29 +230,44 @@ export async function getVolumeTiers(): Promise<VolumeTier[]> {
 const SITE_SETTINGS_FALLBACK: SiteSettings = {
   deliveryFeeDefault: 5000,
   deliveryFeeKarbala: 3000,
+  deliveryNoticeActive: true,
   statFollowers: "16K",
   statProducts: "75+",
   statRating: "4.9",
 };
 
+const SETTINGS_COLUMNS = "delivery_fee_default, delivery_fee_karbala, stat_followers, stat_products, stat_rating";
+
 const cachedSiteSettings = unstable_cache(
   async (): Promise<SiteSettings> => {
     const supabase = createAnonClient();
-    const { data, error } = await supabase
-      .from("settings")
-      .select(
-        "delivery_fee_default, delivery_fee_karbala, stat_followers, stat_products, stat_rating",
-      )
-      .limit(1)
-      .maybeSingle();
+    const read = (columns: string) =>
+      supabase.from("settings").select(columns).limit(1).maybeSingle();
+
+    // Same shape as the products read: ask for the new column, and drop back to
+    // the old set if the migration hasn't been run. Without the retry a missing
+    // delivery_notice_active would fail the whole settings read, which is what
+    // the delivery fees and the hero's stat numbers come from.
+    let { data, error } = await read(`${SETTINGS_COLUMNS}, delivery_notice_active`);
+    if (error) ({ data, error } = await read(SETTINGS_COLUMNS));
     if (error) throw error;
     if (!data) return SITE_SETTINGS_FALLBACK;
+    const row = data as Partial<{
+      delivery_fee_default: number;
+      delivery_fee_karbala: number;
+      delivery_notice_active: boolean;
+      stat_followers: string;
+      stat_products: string;
+      stat_rating: string;
+    }>;
     return {
-      deliveryFeeDefault: data.delivery_fee_default ?? SITE_SETTINGS_FALLBACK.deliveryFeeDefault,
-      deliveryFeeKarbala: data.delivery_fee_karbala ?? SITE_SETTINGS_FALLBACK.deliveryFeeKarbala,
-      statFollowers: data.stat_followers ?? SITE_SETTINGS_FALLBACK.statFollowers,
-      statProducts: data.stat_products ?? SITE_SETTINGS_FALLBACK.statProducts,
-      statRating: data.stat_rating ?? SITE_SETTINGS_FALLBACK.statRating,
+      deliveryFeeDefault: row.delivery_fee_default ?? SITE_SETTINGS_FALLBACK.deliveryFeeDefault,
+      deliveryFeeKarbala: row.delivery_fee_karbala ?? SITE_SETTINGS_FALLBACK.deliveryFeeKarbala,
+      // Absent column → keep showing it, which is what the shop does today.
+      deliveryNoticeActive: row.delivery_notice_active ?? true,
+      statFollowers: row.stat_followers ?? SITE_SETTINGS_FALLBACK.statFollowers,
+      statProducts: row.stat_products ?? SITE_SETTINGS_FALLBACK.statProducts,
+      statRating: row.stat_rating ?? SITE_SETTINGS_FALLBACK.statRating,
     };
   },
   ["catalog:site-settings"],
