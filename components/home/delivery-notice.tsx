@@ -5,22 +5,23 @@ import { Truck } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 
 /**
- * The one thing shoppers ask before they order: what does delivery cost.
+ * The delivery-discount promise, and the basket size that earns it.
  *
- * One flat number for the whole country, on the way to every province costing
- * the same. It reads the live fee out of site settings rather than repeating a
- * number in the copy, so changing it in the dashboard changes it here — a
- * hardcoded 3,000 would quietly start lying the first time the fee moved.
+ * The number is deliberately NOT the delivery fee out of site settings. It is
+ * the minimum order value the discount needs — a different figure that merely
+ * happens to sit at the same 3,000 today. Reading `deliveryFeeDefault` for it
+ * would mean changing the delivery PRICE in the dashboard silently moved the
+ * THRESHOLD shoppers are being promised, which is the opposite of what either
+ * number means.
  *
- * `deliveryFeeDefault` specifically, because that IS the every-province fee;
- * the Karbala rate is an exception to it. Quoting the exception as if it were
- * the rule would advertise a price most of the country doesn't get, and they'd
- * find out at checkout. The admin hides the whole banner from the dashboard
- * rather than this component second-guessing the numbers.
+ * A constant rather than a setting because there is no dashboard control for a
+ * minimum-order threshold to read from; the admin's switch over this banner is
+ * whether it shows at all. Change the figure here.
  */
+const MIN_ORDER_VALUE = 3000;
+
 export function DeliveryNotice() {
-  const { t, lang, siteSettings } = useStore();
-  const { deliveryFeeDefault } = siteSettings;
+  const { t, lang } = useStore();
 
   return (
     <section
@@ -47,7 +48,7 @@ export function DeliveryNotice() {
         </div>
 
         <span className="rounded-xl bg-surface px-4 py-2 text-sm font-black text-brand shadow-sm">
-          {formatPrice(deliveryFeeDefault, lang)}
+          {formatPrice(MIN_ORDER_VALUE, lang)}
         </span>
       </div>
     </section>

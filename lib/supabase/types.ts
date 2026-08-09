@@ -558,6 +558,8 @@ export interface Database {
         Returns: Json;
       };
       admin_set_product_items: { Args: { p_id: string; p_items: Json }; Returns: number };
+      /** move an order's pieces off the shelf (true) or put them back (false) */
+      admin_set_order_stock: { Args: { p_code: string; p_apply: boolean }; Returns: Json };
       admin_set_price_tiers: { Args: { p_id: string; p_tiers: Json }; Returns: number };
       place_custom_request: {
         Args: {

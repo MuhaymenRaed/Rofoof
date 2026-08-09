@@ -60,6 +60,8 @@ export function OrdersBoard({
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailCode, setDetailCode] = useState<string | null>(null);
+  /** the shelf could not cover an order the admin tried to accept */
+  const [stockError, setStockError] = useState(false);
   const [, startTransition] = useTransition();
 
   // Live-reflect new orders and buyer cancellations (INSERT/DELETE/UPDATE)
@@ -107,6 +109,8 @@ export function OrdersBoard({
       const res = await updateOrderStatusAction(code, next);
       if (!res.ok) {
         setOrders((prev) => prev.map((o) => (o.code === code ? { ...o, status: current } : o)));
+        // Reverting alone looks like the click did nothing. Name the reason.
+        if (res.error === "out_of_stock") setStockError(true);
       }
     });
   }
@@ -140,6 +144,23 @@ export function OrdersBoard({
 
   return (
     <div>
+      {/* Accepting is what takes the pieces off the shelf, so it's the step
+          that can fail for lack of them. Say so, and stay until dismissed —
+          the card silently snapping back is not an explanation. */}
+      {stockError && (
+        <div className="mb-4 flex items-start gap-2 rounded-2xl bg-amber-500/10 px-3.5 py-3 text-xs font-semibold text-amber-700">
+          <span className="flex-1">{t("dash.acceptOutOfStock")}</span>
+          <button
+            type="button"
+            onClick={() => setStockError(false)}
+            aria-label={t("aria.close")}
+            className="tap shrink-0 rounded-lg p-0.5 transition hover:bg-amber-500/20"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Bulk actions bar */}
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line-2 bg-surface p-3 card-shadow">
         <label className="flex cursor-pointer items-center gap-2 text-[13px] font-bold text-ink">

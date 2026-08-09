@@ -350,6 +350,49 @@ const STATUSES: OrderStatusDb[] = [
   "delivered",
 ];
 
+/**
+ * Whether an order at this status is holding real pieces off the shelf.
+ *
+ * Stock moves when the admin ACCEPTS, not when the order is placed. An order
+ * sitting in review is a request, and a shop full of unreviewed requests
+ * shouldn't read as sold out; accepting is the moment the shop commits to
+ * filling it. Everything past accepted is still committed, so it stays taken.
+ */
+function consumesStock(status: OrderStatusDb): boolean {
+  return status !== "review";
+}
+
+/**
+ * Take the order's pieces off the shelf, or put them back.
+ *
+ * Idempotent by way of `orders.stock_applied`: the RPC claims that flag with a
+ * conditional update and only moves stock if the claim succeeded, so accepting
+ * twice, a double-click, or a retry can never take the stock twice — and
+ * bouncing accepted → review → accepted lands back where it started.
+ *
+ * Returns an error string to abort on, or null to carry on. A database without
+ * the migration yet reports the function as missing, which is not a failure:
+ * statuses keep moving exactly as they did before, stock just isn't tracked.
+ */
+async function moveOrderStock(code: string, apply: boolean): Promise<string | null> {
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("admin_set_order_stock", {
+    p_code: code,
+    p_apply: apply,
+  });
+  if (!error) return null;
+
+  // Migration not applied yet — degrade to the old behaviour rather than
+  // blocking the admin from working their orders board.
+  if (error.code === "42883" || /admin_set_order_stock|stock_applied/i.test(error.message)) {
+    console.warn("[moveOrderStock] stock RPC missing — run docs/per-item-stock.sql");
+    return null;
+  }
+  if (/out_of_stock/i.test(error.message)) return "out_of_stock";
+  console.error("[moveOrderStock]", error);
+  return error.message;
+}
+
 export async function updateOrderStatusAction(
   code: string,
   status: OrderStatusDb,
@@ -357,12 +400,22 @@ export async function updateOrderStatusAction(
   await requireAdmin();
   if (!STATUSES.includes(status)) return { ok: false, error: "invalid_status" };
 
+  // Take the stock BEFORE marking the order accepted, so an order that can't
+  // actually be filled never gets a status saying it will be. Releasing runs
+  // after the write instead — putting pieces back can't fail for lack of them.
+  if (consumesStock(status)) {
+    const stockErr = await moveOrderStock(code, true);
+    if (stockErr) return { ok: false, error: stockErr };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from("orders")
     .update({ status })
     .eq("code", code);
   if (error) return { ok: false, error: error.message };
+
+  if (!consumesStock(status)) await moveOrderStock(code, false);
 
   revalidatePath("/dashboard/orders");
   revalidatePath("/dashboard");
@@ -597,9 +650,19 @@ export async function cancelOrderAdminAction(code: string): Promise<{
       order_items: { qty: number }[] | null;
     }>();
 
+  // Put the pieces back BEFORE the row goes: deleting an order cascades its
+  // order_items, and those lines are the only record of what to give back.
+  // This is the one cancel path that can reach an accepted order — a customer
+  // may only cancel while still in review, where nothing was ever taken.
+  // A no-op when the order never got past review, thanks to `stock_applied`.
+  await moveOrderStock(trimmed, false);
+
   const { error } = await admin.from("orders").delete().eq("code", trimmed);
   if (error) {
     console.error("[cancelOrderAdmin]", error);
+    // The order is still live and its stock has just been handed back — take
+    // it again so the shelf matches the order that still exists.
+    await moveOrderStock(trimmed, true);
     return { ok: false, error: error.message };
   }
 
@@ -647,11 +710,27 @@ export async function updateManyOrderStatusesAction(
       failed.push(u.code);
       continue;
     }
+    // Same order as the single-order path: claim the stock first when moving
+    // into a committed status, so a card that can't be filled is reported as
+    // failed instead of quietly being marked accepted.
+    if (consumesStock(u.status)) {
+      const stockErr = await moveOrderStock(u.code, true);
+      if (stockErr) {
+        failed.push(u.code);
+        continue;
+      }
+    }
     const { error } = await supabase
       .from("orders")
       .update({ status: u.status })
       .eq("code", u.code);
-    if (error) failed.push(u.code);
+    if (error) {
+      failed.push(u.code);
+      // The status didn't move, so don't leave its pieces held.
+      if (consumesStock(u.status)) await moveOrderStock(u.code, false);
+      continue;
+    }
+    if (!consumesStock(u.status)) await moveOrderStock(u.code, false);
   }
 
   revalidatePath("/dashboard/orders");

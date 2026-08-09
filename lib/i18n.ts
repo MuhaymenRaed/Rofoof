@@ -49,8 +49,8 @@ export const dict = {
   "section.fresh": { ar: "وصل حديثاً", en: "Just landed" },
 
   // Delivery notice (home page, directly under the hero)
-  "delivery.title": { ar: "توصيل لكل محافظات العراق", en: "Delivery to every Iraqi province" },
-  "delivery.flat": { ar: "بأجرة ثابتة", en: "One flat fee" },
+  "delivery.title": { ar: "يطبق خصم على التوصيل", en: "A delivery discount applies" },
+  "delivery.flat": { ar: "الحد الأدنى لقيمة الطلب", en: "Minimum order value" },
   "section.track": { ar: "تتبّع طلبك", en: "Track your order" },
   "section.viewAll": { ar: "عرض الكل", en: "View all" },
 
@@ -648,6 +648,10 @@ export const dict = {
   "auth.badPhone": {
     ar: "صيغة رقم الهاتف غير صحيحة",
     en: "That phone number doesn't look valid",
+  },
+  "dash.acceptOutOfStock": {
+    ar: "تعذّر قبول الطلب: المخزون المتبقي لا يكفي لأحد المنتجات. حدّث المخزون ثم أعد المحاولة.",
+    en: "Couldn't accept the order — there isn't enough stock left for one of its products. Update the stock and try again.",
   },
   "dash.deliveryFees": { ar: "أجور التوصيل", en: "Delivery fees" },
   "dash.deliveryNotice": {

@@ -2,18 +2,28 @@
 --  ROFOOF — database changes for per-design stock + the delivery banner
 --
 --  HOW TO USE THIS FILE
---  Open the Supabase SQL editor and run STEP 1, then STEP 2, then STEP 3.
---  Run them one at a time and read the note above each one first.
+--  Open the Supabase SQL editor and run the steps IN ORDER, one at a time,
+--  reading the note above each one first:
 --
---  It is safe to run this file more than once. Every statement is written to
---  do nothing if it has already been applied.
+--    STEP 1    add the per-design stock column
+--    STEP 2    put every product at 5 in stock
+--    STEP 3    the on/off switch for the home-page delivery bar
+--    STEP 3.5  clear the stuck "sold out" flags  (fixes the bug you hit)
+--    STEP 4    optional health check — run it any time
+--    STEP 5    stop the shop overselling
+--    STEP 6    move stock when you ACCEPT, give it back on cancel
 --
---  STEP 4 is optional (a health check you can run any time).
---  STEP 5 is NOT ready to run — it needs something from you first.
+--  STEPS 5 AND 6 GO TOGETHER. Step 5 stops place_order taking stock at order
+--  time; step 6 is what takes it at accept time instead. Running 5 without 6
+--  means stock is never taken at all.
 --
---  Nothing here can break the live site. The website already copes with these
---  columns being missing: until you run this, stock is simply "not tracked"
---  and every design stays buyable, exactly as it behaves today.
+--  It is safe to run this file more than once — every statement does nothing
+--  if it has already been applied. The ONE exception is step 2, which resets
+--  every count back to 5.
+--
+--  Nothing here can break the live site. The website already copes with all of
+--  it being missing: until you run it, stock is simply "not tracked", every
+--  design stays buyable, and orders behave exactly as they do today.
 -- ============================================================================
 
 
@@ -88,23 +98,18 @@ alter table public.settings
 
 
 --  ---------------------------------------------------------------------------
---  IMPORTANT — what number the bar shows
+--  NOTE — the number on the bar is no longer a delivery fee
 --
---  The bar shows `delivery_fee_default`, which is the fee EVERY province pays
---  except Karbala. Karbala has its own cheaper fee, and the bar deliberately
---  does not quote that one: advertising 3,000 while most of the country is
---  charged 5,000 would be found out at checkout.
+--  The bar now reads "a delivery discount applies / minimum order value" with
+--  a fixed 3,000, which is a MINIMUM ORDER VALUE, not the delivery price. It
+--  is a constant in components/home/delivery-notice.tsx and does not come from
+--  this table, deliberately: changing your delivery fee in the dashboard must
+--  not silently move the threshold customers are being promised.
 --
---  Right now those two are different (5,000 and 3,000), so the bar will read
---  5,000. You said you want one flat 3,000 for the whole country — that means
---  setting BOTH to 3,000. Uncomment and run this, or do the same thing in the
---  dashboard under the delivery fees, which is easier:
+--  To change that 3,000, edit MIN_ORDER_VALUE in that file.
+--  The actual delivery fees charged at checkout are still the settings below,
+--  edited in the dashboard as before.
 --  ---------------------------------------------------------------------------
-
--- update public.settings
---    set delivery_fee_default = 3000,
---        delivery_fee_karbala = 3000
---  where id = true;
 
 
 
@@ -383,26 +388,20 @@ begin
        v_waterproof, v_custom, nullif(btrim(coalesce(v_item->>'note', '')), ''));
 
     -- ======================= THE CHANGED PART ==============================
-    -- Take the pieces off whatever was actually bought — the DESIGN for a
-    -- package, the product itself otherwise — and refuse if there aren't
-    -- enough. `and stock >= v_qty` makes the check and the row lock one atomic
-    -- step, so two shoppers reaching for the last piece cannot both win: the
-    -- loser matches no row, `not found` fires, and the exception rolls the
-    -- whole order back.
+    -- Stock is NOT taken here any more. It moves when the admin ACCEPTS the
+    -- order (admin_set_order_stock in step 6), so a basket sitting in review
+    -- doesn't hold pieces hostage, and cancelling gives them straight back.
+    --
+    -- What stays is a refusal to take an order for something already at zero:
+    -- the shop should never accept an order it can visibly not fill. Two
+    -- customers CAN both order the last piece — the admin decides who gets it
+    -- by accepting, and the second acceptance is the one that's refused.
     if v_item_id is not null then
-      update public.product_items
-         set stock = stock - v_qty
-       where id = v_item_id and stock >= v_qty;
-      if not found then
+      if coalesce(v_pi.stock, 0) < v_qty then
         raise exception 'out_of_stock:%', coalesce(nullif(v_pi.name_ar, ''), v_prod.name_ar);
       end if;
-    else
-      update public.products
-         set stock = stock - v_qty
-       where id = v_prod.id and stock >= v_qty;
-      if not found then
-        raise exception 'out_of_stock:%', v_prod.name_ar;
-      end if;
+    elsif coalesce(v_prod.stock, 0) < v_qty then
+      raise exception 'out_of_stock:%', v_prod.name_ar;
     end if;
     -- ===================== END OF THE CHANGED PART =========================
   end loop;
@@ -534,4 +533,105 @@ begin
   select total into v_total from public.orders where id = v_order_id;
   return jsonb_build_object('code', v_code, 'total', v_total);
 end; $function$;
+-- ============================================================================
+
+
+-- ============================================================================
+--  STEP 6 — Move stock at ACCEPT, and give it back on cancel  ← RUN AFTER 5
+-- ============================================================================
+--  WHAT THIS DOES
+--  Stock now changes when YOU accept an order, not when the customer places
+--  it. Accept an order for 5 pieces and the count drops by 5. Cancel that
+--  order — or push it back to "review" — and the 5 come straight back.
+--
+--  WHY NOT AT ORDER TIME
+--  An order sitting in review is a request, not a sale. Counting it out
+--  immediately would show the shop as sold out because of baskets you have not
+--  looked at yet, and every abandoned order would need unpicking by hand.
+--
+--  THE ONE RULE THAT MAKES IT SAFE
+--  Each order carries a `stock_applied` flag saying whether its pieces are
+--  currently off the shelf. The function only moves stock if it manages to
+--  flip that flag, and flipping it is a single atomic statement. So:
+--    - accepting twice takes the stock once
+--    - a double-click takes it once
+--    - accepted → review → accepted lands exactly where it started
+--    - cancelling an order that was never accepted gives nothing back
+--
+--  Accepting an order the shelf cannot cover FAILS, and the dashboard says so
+--  rather than silently letting the card slide across.
+-- ----------------------------------------------------------------------------
+
+alter table public.orders
+  add column if not exists stock_applied boolean not null default false;
+
+-- Orders already accepted before this existed had their stock taken by the old
+-- place_order, so mark them as applied. Otherwise cancelling one would hand
+-- back pieces that were already handed back.
+update public.orders
+   set stock_applied = true
+ where status <> 'review'
+   and stock_applied = false;
+
+
+create or replace function public.admin_set_order_stock(p_code text, p_apply boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_order_id uuid;
+  v_row record;
+begin
+  -- Claim the change of state. If the order is already in the state being
+  -- asked for, this matches no row and we stop — that is what makes accepting
+  -- twice, or retrying, safe.
+  update public.orders
+     set stock_applied = p_apply
+   where code = p_code
+     and stock_applied = not p_apply
+  returning id into v_order_id;
+
+  if v_order_id is null then
+    return jsonb_build_object('changed', false);
+  end if;
+
+  -- Grouped by design so an order listing the same design on two lines is
+  -- counted once, as one total. Custom requests have no product_id and are
+  -- skipped: there is no shelf behind them.
+  for v_row in
+    select oi.product_id, oi.item_id, sum(oi.qty)::int as qty
+      from public.order_items oi
+     where oi.order_id = v_order_id
+       and oi.product_id is not null
+     group by oi.product_id, oi.item_id
+  loop
+    if p_apply then
+      if v_row.item_id is not null then
+        update public.product_items
+           set stock = stock - v_row.qty
+         where id = v_row.item_id and stock >= v_row.qty;
+        if not found then raise exception 'out_of_stock:%', v_row.item_id; end if;
+      else
+        update public.products
+           set stock = stock - v_row.qty
+         where id = v_row.product_id and stock >= v_row.qty;
+        if not found then raise exception 'out_of_stock:%', v_row.product_id; end if;
+      end if;
+    else
+      -- Giving pieces back can never fail for lack of them.
+      if v_row.item_id is not null then
+        update public.product_items set stock = stock + v_row.qty where id = v_row.item_id;
+      else
+        update public.products set stock = stock + v_row.qty where id = v_row.product_id;
+      end if;
+    end if;
+  end loop;
+
+  return jsonb_build_object('changed', true);
+end;
+$function$;
+
+grant execute on function public.admin_set_order_stock(text, boolean) to authenticated, service_role;
 -- ============================================================================
