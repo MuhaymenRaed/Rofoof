@@ -179,6 +179,11 @@ export async function placeOrderAction(
 
   if (error) {
     console.error("[placeOrder]", error);
+    // place_order raises `out_of_stock:<name>` when a design ran out between
+    // the cart being filled and the order landing. That's an ordinary race, not
+    // a fault, so it gets its own code for the checkout to explain — the raw
+    // Postgres string would be shown to the shopper otherwise.
+    if (/out_of_stock/.test(error.message)) return { ok: false, error: "out_of_stock" };
     return { ok: false, error: error.message };
   }
 

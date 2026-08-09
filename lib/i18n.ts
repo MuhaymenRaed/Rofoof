@@ -944,6 +944,10 @@ export const dict = {
   "cart.pieces": { ar: "قطعة", en: "pieces" },
   "cart.discount": { ar: "الخصم", en: "Discount" },
   "cart.freeDelivery": { ar: "توصيل مجاني", en: "Free delivery" },
+  "cart.outOfStock": {
+    ar: "نفدت الكمية من أحد التصاميم في سلتك. عدّل الكمية أو احذف التصميم ثم أعد المحاولة.",
+    en: "One of the designs in your cart just ran out. Adjust the quantity or remove it, then try again.",
+  },
   "dash.changeImage": { ar: "تغيير الصورة", en: "Change image" },
   "dash.uploading": { ar: "جارٍ رفع الصورة…", en: "Uploading…" },
   "dash.fieldNameAr": { ar: "الاسم (عربي)", en: "Name (Arabic)" },

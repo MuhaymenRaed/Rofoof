@@ -100,6 +100,7 @@ export function CartDrawer() {
   const [staleError, setStaleError] = useState(false);
   /** a queued sticker request is under the 10-design minimum */
   const [stickerMinError, setStickerMinError] = useState(false);
+  const [stockError, setStockError] = useState(false);
   const [orderCode, setOrderCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [couponInput, setCouponInput] = useState("");
@@ -267,6 +268,7 @@ export function CartDrawer() {
     setError(false);
     setStaleError(false);
     setStickerMinError(false);
+    setStockError(false);
 
     const contact = {
       customerName: name,
@@ -310,7 +312,11 @@ export function CartDrawer() {
 
     setPending(false);
     if (!res.ok) {
-      setError(true);
+      // Someone else took the last piece while this cart was open. Name that,
+      // rather than the generic failure — the shopper can fix it themselves by
+      // dropping the design, and "something went wrong" wouldn't tell them so.
+      if (res.error === "out_of_stock") setStockError(true);
+      else setError(true);
       return;
     }
 
@@ -554,6 +560,12 @@ export function CartDrawer() {
               {stickerMinError && (
                 <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
                   {t("cart.stickerMin")}
+                </p>
+              )}
+
+              {stockError && (
+                <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700">
+                  {t("cart.outOfStock")}
                 </p>
               )}
 
