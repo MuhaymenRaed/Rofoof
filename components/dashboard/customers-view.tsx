@@ -6,6 +6,7 @@ import { Phone } from "@/components/icons";
 import { usePaginatedList } from "@/lib/hooks/use-paginated-list";
 import { loadMoreCustomersAction } from "@/lib/actions/dashboard";
 import type { DashboardCustomer } from "@/lib/data/dashboard";
+import { provinceLabelKey } from "@/lib/provinces";
 
 const PALETTE = ["#0ea5a4", "#8b5cf6", "#f59e0b", "#22c55e", "#e8321a", "#0284c7", "#e91e8c", "#16a34a"];
 
@@ -38,6 +39,7 @@ export function CustomersView({
         <ul className="divide-y divide-line-2">
           {customers.map((c, i) => {
             const name = c.name || t("dash.customerUnnamed");
+            const province = c.provinceCode ? t(provinceLabelKey(c.provinceCode)) : null;
             return (
               <li key={c.id} className="flex items-center gap-3 p-4 sm:px-5">
                 <span
@@ -48,7 +50,7 @@ export function CustomersView({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-bold text-ink">{name}</p>
-                  {c.address && <p className="truncate text-[11px] text-ink-3">{c.address}</p>}
+                  {province && <p className="truncate text-[11px] text-ink-3">{province}</p>}
                   {c.phone && (
                     <p dir="ltr" className="truncate text-end text-[11px] text-ink-3 sm:hidden">
                       {c.phone}

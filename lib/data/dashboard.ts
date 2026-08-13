@@ -112,8 +112,8 @@ export interface DashboardCustomer {
   name: string | null;
   /** null for a registered shopper who has no number on file yet */
   phone: string | null;
+  /** from the profile's own default_province_code, not any one order's address */
   provinceCode: string | null;
-  address: string | null;
   /** their latest order's status — null when they have not ordered yet */
   status: OrderStatus | null;
   orders: number;
@@ -382,20 +382,20 @@ interface AdminCustomerRow {
   name: string | null;
   phone: string | null;
   province_code: string | null;
-  address: string | null;
   status: OrderStatus | null;
   orders: number;
 }
 
 /**
  * A page of customers, via admin_customers(): one row per registered account
- * (profiles), named from the profile, with all of that account's orders
- * folded together. Guest checkouts (no account) never appear here — their
- * orders are untouched and still counted everywhere else (Orders tab, KPIs).
- * Fetches `limit + 1` rows to detect `hasMore`.
+ * (profiles), named and located from the profile itself — never from an
+ * order's address — with all of that account's orders folded together. Guest
+ * checkouts (no account) never appear here — their orders are untouched and
+ * still counted everywhere else (Orders tab, KPIs). Fetches `limit + 1` rows
+ * to detect `hasMore`.
  *
  * Every field except `id` is read as nullable — someone who has signed up but
- * not ordered yet has no phone/address/status to show.
+ * not ordered yet has no phone/province/status to show.
  */
 export async function getCustomers(offset = 0, limit = 30): Promise<CustomersPage> {
   const supabase = await createSupabaseServerClient();
@@ -415,7 +415,6 @@ export async function getCustomers(offset = 0, limit = 30): Promise<CustomersPag
       name: r.name?.trim() || null,
       phone: r.phone?.trim() || null,
       provinceCode: r.province_code,
-      address: r.address,
       status: r.status,
       orders: Number(r.orders ?? 0),
     })),
