@@ -109,11 +109,13 @@ export async function getRevenueSplit(): Promise<RevenueSplit> {
 
 export interface DashboardCustomer {
   id: string;
-  name: string;
-  phone: string;
+  name: string | null;
+  /** null for a registered shopper who has no number on file yet */
+  phone: string | null;
   provinceCode: string | null;
   address: string | null;
-  status: OrderStatus;
+  /** their latest order's status — null when they have not ordered yet */
+  status: OrderStatus | null;
   orders: number;
 }
 
@@ -377,17 +379,23 @@ export interface CustomersPage {
 
 interface AdminCustomerRow {
   id: string;
-  name: string;
-  phone: string;
+  name: string | null;
+  phone: string | null;
   province_code: string | null;
   address: string | null;
-  status: OrderStatus;
+  status: OrderStatus | null;
   orders: number;
 }
 
 /**
- * A page of customers derived from orders (guests + registered), via
- * admin_customers(). Fetches `limit + 1` rows to detect `hasMore`.
+ * A page of customers, via admin_customers(): one row per registered account
+ * (profiles), named from the profile, with all of that account's orders
+ * folded together. Guest checkouts (no account) never appear here — their
+ * orders are untouched and still counted everywhere else (Orders tab, KPIs).
+ * Fetches `limit + 1` rows to detect `hasMore`.
+ *
+ * Every field except `id` is read as nullable — someone who has signed up but
+ * not ordered yet has no phone/address/status to show.
  */
 export async function getCustomers(offset = 0, limit = 30): Promise<CustomersPage> {
   const supabase = await createSupabaseServerClient();
@@ -404,12 +412,12 @@ export async function getCustomers(offset = 0, limit = 30): Promise<CustomersPag
   return {
     customers: rows.slice(0, limit).map((r) => ({
       id: r.id,
-      name: r.name,
-      phone: r.phone,
+      name: r.name?.trim() || null,
+      phone: r.phone?.trim() || null,
       provinceCode: r.province_code,
       address: r.address,
       status: r.status,
-      orders: r.orders,
+      orders: Number(r.orders ?? 0),
     })),
     hasMore,
   };

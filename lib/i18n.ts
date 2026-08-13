@@ -562,6 +562,8 @@ export const dict = {
   "dash.loadingMore": { ar: "جارٍ التحميل…", en: "Loading more…" },
   "dash.allLoaded": { ar: "تم عرض كل العناصر", en: "All items loaded" },
   "dash.call": { ar: "اتصال", en: "Call" },
+  "dash.customerUnnamed": { ar: "بلا اسم", en: "No name" },
+  "dash.customerNoOrders": { ar: "لا طلبات بعد", en: "No orders yet" },
   "dash.ordersCount": { ar: "طلب", en: "orders" },
   "dash.acceptOrder": { ar: "قبول", en: "Accept" },
   "dash.rejectOrder": { ar: "رفض", en: "Reject" },
