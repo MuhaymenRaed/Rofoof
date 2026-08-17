@@ -1,9 +1,9 @@
 "use client";
 
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 
 export function Ticker() {
-  const { t, announcement } = useStore();
+  const { t, announcement } = useCatalog();
   const items = announcement
     ? [announcement, t("ticker.line"), announcement, t("ticker.line")]
     : [t("ticker.promo"), t("ticker.line"), t("ticker.promo"), t("ticker.line")];

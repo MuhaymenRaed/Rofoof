@@ -118,6 +118,11 @@ export function Header() {
             type="button"
             onClick={openCart}
             aria-label={t("aria.cart")}
+            // Tour anchor. `data-tour` rather than an id because the cart also
+            // lives in the phone tab bar — the engine picks whichever of the two
+            // is visible at the current breakpoint (see lib/tour/steps.ts).
+            id="tour-cart-icon"
+            data-tour="cart"
             className="tap relative hidden h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink md:grid"
           >
             <Bag size={18} />

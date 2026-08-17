@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
@@ -14,17 +14,22 @@ import {
   ChevronEnd,
   Droplet,
   Sparkles,
+  Tag,
   Photo,
   Download,
   Trash,
+  Whatsapp,
 } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { downloadImagesAsZip } from "@/lib/zip";
+import { downloadImageGroupsAsZip, type ImageGroup } from "@/lib/zip";
 import { provinceLabelKey } from "@/lib/provinces";
+import { whatsappChatUrl } from "@/lib/contact";
+import { buildOrderConfirmationMessage } from "@/lib/order-message";
 import {
   statusStyle,
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
+  MANUAL_ORDER_COLOR,
   type Order,
   type OrderStatus,
 } from "@/lib/products";
@@ -213,7 +218,15 @@ export function OrdersBoard({
       ) : (
         <div className="space-y-3">
           {orders.map((o) => {
-            const accent = o.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[o.status].color;
+            // An order raised by hand is neither a customer's custom request nor
+            // an ordinary sale, so it gets its own accent rather than borrowing
+            // the custom-request magenta.
+            const hasManual = o.items.some((i) => i.customKind === "manual");
+            const accent = o.isCustom
+              ? CUSTOM_ORDER_COLOR
+              : hasManual
+                ? MANUAL_ORDER_COLOR
+                : statusStyle[o.status].color;
             const isSelected = selected.has(o.code);
             const first = o.items[0];
             const firstName = first ? (lang === "ar" ? first.nameAr : first.nameEn) : "";
@@ -258,6 +271,15 @@ export function OrdersBoard({
                         <Sparkles size={9} />
                         {t("custom.badge")}
                         {typeMeta && ` · ${lang === "ar" ? typeMeta.ar : typeMeta.en}`}
+                      </span>
+                    )}
+                    {hasManual && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black text-white"
+                        style={{ background: MANUAL_ORDER_COLOR }}
+                      >
+                        <Tag size={9} />
+                        {t("dash.manualBadge")}
                       </span>
                     )}
                     <span className="text-[11px] text-ink-3" dir="ltr">
@@ -325,6 +347,20 @@ export function OrdersBoard({
 
 /* ---------------------------- Details modal ----------------------------- */
 
+/** One labelled set of artwork within an order — a printable batch. */
+interface ArtworkGroup {
+  /** localized heading */
+  label: string;
+  /** ASCII slug used as the folder name inside a multi-set ZIP */
+  folder: string;
+  urls: string[];
+  /** how many separate requests fed this set */
+  requestCount: number;
+  accent: string;
+  /** the grouping is unknown for this order — see the legacy branch below */
+  ungrouped: boolean;
+}
+
 function OrderDetailsModal({
   order,
   onClose,
@@ -337,7 +373,7 @@ function OrderDetailsModal({
   /** the order was deleted server-side — drop it from the board */
   onCancelled: () => void;
 }) {
-  const { t, lang, getProduct } = useStore();
+  const { t, lang, getProduct, categoryLabel } = useStore();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelError, setCancelError] = useState(false);
   const [cancelling, startCancel] = useTransition();
@@ -362,6 +398,16 @@ function OrderDetailsModal({
   const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
   const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
 
+  /**
+   * "Confirm via WhatsApp" — opens a chat with THIS customer, pre-filled with
+   * the whole order and the confirmation question.
+   *
+   * Always composed in Arabic: it is addressed to the customer, not to whoever
+   * has the dashboard open in English. Null when the stored number isn't a
+   * dialable Iraqi mobile, which the button below reports rather than hides.
+   */
+  const confirmHref = whatsappChatUrl(order.phone, buildOrderConfirmationMessage(order, "ar"));
+
   /** The artwork to print for one line: buyer upload → chosen design → cover. */
   function itemImage(it: Order["items"][number]): string | undefined {
     if (it.customImageUrl) return it.customImageUrl;
@@ -370,26 +416,124 @@ function OrderDetailsModal({
     return (it.itemId ? p.items.find((x) => x.id === it.itemId)?.imageUrl : undefined) ?? p.image;
   }
 
-  // Everything the admin needs to produce this order: custom artwork, buyer
-  // uploads, and the specific designs chosen from a package.
-  const imageUrls = Array.from(
-    new Set([
-      ...order.customImages,
-      ...order.items.map(itemImage).filter((u): u is string => !!u),
-    ]),
-  );
-  const [downloading, setDownloading] = useState(false);
+  /**
+   * The order's artwork, split into the sets the admin actually works in.
+   *
+   * A basket can hold several custom requests of different kinds, and they used
+   * to pool their images into one flat grid — leaving no way to tell a sticker
+   * design from a brooch one, or to fetch just the stickers to cut first. Each
+   * kind is its own set now, alongside a set per store category for the
+   * catalogue designs in the same order.
+   */
+  const groups = useMemo<ArtworkGroup[]>(() => {
+    // Kept as three parallel maps, and every array rebuilt rather than pushed
+    // into: the URLs come straight off the order's items, and appending to one
+    // of those in place would be mutating props.
+    const meta = new Map<string, Omit<ArtworkGroup, "urls" | "requestCount">>();
+    const urlsByKey = new Map<string, string[]>();
+    const countByKey = new Map<string, number>();
+    // Insertion order, so the sets appear as they were added rather than in
+    // whatever order a Map happens to iterate.
+    const keys: string[] = [];
+
+    const push = (
+      key: string,
+      make: () => Omit<ArtworkGroup, "urls" | "requestCount">,
+      urls: string[],
+    ) => {
+      if (urls.length === 0) return;
+      if (!meta.has(key)) {
+        meta.set(key, make());
+        keys.push(key);
+      }
+      urlsByKey.set(key, [...(urlsByKey.get(key) ?? []), ...urls]);
+      countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
+    };
+
+    // --- custom requests, one set per kind (two sticker requests merge, so
+    // "download the stickers" means all of them)
+    for (const it of order.items) {
+      if (!it.customKind || it.customKind === "manual") continue;
+      const kind = it.customKind;
+      push(
+        `custom:${kind}`,
+        () => ({
+          label: `${t("custom.badge")} · ${lang === "ar" ? CUSTOM_TYPE_LABEL[kind].ar : CUSTOM_TYPE_LABEL[kind].en}`,
+          folder: kind,
+          accent: CUSTOM_ORDER_COLOR,
+          ungrouped: false,
+        }),
+        it.customImages,
+      );
+    }
+
+    // --- orders placed before per-line grouping was recorded: the images exist
+    // only as the merged array. Shown as one set and labelled as such, rather
+    // than split on a guess — the admin prints from these.
+    if (meta.size === 0 && order.customImages.length > 0) {
+      const kind = order.customType;
+      push(
+        "custom:legacy",
+        () => ({
+          label: kind
+            ? `${t("custom.badge")} · ${lang === "ar" ? CUSTOM_TYPE_LABEL[kind].ar : CUSTOM_TYPE_LABEL[kind].en}`
+            : t("custom.imagesLabel"),
+          folder: kind ?? "custom",
+          accent: CUSTOM_ORDER_COLOR,
+          ungrouped: true,
+        }),
+        order.customImages,
+      );
+    }
+
+    // --- catalogue designs, one set per store category (medals, stickers…)
+    for (const it of order.items) {
+      const url = itemImage(it);
+      if (!url) continue;
+      const code = getProduct(it.productId)?.categories[0] ?? "";
+      push(
+        `product:${code}`,
+        () => ({
+          label: code
+            ? `${t("dash.productDesigns")} · ${categoryLabel(code)}`
+            : t("dash.productDesigns"),
+          folder: code ? `store-${code}` : "store",
+          accent: "var(--brand)",
+          ungrouped: false,
+        }),
+        [url],
+      );
+    }
+
+    return keys.map((key) => ({
+      ...meta.get(key)!,
+      urls: urlsByKey.get(key) ?? [],
+      requestCount: countByKey.get(key) ?? 1,
+    }));
+    // itemImage is a stable local helper over getProduct, which IS listed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, lang, t, getProduct, categoryLabel]);
+
+  const totalImages = groups.reduce((n, g) => n + g.urls.length, 0);
+  /** which set is downloading right now ("" = the whole order), or null */
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState(false);
 
-  async function handleDownloadAll() {
+  async function download(key: string, sets: ArtworkGroup[], suffix: string) {
     setDownloadError(false);
-    setDownloading(true);
+    setDownloadingKey(key);
     try {
-      await downloadImagesAsZip(imageUrls, `${order.code}-images.zip`);
+      const payload: ImageGroup[] = sets.map((g) => ({
+        // A single set unpacks straight into the archive root; the whole order
+        // unpacks into one folder per set.
+        folder: sets.length > 1 ? g.folder : "",
+        urls: g.urls,
+      }));
+      await downloadImageGroupsAsZip(payload, `${order.code}-${suffix}.zip`);
     } catch {
       setDownloadError(true);
     } finally {
-      setDownloading(false);
+      setDownloadingKey(null);
     }
   }
 
@@ -445,20 +589,117 @@ function OrderDetailsModal({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {/* Admin-only: download all of this order's images as one ZIP */}
-          {imageUrls.length > 0 && (
-            <div>
+          {/* Message the customer to confirm. First thing in the panel because
+              for an order sitting in review it is the next thing to do. */}
+          {confirmHref ? (
+            <a
+              href={confirmHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tap flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-bold text-white transition hover:opacity-90"
+            >
+              <Whatsapp size={17} />
+              {t("dash.whatsappConfirm")}
+            </a>
+          ) : (
+            <p className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-center text-[11px] font-semibold text-amber-700">
+              {t("dash.whatsappNoPhone")}
+            </p>
+          )}
+
+          {/* Everything the admin needs to produce this order, split into the
+              sets they work in: each custom kind on its own, each store category
+              on its own, and one button for the lot. A set can be fetched
+              without the others — the stickers usually get cut first. */}
+          {totalImages > 0 && (
+            <div className="space-y-2.5">
+              <div>
+                <p className="text-xs font-bold text-ink-2">
+                  {t("dash.artworkTitle")}
+                  <span className="ms-1.5 font-semibold text-ink-3">({totalImages})</span>
+                </p>
+                {groups.length > 1 && (
+                  <p className="mt-0.5 text-[11px] text-ink-3">{t("dash.artworkHint")}</p>
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={handleDownloadAll}
-                disabled={downloading}
+                onClick={() => download("", groups, "images")}
+                disabled={downloadingKey !== null}
                 className="tap flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
               >
                 <Download size={16} />
-                {downloading ? t("dash.downloading") : `${t("dash.downloadAll")} (${imageUrls.length})`}
+                {downloadingKey === ""
+                  ? t("dash.downloading")
+                  : `${t("dash.downloadEverything")} (${totalImages})`}
               </button>
+
+              {groups.map((g) => (
+                <div
+                  key={g.folder}
+                  className="rounded-2xl border p-3"
+                  style={{
+                    borderColor: `color-mix(in srgb, ${g.accent} 35%, transparent)`,
+                    background: `color-mix(in srgb, ${g.accent} 5%, var(--surface))`,
+                  }}
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-[12px] font-bold text-ink" style={{ color: g.accent }}>
+                      {g.label}
+                    </span>
+                    <span className="text-[11px] font-semibold text-ink-3">
+                      {g.urls.length} {t("dash.itemsLabel")}
+                      {/* Two requests of the same kind merged into one set —
+                          say so, so the count isn't read as one job */}
+                      {g.requestCount > 1 && ` · ×${g.requestCount}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => download(g.folder, [g], g.folder)}
+                      disabled={downloadingKey !== null}
+                      className="tap ms-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition hover:text-white disabled:opacity-60"
+                      style={{ borderColor: g.accent, color: g.accent }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = g.accent;
+                        e.currentTarget.style.color = "#fff";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "";
+                        e.currentTarget.style.color = g.accent;
+                      }}
+                    >
+                      <Download size={12} />
+                      {downloadingKey === g.folder
+                        ? t("dash.downloading")
+                        : t("dash.downloadGroup")}
+                    </button>
+                  </div>
+
+                  {g.ungrouped && (
+                    <p className="mb-2 text-[11px] font-semibold text-amber-600">
+                      {t("dash.artworkUngrouped")}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-5 gap-2">
+                    {g.urls.map((url, i) => (
+                      <a
+                        key={`${url}-${i}`}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="tap relative aspect-square overflow-hidden rounded-lg border border-line-2 transition hover:opacity-80"
+                      >
+                        <RetryImage src={url} alt="" fill sizes="72px" className="object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
               {downloadError && (
-                <p className="mt-1.5 text-center text-[11px] font-semibold text-red-500">
+                <p className="text-center text-[11px] font-semibold text-red-500">
                   {t("dash.downloadError")}
                 </p>
               )}
@@ -562,40 +803,6 @@ function OrderDetailsModal({
             )}
           </div>
 
-          {/* Custom request artwork (shown whenever the order carries any, even
-              when it also has regular products) */}
-          {order.customImages.length > 0 && (
-            <div
-              className="rounded-2xl border p-4"
-              style={{
-                borderColor: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 35%, transparent)`,
-                background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 5%, var(--surface))`,
-              }}
-            >
-              <p className="mb-2 flex items-center gap-2 text-xs font-bold text-ink-2">
-                {t("custom.imagesLabel")} ({order.customImages.length})
-                {order.customWaterproof && (
-                  <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
-                    <Droplet size={11} /> {t("badge.waterproof")}
-                  </span>
-                )}
-              </p>
-              <div className="grid grid-cols-5 gap-2">
-                {order.customImages.map((url) => (
-                  <a
-                    key={url}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="tap relative aspect-square overflow-hidden rounded-lg border border-line-2 transition hover:opacity-80"
-                  >
-                    <RetryImage src={url} alt="" fill sizes="72px" className="object-cover" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Items */}
           <ul className="space-y-2">
             {order.items.map((it, i) => {
@@ -606,10 +813,19 @@ function OrderDetailsModal({
                   key={i}
                   className="flex items-center gap-2.5 rounded-xl border border-line-2 px-3 py-2.5 text-[13px]"
                 >
-                  {/* The design to print, so the admin sees it without opening links */}
+                  {/* The design to print, so the admin sees it without opening
+                      links. A manual line has no artwork by definition, so it
+                      gets the manual mark rather than a generic package box. */}
                   {itemImage(it) ? (
                     <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line-2">
                       <RetryImage src={itemImage(it)!} alt="" fill sizes="40px" className="object-cover" />
+                    </span>
+                  ) : it.customKind === "manual" ? (
+                    <span
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white"
+                      style={{ background: MANUAL_ORDER_COLOR }}
+                    >
+                      <Tag size={16} />
                     </span>
                   ) : (
                     <Package size={13} className="shrink-0 text-ink-3" />
@@ -619,7 +835,7 @@ function OrderDetailsModal({
                       {itemName}
                       {variant && <span className="font-semibold text-ink-3"> — {variant}</span>}
                     </span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-ink-3">
+                    <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
                       ×{it.qty}
                       {it.freeQty > 0 && (
                         <span className="font-bold text-emerald-600">
@@ -629,6 +845,16 @@ function OrderDetailsModal({
                       {it.waterproof && (
                         <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
                           <Droplet size={10} /> {t("badge.waterproof")}
+                        </span>
+                      )}
+                      {/* Why this line's total isn't unit × qty — without it the
+                          arithmetic on screen looks wrong. */}
+                      {it.manualTotal != null && (
+                        <span
+                          className="inline-flex items-center gap-0.5 font-bold"
+                          style={{ color: MANUAL_ORDER_COLOR }}
+                        >
+                          <Tag size={10} /> {t("dash.manualPriced")}
                         </span>
                       )}
                       {it.note && (

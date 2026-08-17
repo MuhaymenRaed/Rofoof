@@ -17,6 +17,7 @@ import type {
   CustomPricing,
   FandomInfo,
   FeaturedGroup,
+  ManualCartOrder,
   Offer,
   Product,
   SiteSettings,
@@ -24,7 +25,12 @@ import type {
   VolumeTier,
 } from "@/lib/products";
 import { stockCeilingFor } from "@/lib/products";
-import { linePricing, volumeUnitPrice, type LinePricing } from "@/lib/pricing";
+import {
+  customRequestTotal,
+  linePricing,
+  volumeUnitPrice,
+  type LinePricing,
+} from "@/lib/pricing";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -102,6 +108,10 @@ interface StoreContextValue {
   customRequests: CustomCartRequest[];
   addCustomRequest: (req: Omit<CustomCartRequest, "id">) => void;
   removeCustomRequest: (id: string) => void;
+  /** admin-only manual order lines queued in the cart */
+  manualOrders: ManualCartOrder[];
+  addManualOrder: (order: Omit<ManualCartOrder, "id">) => void;
+  removeManualOrder: (id: string) => void;
   // wishlist
   wishlist: string[];
   isWished: (id: string) => boolean;
@@ -119,15 +129,123 @@ interface StoreContextValue {
   customOpen: boolean;
   openCustom: () => void;
   closeCustom: () => void;
+  // admin-only manual order modal
+  manualOpen: boolean;
+  openManual: () => void;
+  closeManual: () => void;
 }
 
-const StoreContext = createContext<StoreContextValue | null>(null);
+/* ---------------------------- Context splitting ---------------------------
+ * One context carrying all of this would re-render every consumer whenever any
+ * part of it changed — and `ProductCard` is a consumer, of which a busy page has
+ * over a hundred. Opening the cart drawer, adding a line, or the offer clock
+ * ticking once a minute all used to re-render every card on screen, each one
+ * re-running discountView() over every live offer. That is the site's lag.
+ *
+ * So the value is split by how often each part changes, and components subscribe
+ * only to what they actually read. The split is what makes the cheap
+ * interactions cheap; `useStore()` below still exposes the whole thing for the
+ * many components where a re-render costs nothing.
+ * ------------------------------------------------------------------------- */
+
+/** Callbacks. Stable for the life of the session, so this never invalidates. */
+type ActionsValue = Pick<
+  StoreContextValue,
+  | "toggleLang"
+  | "addToCart"
+  | "setQty"
+  | "removeFromCart"
+  | "clearCart"
+  | "addCustomRequest"
+  | "removeCustomRequest"
+  | "addManualOrder"
+  | "removeManualOrder"
+  | "toggleWish"
+  | "openCart"
+  | "closeCart"
+  | "openQuickView"
+  | "closeQuickView"
+  | "openCustom"
+  | "closeCustom"
+  | "openManual"
+  | "closeManual"
+  | "setAnnouncementSettings"
+>;
+
+/** Catalog + language + clock: server-injected or slow-moving. */
+type CatalogValue = Pick<
+  StoreContextValue,
+  | "lang"
+  | "dir"
+  | "t"
+  | "products"
+  | "categories"
+  | "subcategories"
+  | "fandoms"
+  | "featuredGroups"
+  | "offers"
+  | "volumeTiers"
+  | "siteSettings"
+  | "customPricing"
+  | "now"
+  | "getProduct"
+  | "categoryLabel"
+  | "announcement"
+  | "announcementSettings"
+>;
+
+/** The basket. Changes on every quantity tap — deliberately narrow. */
+type CartValue = Pick<
+  StoreContextValue,
+  "cart" | "customRequests" | "manualOrders" | "cartCount" | "cartSubtotal" | "pricingFor"
+>;
+
+/** Its own context so hearting one product doesn't touch the cart's consumers. */
+type WishlistValue = Pick<StoreContextValue, "wishlist" | "isWished">;
+
+/** Overlay flags. Separated from the openers, which are stable actions. */
+type UiValue = Pick<StoreContextValue, "cartOpen" | "quickView" | "customOpen" | "manualOpen">;
+
+const ActionsContext = createContext<ActionsValue | null>(null);
+const CatalogContext = createContext<CatalogValue | null>(null);
+const CartContext = createContext<CartValue | null>(null);
+const WishlistContext = createContext<WishlistValue | null>(null);
+const UiContext = createContext<UiValue | null>(null);
+
+function useCtx<T>(ctx: React.Context<T | null>, name: string): T {
+  const value = useContext(ctx);
+  if (!value) throw new Error(`${name} must be used within <StoreProvider>`);
+  return value;
+}
+
+/** Stable callbacks only — subscribing to these never causes a re-render. */
+export function useStoreActions(): ActionsValue {
+  return useCtx(ActionsContext, "useStoreActions");
+}
+
+/** Catalog, language and the offer clock. */
+export function useCatalog(): CatalogValue {
+  return useCtx(CatalogContext, "useCatalog");
+}
+
+export function useCartState(): CartValue {
+  return useCtx(CartContext, "useCartState");
+}
+
+export function useWishlist(): WishlistValue {
+  return useCtx(WishlistContext, "useWishlist");
+}
+
+export function useUi(): UiValue {
+  return useCtx(UiContext, "useUi");
+}
 
 const LS = {
   lang: "rofoof.lang",
   cart: "rofoof.cart",
   wish: "rofoof.wish",
   custom: "rofoof.custom",
+  manual: "rofoof.manual",
 };
 
 export function StoreProvider({
@@ -161,6 +279,7 @@ export function StoreProvider({
   const [lang, setLang] = useState<Lang>("ar");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customRequests, setCustomRequests] = useState<CustomCartRequest[]>([]);
+  const [manualOrders, setManualOrders] = useState<ManualCartOrder[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   // Latest wishlist without making every consumer re-subscribe — lets the DB
   // sync read current state without living inside a state updater.
@@ -168,6 +287,7 @@ export function StoreProvider({
   const [cartOpen, setCartOpen] = useState(false);
   const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [ann, setAnn] = useState<AnnouncementSettings>(
     initialAnnouncement ?? { ar: "", en: "", active: false },
   );
@@ -186,10 +306,12 @@ export function StoreProvider({
       const storedCart = localStorage.getItem(LS.cart);
       const storedWish = localStorage.getItem(LS.wish);
       const storedCustom = localStorage.getItem(LS.custom);
+      const storedManual = localStorage.getItem(LS.manual);
       if (storedLang) setLang(storedLang);
       if (storedCart) setCart(JSON.parse(storedCart));
       if (storedWish) setWishlist(JSON.parse(storedWish));
       if (storedCustom) setCustomRequests(JSON.parse(storedCustom));
+      if (storedManual) setManualOrders(JSON.parse(storedManual));
     } catch {
       /* ignore */
     }
@@ -229,6 +351,11 @@ export function StoreProvider({
     } catch {}
   }, [customRequests]);
   useEffect(() => {
+    try {
+      localStorage.setItem(LS.manual, JSON.stringify(manualOrders));
+    } catch {}
+  }, [manualOrders]);
+  useEffect(() => {
     wishlistRef.current = wishlist;
     try {
       localStorage.setItem(LS.wish, JSON.stringify(wishlist));
@@ -261,9 +388,15 @@ export function StoreProvider({
       if (previousUserId) {
         setWishlist([]);
         setCart([]);
+        // Manual lines are an admin-only instrument. Signing out has to take
+        // them with it, or a queued one would still be sitting in the basket
+        // for whoever uses this browser next — and place_order would refuse it
+        // anyway, leaving them with a cart that can't be checked out.
+        setManualOrders([]);
         try {
           localStorage.removeItem(LS.wish);
           localStorage.removeItem(LS.cart);
+          localStorage.removeItem(LS.manual);
         } catch {}
       }
       return;
@@ -384,10 +517,14 @@ export function StoreProvider({
     setCart((prev) => prev.filter((l) => cartLineKey(l) !== lineKey));
   }, []);
 
-  /** Clears products AND queued custom requests — used after a successful order. */
+  /**
+   * Clears products, queued custom requests AND manual lines — used after a
+   * successful order, so the whole basket goes at once.
+   */
   const clearCart = useCallback(() => {
     setCart([]);
     setCustomRequests([]);
+    setManualOrders([]);
   }, []);
 
   const addCustomRequest = useCallback((req: Omit<CustomCartRequest, "id">) => {
@@ -396,6 +533,14 @@ export function StoreProvider({
 
   const removeCustomRequest = useCallback((id: string) => {
     setCustomRequests((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  const addManualOrder = useCallback((order: Omit<ManualCartOrder, "id">) => {
+    setManualOrders((prev) => [...prev, { ...order, id: crypto.randomUUID() }]);
+  }, []);
+
+  const removeManualOrder = useCallback((id: string) => {
+    setManualOrders((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
   const isWished = useCallback((id: string) => wishlist.includes(id), [wishlist]);
@@ -434,6 +579,8 @@ export function StoreProvider({
   const closeQuickView = useCallback(() => setQuickViewId(null), []);
   const openCustom = useCallback(() => setCustomOpen(true), []);
   const closeCustom = useCallback(() => setCustomOpen(false), []);
+  const openManual = useCallback(() => setManualOpen(true), []);
+  const closeManual = useCallback(() => setManualOpen(false), []);
 
   const setAnnouncementSettings = useCallback((next: AnnouncementSettings) => setAnn(next), []);
 
@@ -470,19 +617,22 @@ export function StoreProvider({
     [productMap, offers, volumeCount, volumeTiers, now],
   );
 
-  // Counts/totals span products AND queued custom requests (one piece per
-  // uploaded image), so the badge and cart summary reflect the whole basket.
+  // Counts/totals span products, queued custom requests (one piece per uploaded
+  // image) AND admin manual lines (one piece each), so the badge and cart
+  // summary reflect the whole basket.
   const cartCount = useMemo(
     () =>
       cart.reduce((n, l) => n + l.qty, 0) +
-      customRequests.reduce((n, r) => n + r.images.length, 0),
-    [cart, customRequests],
+      customRequests.reduce((n, r) => n + r.images.length, 0) +
+      manualOrders.length,
+    [cart, customRequests, manualOrders],
   );
   const cartSubtotal = useMemo(
     () =>
       cart.reduce((sum, l) => sum + pricingFor(l).total, 0) +
-      customRequests.reduce((sum, r) => sum + r.unitPrice * r.images.length, 0),
-    [cart, customRequests, pricingFor],
+      customRequests.reduce((sum, r) => sum + customRequestTotal(r), 0) +
+      manualOrders.reduce((sum, m) => sum + m.price, 0),
+    [cart, customRequests, manualOrders, pricingFor],
   );
   const quickView = quickViewId ? productMap.get(quickViewId) ?? null : null;
 
@@ -492,56 +642,148 @@ export function StoreProvider({
     return text?.trim() ? text : null;
   }, [ann, lang]);
 
-  const value: StoreContextValue = {
-    lang,
-    dir,
-    toggleLang,
-    t,
-    products,
-    categories,
-    subcategories,
-    fandoms,
-    featuredGroups,
-    offers,
-    volumeTiers,
-    siteSettings,
-    now,
-    getProduct,
-    categoryLabel,
-    pricingFor,
-    announcement,
-    announcementSettings: ann,
-    setAnnouncementSettings,
-    cart,
-    cartCount,
-    cartSubtotal,
-    addToCart,
-    setQty,
-    removeFromCart,
-    clearCart,
-    customRequests,
-    addCustomRequest,
-    removeCustomRequest,
-    wishlist,
-    isWished,
-    toggleWish,
-    cartOpen,
-    openCart,
-    closeCart,
-    quickView,
-    openQuickView,
-    closeQuickView,
-    customPricing,
-    customOpen,
-    openCustom,
-    closeCustom,
-  };
+  /* --------------------------- Memoized sub-values -------------------------
+   * Each of these must only change when something it actually contains does.
+   * An unmemoized object here would defeat the whole split — every consumer of
+   * every context would re-render on every StoreProvider render, which is the
+   * behaviour being fixed. */
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  const actions = useMemo<ActionsValue>(
+    () => ({
+      toggleLang,
+      addToCart,
+      setQty,
+      removeFromCart,
+      clearCart,
+      addCustomRequest,
+      removeCustomRequest,
+      addManualOrder,
+      removeManualOrder,
+      toggleWish,
+      openCart,
+      closeCart,
+      openQuickView,
+      closeQuickView,
+      openCustom,
+      closeCustom,
+      openManual,
+      closeManual,
+      setAnnouncementSettings,
+    }),
+    // Every entry is a useCallback; only addToCart/setQty (productMap) and
+    // toggleWish (signed-in user) can change at all, and neither does during
+    // ordinary browsing.
+    [
+      toggleLang,
+      addToCart,
+      setQty,
+      removeFromCart,
+      clearCart,
+      addCustomRequest,
+      removeCustomRequest,
+      addManualOrder,
+      removeManualOrder,
+      toggleWish,
+      openCart,
+      closeCart,
+      openQuickView,
+      closeQuickView,
+      openCustom,
+      closeCustom,
+      openManual,
+      closeManual,
+      setAnnouncementSettings,
+    ],
+  );
+
+  const catalog = useMemo<CatalogValue>(
+    () => ({
+      lang,
+      dir,
+      t,
+      products,
+      categories,
+      subcategories,
+      fandoms,
+      featuredGroups,
+      offers,
+      volumeTiers,
+      siteSettings,
+      customPricing,
+      now,
+      getProduct,
+      categoryLabel,
+      announcement,
+      announcementSettings: ann,
+    }),
+    [
+      lang,
+      dir,
+      t,
+      products,
+      categories,
+      subcategories,
+      fandoms,
+      featuredGroups,
+      offers,
+      volumeTiers,
+      siteSettings,
+      customPricing,
+      now,
+      getProduct,
+      categoryLabel,
+      announcement,
+      ann,
+    ],
+  );
+
+  const cartValue = useMemo<CartValue>(
+    () => ({ cart, customRequests, manualOrders, cartCount, cartSubtotal, pricingFor }),
+    [cart, customRequests, manualOrders, cartCount, cartSubtotal, pricingFor],
+  );
+
+  const wishlistValue = useMemo<WishlistValue>(
+    () => ({ wishlist, isWished }),
+    [wishlist, isWished],
+  );
+
+  const ui = useMemo<UiValue>(
+    () => ({ cartOpen, quickView, customOpen, manualOpen }),
+    [cartOpen, quickView, customOpen, manualOpen],
+  );
+
+  // Nesting order is irrelevant to correctness — they're independent — but the
+  // stable one is outermost so it never re-renders the others.
+  return (
+    <ActionsContext.Provider value={actions}>
+      <CatalogContext.Provider value={catalog}>
+        <WishlistContext.Provider value={wishlistValue}>
+          <CartContext.Provider value={cartValue}>
+            <UiContext.Provider value={ui}>{children}</UiContext.Provider>
+          </CartContext.Provider>
+        </WishlistContext.Provider>
+      </CatalogContext.Provider>
+    </ActionsContext.Provider>
+  );
 }
 
-export function useStore() {
-  const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error("useStore must be used within <StoreProvider>");
-  return ctx;
+/**
+ * The whole store in one object.
+ *
+ * Subscribes to every context, so a consumer re-renders whenever ANY part of the
+ * store changes. That is fine — and simplest — for the many components that
+ * exist once on a page: modals, the header, the dashboard views. It is not fine
+ * for anything rendered per product; those use the narrow hooks above, and
+ * `ProductCard` is the reason they exist.
+ */
+export function useStore(): StoreContextValue {
+  const actions = useStoreActions();
+  const catalog = useCatalog();
+  const cart = useCartState();
+  const wishlist = useWishlist();
+  const ui = useUi();
+  return useMemo(
+    () => ({ ...actions, ...catalog, ...cart, ...wishlist, ...ui }),
+    [actions, catalog, cart, wishlist, ui],
+  );
 }

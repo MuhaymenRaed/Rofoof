@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 import { PolicyModal, type PolicySection } from "@/components/layout/policy-modal";
+import { ReplayTourButton } from "@/components/tour/replay-tour-button";
 import { Instagram, Whatsapp, MapPin, Phone, Truck } from "@/components/icons";
 import {
   WHATSAPP_URL,
@@ -28,7 +29,7 @@ const HELP_LINKS: { key: DictKey; section: PolicySection }[] = [
 ];
 
 export function Footer() {
-  const { t } = useStore();
+  const { t } = useCatalog();
   const [policySection, setPolicySection] = useState<PolicySection | null>(null);
   const year = 2026;
 
@@ -140,7 +141,14 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-line-2 pt-6 text-xs text-ink-3 sm:flex-row">
+        {/* Replay the guided walkthrough — it auto-runs only once, so this is
+            the way back to it. Its own row so it reads as an action rather than
+            another footer link. */}
+        <div className="mt-8 flex justify-center border-t border-line-2 pt-6 sm:justify-start">
+          <ReplayTourButton />
+        </div>
+
+        <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-line-2 pt-6 text-xs text-ink-3 sm:flex-row">
           <p>
             © {year} رفوف · rofoof — {t("footer.rights")}{" "}
             <a

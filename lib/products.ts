@@ -382,10 +382,47 @@ export interface CustomCartRequest {
   description: string;
   waterproof: boolean;
   unitPrice: number;
+  /**
+   * An exact price for the WHOLE request, set by an admin, replacing
+   * unitPrice × images. For requests the per-piece ladder can't price fairly —
+   * six designs crammed onto one sticker sheet is not "one sticker".
+   *
+   * Only ever set from the admin-only control in the request modal, and
+   * re-checked against is_admin() inside place_order: a customer who forges one
+   * gets `forbidden_manual_price`, not a discount.
+   */
+  manualTotal?: number | null;
+}
+
+/**
+ * An admin-only manual order line: a job that isn't in the catalogue at all —
+ * a walk-in, a DM commission — described in free text and priced by hand.
+ *
+ * `customerName` / `addressLine` are collected here only to prefill the
+ * checkout form; the order itself stores them the same way every other order
+ * does. Nothing about this line is visible to, or creatable by, a customer.
+ */
+export interface ManualCartOrder {
+  /** client-generated id, only used to key/remove the line */
+  id: string;
+  /** short label for the job, shown as the line's name */
+  title: string;
+  description: string;
+  /** exact total for this line, in IQD */
+  price: number;
+  customerName: string;
+  addressLine: string;
 }
 
 /** Distinct accent for custom requests everywhere (lists, badges, stats). */
 export const CUSTOM_ORDER_COLOR = "#d946ef";
+
+/**
+ * Distinct accent for admin manual orders — deliberately not the custom-request
+ * magenta and not the brand red, so an internally-created order is never
+ * mistaken for either a customer's custom request or an ordinary sale.
+ */
+export const MANUAL_ORDER_COLOR = "#4f46e5";
 
 export const CUSTOM_TYPE_LABEL: Record<CustomType, { ar: string; en: string }> = {
   brooch: { ar: "بروش", en: "Brooch" },
@@ -412,6 +449,20 @@ export interface OrderItem {
   waterproof: boolean;
   customImageUrl?: string;
   note?: string;
+  /**
+   * Artwork belonging to THIS request alone. A basket can hold several custom
+   * requests of different kinds, and they used to pool their images into one
+   * flat `Order.customImages` — leaving the admin a merged grid with no way to
+   * tell a sticker design from a brooch one. Grouping lives here now.
+   *
+   * Empty when the database hasn't got `order_items.custom_images` yet, in
+   * which case the admin view falls back to the merged array.
+   */
+  customImages: string[];
+  /** which kind of non-catalogue line this is, when it is one */
+  customKind?: CustomType | "manual";
+  /** exact line total an admin set by hand, overriding unitPrice × qty */
+  manualTotal?: number;
 }
 
 export interface Order {

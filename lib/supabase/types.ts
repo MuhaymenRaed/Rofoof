@@ -440,6 +440,19 @@ export interface Database {
           custom_image_url: string | null;
           note: string | null;
           line_total: number;
+          /**
+           * The three columns below are optional because schema and code deploy
+           * independently here (see AGENTS.md). They arrive with
+           * docs/admin-manual-pricing.sql; until it runs, reads simply don't
+           * carry them — `order_items(*)` never fails for a column it doesn't
+           * know about, unlike an explicit select.
+           */
+          /** artwork for THIS custom request alone (grouped, not pooled) */
+          custom_images?: string[] | null;
+          /** 'brooch' | 'sticker' | 'poster' | 'manual' */
+          custom_kind?: string | null;
+          /** exact line total set by an admin, overriding unit_price × qty */
+          manual_total?: number | null;
         };
         Insert: {
           order_id: string;

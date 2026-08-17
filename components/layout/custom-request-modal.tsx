@@ -4,9 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Cart, Droplet, Sparkles, Info, CUSTOM_TYPE_ICON } from "@/components/icons";
+import { useAuth } from "@/components/providers/auth-provider";
+import { X, Plus, Cart, Droplet, Sparkles, Info, Tag, CUSTOM_TYPE_ICON } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { CUSTOM_TYPE_LABEL, CUSTOM_ORDER_COLOR, type CustomType } from "@/lib/products";
+import {
+  CUSTOM_TYPE_LABEL,
+  CUSTOM_ORDER_COLOR,
+  MANUAL_ORDER_COLOR,
+  type CustomType,
+} from "@/lib/products";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toWebp, MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/webp";
 
@@ -64,6 +70,7 @@ export function CustomRequestModal() {
 
 function RequestForm({ onClose }: { onClose: () => void }) {
   const { t, lang, customPricing, addCustomRequest, openCart } = useStore();
+  const { isAdmin, ready } = useAuth();
   const supabase = createSupabaseBrowserClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +82,9 @@ function RequestForm({ onClose }: { onClose: () => void }) {
   const [pending, setPending] = useState(false);
   const [skippedBig, setSkippedBig] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** admin: price the whole request by hand instead of per piece */
+  const [manualOn, setManualOn] = useState(false);
+  const [manualPrice, setManualPrice] = useState("");
 
   // Revoke previews on unmount.
   const artworksRef = useRef<Artwork[]>([]);
@@ -92,8 +102,23 @@ function RequestForm({ onClose }: { onClose: () => void }) {
   const minImages = type === "sticker" ? MIN_STICKER_IMAGES : 1;
   /** how many more designs are still needed before the order can be sent */
   const missing = Math.max(0, minImages - qty);
-  const total = unit * qty;
-  const canSend = qty >= minImages && !converting;
+
+  // The manual control is admin-only and only offered once auth has resolved,
+  // so it can't flash into view for a customer during hydration.
+  const canPriceManually = ready && isAdmin;
+  /**
+   * A blank box is not a price of zero — it's an admin who hasn't typed yet, so
+   * the automatic price stays in force until a real number is there. `manual`
+   * being null is what keeps `manualTotal` off the cart line entirely, which in
+   * turn keeps the request on the old RPC path.
+   */
+  const manual =
+    canPriceManually && manualOn && /^\d+$/.test(manualPrice.trim())
+      ? Number(manualPrice.trim())
+      : null;
+  const autoTotal = unit * qty;
+  const total = manual ?? autoTotal;
+  const canSend = qty >= minImages && !converting && (!manualOn || manual !== null);
 
   async function pickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -153,7 +178,11 @@ function RequestForm({ onClose }: { onClose: () => void }) {
         images,
         description: description.trim(),
         waterproof: waterproof && waterproofEligible,
+        // Kept even when a manual total is set: it records what the ladder
+        // WOULD have charged, which is the only way to see afterwards what the
+        // manual price was chosen over.
         unitPrice: unit,
+        manualTotal: manual,
       });
 
       onClose();
@@ -362,6 +391,64 @@ function RequestForm({ onClose }: { onClose: () => void }) {
           />
         </label>
 
+        {/* Admin-only: name the price for the whole request.
+            Some requests simply can't be priced per piece — six designs on one
+            sticker sheet is not "one sticker" — so the ladder gets overridden
+            rather than argued with. place_order re-checks is_admin() before it
+            honours this, so the control being hidden is a convenience, not the
+            security boundary. */}
+        {canPriceManually && (
+          <div
+            className="rounded-2xl border p-4"
+            style={{
+              borderColor: `color-mix(in srgb, ${MANUAL_ORDER_COLOR} 35%, transparent)`,
+              background: `color-mix(in srgb, ${MANUAL_ORDER_COLOR} 7%, var(--surface))`,
+            }}
+          >
+            <label className="flex cursor-pointer items-start justify-between gap-3">
+              <span>
+                <span
+                  className="flex items-center gap-1.5 text-[13px] font-bold"
+                  style={{ color: MANUAL_ORDER_COLOR }}
+                >
+                  <Tag size={14} />
+                  {t("custom.manualPrice")}
+                  <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-black text-ink-3">
+                    {t("custom.manualPriceAdmin")}
+                  </span>
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-ink-3">
+                  {t("custom.manualPriceHint")}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={manualOn}
+                onChange={(e) => setManualOn(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
+              />
+            </label>
+
+            {manualOn && (
+              <label className="mt-3 block">
+                <span className="mb-1.5 block text-xs font-bold text-ink-2">
+                  {t("custom.manualPriceLabel")}
+                </span>
+                <input
+                  value={manualPrice}
+                  // Digits only: the price lands in an `int` column, and a
+                  // half-typed "12,0" would otherwise read as a valid number.
+                  onChange={(e) => setManualPrice(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  inputMode="numeric"
+                  dir="ltr"
+                  placeholder={t("manual.pricePlaceholder")}
+                  className="w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-start text-sm font-bold text-ink outline-none transition placeholder:font-normal placeholder:text-ink-3 focus:border-brand focus:bg-surface"
+                />
+              </label>
+            )}
+          </div>
+        )}
+
         {/* Live price estimate */}
         <div
           className="space-y-1 rounded-2xl border p-4 text-sm"
@@ -370,17 +457,35 @@ function RequestForm({ onClose }: { onClose: () => void }) {
             background: `color-mix(in srgb, ${CUSTOM_ORDER_COLOR} 7%, var(--surface))`,
           }}
         >
+          {/* With a manual price in force the per-piece figure is no longer
+              what's charged, so it's struck through rather than removed — the
+              admin can still see what they overrode. */}
           <div className="flex items-center justify-between text-ink-2">
             <span>{t("custom.perPiece")}</span>
-            <span className="font-bold">{formatPrice(unit, lang)}</span>
+            <span className={`font-bold ${manual !== null ? "text-ink-3 line-through" : ""}`}>
+              {formatPrice(unit, lang)}
+            </span>
           </div>
           <div className="flex items-center justify-between text-ink-2">
             <span>{t("custom.piecesCount")}</span>
             <span className="font-bold">{qty}</span>
           </div>
+          {manual !== null && (
+            <div className="flex items-center justify-between text-ink-3">
+              <span className="text-xs">{t("custom.autoPrice")}</span>
+              <span className="text-xs font-bold line-through">
+                {formatPrice(autoTotal, lang)}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between border-t border-line-2 pt-2">
-            <span className="font-bold text-ink">{t("custom.estimated")}</span>
-            <span className="text-lg font-black" style={{ color: CUSTOM_ORDER_COLOR }}>
+            <span className="font-bold text-ink">
+              {manual !== null ? t("custom.manualPriceApplied") : t("custom.estimated")}
+            </span>
+            <span
+              className="text-lg font-black"
+              style={{ color: manual !== null ? MANUAL_ORDER_COLOR : CUSTOM_ORDER_COLOR }}
+            >
               {formatPrice(total, lang)}
             </span>
           </div>

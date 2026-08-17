@@ -60,6 +60,13 @@ const IRAQ_PHONE_RE = /^07\d{9}$/;
 /** Minimum designs in a custom STICKER order — mirrors the request modal. */
 const MIN_STICKER_IMAGES = 10;
 
+/**
+ * Ceiling on a hand-set price, matching the `manual_total` check constraint in
+ * docs/admin-manual-pricing.sql. Both exist to keep a fat-fingered number from
+ * overflowing the `int` columns the order totals are summed into.
+ */
+const MAX_MANUAL_PRICE = 100_000_000;
+
 /* ------------------------------ Place order ---------------------------- */
 
 const placeOrderSchema = z
@@ -109,6 +116,17 @@ const placeOrderSchema = z
             waterproof: z.boolean().optional().default(false),
             description: z.string().trim().max(1000).optional().default(""),
             images: z.array(z.string().url().max(500)).min(1).max(100),
+            // An exact price for the whole request, set by an admin. Accepted
+            // here but NOT trusted here: place_order re-checks is_admin() and
+            // raises `forbidden_manual_price` for anyone else, so this schema
+            // only has to keep the value in range for an `int` column.
+            manualTotal: z
+              .number()
+              .int()
+              .min(0)
+              .max(MAX_MANUAL_PRICE)
+              .nullable()
+              .optional(),
           })
           // Sticker runs are cut by the sheet, so they start at 10 designs.
           // Enforced here too — the modal blocks it, but a crafted request
@@ -121,17 +139,75 @@ const placeOrderSchema = z
       .max(50)
       .optional()
       .default([]),
+    // Admin-only manual lines: off-catalogue work described in free text and
+    // priced by hand. Same note as above — the authority is place_order's
+    // is_admin() check, which raises `forbidden_manual_order` otherwise.
+    manuals: z
+      .array(
+        z.object({
+          title: z.string().trim().min(1).max(120),
+          description: z.string().trim().max(1000).optional().default(""),
+          price: z.number().int().min(0).max(MAX_MANUAL_PRICE),
+        }),
+      )
+      .max(20)
+      .optional()
+      .default([]),
   })
-  // A basket must contain at least one product OR one custom request.
-  .refine((v) => v.items.length > 0 || v.customs.length > 0, {
+  // A basket must contain at least one product, custom request or manual line.
+  .refine((v) => v.items.length > 0 || v.customs.length > 0 || v.manuals.length > 0, {
     message: "no_items",
     path: ["items"],
   });
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
 export type PlaceOrderResult =
-  | { ok: true; code: string; total: number }
+  | {
+      ok: true;
+      code: string;
+      total: number;
+      /**
+       * A hand-set price was asked for and the database quietly priced the
+       * request the usual way instead, because docs/admin-manual-pricing.sql
+       * hasn't been run. The order EXISTS and is fine — it is just billed at
+       * the automatic price. Only ever true on the admin path, and surfaced so
+       * an admin fixes the total rather than discovering it on the invoice.
+       */
+      manualPriceIgnored?: boolean;
+    }
   | { ok: false; error: string };
+
+/**
+ * Did the order actually record the hand-set prices it was sent?
+ *
+ * Unknown JSON keys are ignored by a Postgres function, so a `manual_total`
+ * sent to a pre-migration place_order is dropped without complaint — the one
+ * way this feature could mislead rather than fail. This confirms it landed by
+ * looking for the column on the rows just written: a missing column is
+ * PostgREST's 42703, which is precisely "the migration hasn't run".
+ *
+ * Only called when a manual price was requested, so an ordinary checkout never
+ * pays for this round trip. Any other failure answers "applied" — refusing to
+ * cry wolf about an order that is very likely correct.
+ */
+async function manualPricesLanded(code: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("orders")
+      .select("code, order_items(manual_total)")
+      .eq("code", code)
+      .maybeSingle<{ order_items: { manual_total: number | null }[] | null }>();
+    if (error) return !isMissingColumnError(error);
+    return (data?.order_items ?? []).some((i) => i.manual_total != null);
+  } catch {
+    return true;
+  }
+}
+
+function isMissingColumnError(error: { code?: string; message?: string }): boolean {
+  return error.code === "42703" || /manual_total/i.test(error.message ?? "");
+}
 
 export async function placeOrderAction(
   input: PlaceOrderInput,
@@ -139,6 +215,37 @@ export async function placeOrderAction(
   const parsed = placeOrderSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_input" };
   const v = parsed.data;
+
+  // Both admin-only extras ride inside the existing `p_customs` array rather
+  // than a new RPC argument. That keeps place_order's signature — and therefore
+  // its grants, and every ordinary customer checkout — completely untouched by
+  // this feature. A manual line is just a custom entry of type 'manual'.
+  const customPayload = [
+    ...v.customs.map((c) => ({
+      type: c.type,
+      waterproof: c.waterproof,
+      description: c.description || null,
+      images: c.images,
+      // Omitted entirely when unset, so a normal request is byte-for-byte the
+      // payload it has always been.
+      ...(c.manualTotal != null ? { manual_total: c.manualTotal } : {}),
+    })),
+    ...v.manuals.map((m) => ({
+      type: "manual" as const,
+      title: m.title,
+      description: m.description || null,
+      manual_total: m.price,
+      // A manual line has no artwork. Sent as an empty array rather than
+      // omitted only to keep every entry in this array the same shape.
+      //
+      // A pre-migration place_order rejects the unknown type outright with
+      // `invalid_type`, which is the behaviour we want: the line fails loudly
+      // instead of being dropped from a basket that then charges less.
+      images: [] as string[],
+    })),
+  ];
+  const wantsManualPrice =
+    v.manuals.length > 0 || v.customs.some((c) => c.manualTotal != null);
 
   // Cookie client → the RPC (SECURITY DEFINER) sees auth.uid() and attaches the
   // order to the signed-in user; guests get a null user_id.
@@ -158,20 +265,11 @@ export async function placeOrderAction(
       custom_image_url: i.customImageUrl ?? null,
       note: i.note ?? null,
     })),
-    // Only send p_customs when the cart actually has custom requests. A
-    // products-only checkout then calls the 7-arg signature, which works
-    // against BOTH the old and the merged place_order — so deploying this
+    // Only send p_customs when the cart actually has custom requests or manual
+    // lines. A products-only checkout then calls the 7-arg signature, which
+    // works against BOTH the old and the merged place_order — so deploying this
     // before the merge SQL runs can never break a normal order.
-    ...(v.customs.length > 0
-      ? {
-          p_customs: v.customs.map((c) => ({
-            type: c.type,
-            waterproof: c.waterproof,
-            description: c.description || null,
-            images: c.images,
-          })),
-        }
-      : {}),
+    ...(customPayload.length > 0 ? { p_customs: customPayload } : {}),
     // Same reasoning: only send the backup number when there IS one, so a
     // deploy that lands before the migration can't break an ordinary checkout.
     ...(v.customerPhone2 ? { p_customer_phone2: v.customerPhone2 } : {}),
@@ -184,6 +282,19 @@ export async function placeOrderAction(
     // a fault, so it gets its own code for the checkout to explain — the raw
     // Postgres string would be shown to the shopper otherwise.
     if (/out_of_stock/.test(error.message)) return { ok: false, error: "out_of_stock" };
+    // A non-admin session reached the admin-only pricing path. Distinct from a
+    // generic failure because the fix is specific: sign in as an admin, or drop
+    // the hand-priced line.
+    if (/forbidden_manual|manual_price_required|invalid_manual_total/.test(error.message)) {
+      return { ok: false, error: "manual_forbidden" };
+    }
+    // Only a MANUAL LINE can draw `invalid_type` — it is the one entry whose
+    // type a pre-migration place_order doesn't recognise. Scoped to that case
+    // rather than to manual pricing generally, so a genuinely malformed custom
+    // request never gets reported as a missing migration.
+    if (v.manuals.length > 0 && /invalid_type/.test(error.message)) {
+      return { ok: false, error: "manual_unsupported" };
+    }
     return { ok: false, error: error.message };
   }
 
@@ -221,14 +332,20 @@ export async function placeOrderAction(
     deliveryFee: money?.deliveryFee ?? 0,
     itemCount:
       v.items.reduce((sum, i) => sum + i.qty, 0) +
-      v.customs.reduce((sum, c) => sum + c.images.length, 0),
+      v.customs.reduce((sum, c) => sum + c.images.length, 0) +
+      // One piece per manual line — it is a single job, however it is described.
+      v.manuals.length,
   });
+
+  // Only on the admin path, and only after the order is safely placed: confirm
+  // the hand-set prices were actually stored (see manualPricesLanded).
+  const manualPriceIgnored = wantsManualPrice ? !(await manualPricesLanded(result.code)) : false;
 
   revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
-  return { ok: true, code: result.code, total: result.total };
+  return { ok: true, code: result.code, total: result.total, manualPriceIgnored };
 }
 
 /* --------------------------- Custom requests ---------------------------- */

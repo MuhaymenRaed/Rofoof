@@ -7,6 +7,7 @@ import type {
   OfferKind,
   ProductKind,
   Order,
+  OrderItem,
   Category,
   Fandom,
   Badge,
@@ -200,6 +201,14 @@ export function mapOrder(row: OrderRowWithItems): Order {
       waterproof: i.waterproof ?? false,
       customImageUrl: i.custom_image_url ?? undefined,
       note: i.note ?? undefined,
+      // Absent until docs/admin-manual-pricing.sql runs. `?? []` and never a
+      // guess at the grouping: an empty array means "this order predates
+      // per-line artwork", which the admin view answers by falling back to the
+      // merged `Order.customImages`. Inventing a grouping would be worse than
+      // showing none — the admin downloads these to print them.
+      customImages: i.custom_images ?? [],
+      customKind: (i.custom_kind ?? undefined) as OrderItem["customKind"],
+      manualTotal: i.manual_total ?? undefined,
     })),
     subtotal: row.subtotal,
     discountTotal: row.discount_total,

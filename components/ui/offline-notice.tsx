@@ -1,7 +1,7 @@
 "use client";
 
 import { WifiOff } from "@/components/icons";
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 import { useOnline } from "@/lib/hooks/use-online";
 
 /**
@@ -27,7 +27,7 @@ import { useOnline } from "@/lib/hooks/use-online";
  * explicit retry where there's room and nothing to nest inside.
  */
 export function OfflineNotice() {
-  const { t } = useStore();
+  const { t } = useCatalog();
   const online = useOnline();
 
   // Genuinely disconnected vs. a request that failed while nominally online —

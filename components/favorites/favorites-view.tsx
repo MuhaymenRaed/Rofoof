@@ -38,7 +38,7 @@ export function FavoritesView() {
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} productId={p.id} />
           ))}
         </div>
       )}

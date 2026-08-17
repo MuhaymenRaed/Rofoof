@@ -52,8 +52,15 @@ export function MobileTabBar() {
             );
           })}
 
-          {/* Cart — opens the drawer */}
-          <button type="button" onClick={openCart} className={tabClass(false)}>
+          {/* Cart — opens the drawer. `data-tour` marks it as the tour's cart
+              anchor on phones; the header button carries the same attribute for
+              desktop, and the engine spotlights whichever one is visible. */}
+          <button
+            type="button"
+            onClick={openCart}
+            data-tour="cart"
+            className={tabClass(false)}
+          >
             <span className="relative">
               <Bag size={21} />
               {cartCount > 0 && (
@@ -89,6 +96,7 @@ export function MobileTabBar() {
               if (user) setProfileOpen(true);
               else router.push("/login");
             }}
+            data-tour="profile"
             className={tabClass(isActive("/login"))}
           >
             {user ? (

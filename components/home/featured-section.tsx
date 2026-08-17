@@ -13,7 +13,7 @@ import {
   renameFeaturedGroupAction,
   setFeaturedGroupLinkAction,
 } from "@/lib/actions/featured";
-import { featuredGroupHref, type FeaturedGroup, type FeaturedLinkScope, type Product } from "@/lib/products";
+import { featuredGroupHref, type FeaturedGroup, type FeaturedLinkScope } from "@/lib/products";
 
 /**
  * One admin-curated showcase rail on the home page. Any number of these stack
@@ -23,10 +23,15 @@ import { featuredGroupHref, type FeaturedGroup, type FeaturedLinkScope, type Pro
  */
 export function FeaturedSection({
   group,
-  products,
+  productIds,
 }: {
   group: FeaturedGroup;
-  products: Product[];
+  /**
+   * Ids, not objects. This is a Client Component rendered from a Server
+   * Component, so a `Product[]` prop would be serialized into the page for every
+   * rail — a second and third copy of products the store context already holds.
+   */
+  productIds: string[];
 }) {
   const { lang, t } = useStore();
   const { isAdmin, ready } = useAuth();
@@ -174,8 +179,8 @@ export function FeaturedSection({
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {products.map((p) => (
-          <ProductCard key={p.id} product={p} />
+        {productIds.map((id) => (
+          <ProductCard key={id} productId={id} />
         ))}
       </div>
     </section>

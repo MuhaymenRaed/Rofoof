@@ -2,14 +2,45 @@
  * Public store contact info — safe to read on the client (no secrets).
  * Override via env vars without a code change; both have sane defaults.
  */
-export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "9647735473375";
+export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "9647765981704";
 export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 export const INSTAGRAM_URL =
   process.env.NEXT_PUBLIC_INSTAGRAM_URL || "https://www.instagram.com/rofoof.iq/";
 
-/** A wa.me link that opens a chat pre-filled with `text`. */
+/** A wa.me link that opens a chat with the STORE, pre-filled with `text`. */
 export function whatsappMessageUrl(text: string): string {
   return `${WHATSAPP_URL}?text=${encodeURIComponent(text)}`;
+}
+
+/**
+ * An Iraqi number in the form wa.me needs: country code, no leading zero, no
+ * punctuation. `07765981704` → `9647765981704`.
+ *
+ * Returns null rather than a half-converted number when the input isn't a valid
+ * Iraqi mobile — a wa.me link built from a junk number opens a chat with a
+ * stranger, which is worse than no link at all.
+ */
+export function toWhatsappNumber(phone: string): string | null {
+  const local = sanitizePhoneInput(phone);
+  if (!isValidPhone(local)) return null;
+  return `964${local.slice(1)}`;
+}
+
+/**
+ * A wa.me link that opens a chat with SOMEONE ELSE, pre-filled with `text` —
+ * used by the dashboard to message a customer about their order.
+ *
+ * wa.me has no notion of a sender: whichever WhatsApp account the admin is
+ * signed into on that device is the one the message goes out from. So the store
+ * number plays no part here; only the recipient's does.
+ *
+ * Returns null when the customer's number can't be dialled (see
+ * `toWhatsappNumber`), which the caller shows as a disabled control.
+ */
+export function whatsappChatUrl(phone: string, text: string): string | null {
+  const number = toWhatsappNumber(phone);
+  if (!number) return null;
+  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
 /** Arabic-Indic (٠-٩) and Persian (۰-۹) digits → ASCII 0-9. */
@@ -53,7 +84,7 @@ export function isValidOptionalPhone(value: string): boolean {
   return value.trim() === "" || isValidPhone(value);
 }
 
-/** "9647735473375" -> "+964 773 547 3375" for display; falls back to "+<digits>". */
+/** "9647765981704" -> "+964 776 598 1704" for display; falls back to "+<digits>". */
 export function formatWhatsappDisplay(number: string = WHATSAPP_NUMBER): string {
   const digits = number.replace(/\D/g, "");
   if (digits.startsWith("964") && digits.length === 13) {

@@ -44,16 +44,16 @@ export default async function HomePage() {
 
   // Admin-curated showcases. Each group is its own rail, in the admin's order;
   // groups whose products are all gone/hidden are skipped rather than shown empty.
-  const byId = new Map(products.map((p) => [p.id, p]));
+  // Only the ids cross to the client — the rail resolves them from the store's
+  // one copy of the catalogue. `live` still gates on the real product so a group
+  // referencing a hidden or deleted item doesn't render a gap.
+  const live = new Set(products.map((p) => p.id));
   const rails = featuredGroups
     .map((g) => ({
       group: g,
-      products: g.productIds
-        .map((id) => byId.get(id))
-        .filter((p): p is Product => p !== undefined)
-        .slice(0, 10),
+      productIds: g.productIds.filter((id) => live.has(id)).slice(0, 10),
     }))
-    .filter((r) => r.products.length > 0);
+    .filter((r) => r.productIds.length > 0);
 
   // "وصل حديثاً" — genuinely newest rows, not the admin's manual ordering.
   const fresh = [...products]
@@ -84,9 +84,9 @@ export default async function HomePage() {
         </>
       )}
 
-      {rails.map(({ group, products: railProducts }) => (
+      {rails.map(({ group, productIds }) => (
         <div key={group.id}>
-          <FeaturedSection group={group} products={railProducts} />
+          <FeaturedSection group={group} productIds={productIds} />
           <div className="my-8 h-px bg-line-2" />
         </div>
       ))}
@@ -106,7 +106,7 @@ function Grid({ products, priorityCount = 0 }: { products: Product[]; priorityCo
     // complete row instead of leaving a hole on the widest screens.
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {products.map((p, i) => (
-        <ProductCard key={p.id} product={p} priority={i < priorityCount} />
+        <ProductCard key={p.id} productId={p.id} priority={i < priorityCount} />
       ))}
     </div>
   );

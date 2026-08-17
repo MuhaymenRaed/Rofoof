@@ -110,18 +110,61 @@ function triggerDownload(blob: Blob, filename: string) {
  * to load; throws only if none could be fetched.
  */
 export async function downloadImagesAsZip(urls: string[], zipName: string): Promise<void> {
+  return downloadImageGroupsAsZip([{ folder: "", urls }], zipName);
+}
+
+/** One named set of images — becomes a folder inside the ZIP. */
+export interface ImageGroup {
+  /**
+   * Folder name inside the archive, or "" to put the files at the root.
+   *
+   * Must be ASCII. The local file headers here leave the general-purpose flags
+   * at 0, which declares entry names as CP437 rather than UTF-8, so an Arabic
+   * folder name would arrive as mojibake in every unzip tool. Callers pass a
+   * slug (`stickers`, `store-medals`) and keep the Arabic in the UI.
+   */
+  folder: string;
+  urls: string[];
+}
+
+/**
+ * Download several named sets as one ZIP, each set in its own folder — so an
+ * order whose basket mixed stickers, brooches and posters unpacks as three
+ * labelled folders instead of a heap of numbered files the admin has to sort by
+ * eye before printing.
+ *
+ * Numbering restarts inside each folder, and a URL that fails is skipped rather
+ * than failing the archive; only a completely empty result throws.
+ */
+export async function downloadImageGroupsAsZip(
+  groups: ImageGroup[],
+  zipName: string,
+): Promise<void> {
   const entries: ZipEntry[] = [];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = new Uint8Array(await res.arrayBuffer());
-      const n = String(entries.length + 1).padStart(2, "0");
-      entries.push({ name: `${n}.${extFromUrl(url)}`, data });
-    } catch {
-      /* skip an image that failed to download */
+  // De-duplicated ACROSS groups: the same design can legitimately appear in two
+  // sets (a buyer's upload that is also the product's cover), and a ZIP with two
+  // identical files is just a bigger download over a worse connection.
+  const seen = new Set<string>();
+
+  for (const group of groups) {
+    let indexInGroup = 0;
+    for (const url of group.urls) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const data = new Uint8Array(await res.arrayBuffer());
+        indexInGroup += 1;
+        const n = String(indexInGroup).padStart(2, "0");
+        const prefix = group.folder ? `${group.folder}/` : "";
+        entries.push({ name: `${prefix}${n}.${extFromUrl(url)}`, data });
+      } catch {
+        /* skip an image that failed to download */
+      }
     }
   }
+
   if (entries.length === 0) throw new Error("no_images");
   triggerDownload(buildZip(entries), zipName);
 }
