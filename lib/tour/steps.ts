@@ -33,18 +33,53 @@ export interface TourStep {
    * empty space mid-navigation.
    */
   route?: string;
+  /**
+   * This target may legitimately not be on the page — the delivery banner is
+   * switchable from the dashboard, and the custom-order card only exists on the
+   * first page of the store. Such a step gets a much shorter grace period before
+   * being passed over, so a switched-off section doesn't leave the visitor
+   * staring at a scrim for several seconds waiting for something that is never
+   * coming.
+   */
+  optional?: boolean;
 }
 
 /**
- * The four things a first-time shopper needs to find: what we sell, that they
- * can send their own designs, where the basket is, and why saving their details
- * is worth it.
+ * The walkthrough, in the order a visitor actually meets the shop.
  *
- * Ordered so the two store-page steps are adjacent — that way the whole tour
- * costs at most one navigation, which matters on the connections this shop is
- * used over.
+ * It starts where they landed — the home page gets explained before anyone is
+ * taken anywhere — and only then moves to the store. Grouped by route so the
+ * whole tour costs exactly one navigation, which matters on the connections this
+ * shop is used over: three steps on `/`, two on `/store`, then two on whatever
+ * page the visitor is left on.
  */
 export const TOUR_STEPS: TourStep[] = [
+  {
+    // Where they already are. Says what the shop is before showing anything.
+    id: "welcome",
+    target: "#tour-hero",
+    route: "/",
+    titleKey: "tour.welcome.title",
+    bodyKey: "tour.welcome.body",
+  },
+  {
+    id: "delivery",
+    target: "#tour-delivery",
+    route: "/",
+    // The admin can switch this banner off from the dashboard.
+    optional: true,
+    titleKey: "tour.delivery.title",
+    bodyKey: "tour.delivery.body",
+  },
+  {
+    id: "rails",
+    target: "#tour-rails",
+    route: "/",
+    // Absent until the shop has sales or a curated rail to show.
+    optional: true,
+    titleKey: "tour.rails.title",
+    bodyKey: "tour.rails.body",
+  },
   {
     id: "catalog",
     target: "#tour-catalog",
@@ -53,9 +88,27 @@ export const TOUR_STEPS: TourStep[] = [
     bodyKey: "tour.catalog.body",
   },
   {
+    // The first card, standing in for all of them: this is where the tour
+    // explains the three things you can do to a product.
+    id: "order",
+    target: '[data-tour="product-card"]',
+    route: "/store",
+    optional: true,
+    titleKey: "tour.order.title",
+    bodyKey: "tour.order.body",
+  },
+  {
+    id: "favorites",
+    target: '[data-tour="favorites"]',
+    titleKey: "tour.favorites.title",
+    bodyKey: "tour.favorites.body",
+  },
+  {
     id: "custom",
     target: "#tour-custom-order",
     route: "/store",
+    // Only rendered on the first page of the store grid.
+    optional: true,
     titleKey: "tour.custom.title",
     bodyKey: "tour.custom.body",
   },
@@ -72,5 +125,15 @@ export const TOUR_STEPS: TourStep[] = [
     target: '[data-tour="profile"]',
     titleKey: "tour.profile.title",
     bodyKey: "tour.profile.body",
+  },
+  {
+    // Last, and pointing at the way back in. The tour auto-runs once and never
+    // again, so the closing step's job is to make sure the visitor knows where
+    // it lives — being told about the button while looking straight at it beats
+    // being told after it has disappeared.
+    id: "replay",
+    target: '[data-tour="replay"]',
+    titleKey: "tour.replay.title",
+    bodyKey: "tour.replay.body",
   },
 ];

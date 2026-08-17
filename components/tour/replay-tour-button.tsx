@@ -9,18 +9,18 @@ import { Info } from "@/components/icons";
  * only once, so this is how anyone gets back to it (or reaches it at all, on a
  * device where it already ran).
  *
- * Hidden while the tour is on screen: the footer sits behind the scrim, so a
- * button there would be a control the visitor can see but not press.
+ * Stays mounted while the tour is running, unlike an ordinary control behind the
+ * scrim: the walkthrough's closing step spotlights this very button to show
+ * where it lives. Hiding it then would leave that step pointing at nothing.
  */
 export function ReplayTourButton() {
   const { t } = useCatalog();
-  const { start, active } = useTour();
-
-  if (active) return null;
+  const { start } = useTour();
 
   return (
     <button
       type="button"
+      data-tour="replay"
       onClick={start}
       className="tap inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-[12px] font-bold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
     >

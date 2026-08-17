@@ -19,9 +19,15 @@ import { useStore } from "@/components/providers/store-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { StatusPill } from "@/components/ui/status-pill";
 import { UsersIcon, TrendIcon, BarsIcon } from "@/components/dashboard/dash-icons";
-import { Package, Bag, Star, Sparkles } from "@/components/icons";
+import { Package, Bag, Star, Sparkles, Tag } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { statusStyle, CUSTOM_ORDER_COLOR, type Order, type OrderStatus } from "@/lib/products";
+import {
+  statusStyle,
+  CUSTOM_ORDER_COLOR,
+  MANUAL_ORDER_COLOR,
+  type Order,
+  type OrderStatus,
+} from "@/lib/products";
 import type { DashboardStats, RevenueSplit, WeeklyRevenuePoint } from "@/lib/data/dashboard";
 import type { DictKey } from "@/lib/i18n";
 
@@ -190,6 +196,41 @@ export function OverviewView({
           <div className="text-[11px] font-semibold text-ink-3">{t("dash.customRevenue")}</div>
         </div>
       </div>
+
+      {/* Manual (admin-created) orders — their own card for the same reason the
+          custom requests have one. Their money is already inside the revenue
+          figures above; this is what tells the admin the order landed at all,
+          since `is_custom` is false for one and it appears in no other category.
+          Hidden until there IS one, so an ordinary shop never sees an empty
+          admin-only tile. */}
+      {stats.manualOrders > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-4 rounded-2xl border p-4 card-shadow"
+          style={{
+            borderColor: `color-mix(in srgb, ${MANUAL_ORDER_COLOR} 40%, transparent)`,
+            background: `color-mix(in srgb, ${MANUAL_ORDER_COLOR} 6%, var(--surface))`,
+          }}
+        >
+          <span
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
+            style={{ background: MANUAL_ORDER_COLOR }}
+          >
+            <Tag size={22} />
+          </span>
+          <div className="flex-1">
+            <div className="text-2xl font-black" style={{ color: MANUAL_ORDER_COLOR }}>
+              {stats.manualOrders}
+            </div>
+            <div className="text-xs font-semibold text-ink-3">{t("dash.manualOrders")}</div>
+          </div>
+          <div className="text-end">
+            <div className="text-lg font-black text-ink">
+              {formatPrice(stats.manualRevenue, lang)}
+            </div>
+            <div className="text-[11px] font-semibold text-ink-3">{t("dash.manualRevenue")}</div>
+          </div>
+        </div>
+      )}
 
       {/* Secondary stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

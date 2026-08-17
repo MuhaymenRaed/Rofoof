@@ -5,7 +5,9 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -31,6 +33,11 @@ const GAP = 12;
 /** Popover width; clamped to the viewport on phones. */
 const CARD_W = 340;
 /**
+ * Space left above a scrolled-to target, clearing the ticker and the sticky
+ * header so the highlight never ends up underneath them.
+ */
+const HEADER_CLEARANCE = 96;
+/**
  * Give up looking for a step's target after this long and move on.
  *
  * Generous on purpose: this has to cover a route change plus a first paint over
@@ -38,6 +45,12 @@ const CARD_W = 340;
  * exactly the devices it is most useful on.
  */
 const FIND_TIMEOUT_MS = 10000;
+/**
+ * The same, for a step flagged `optional` — a section the admin may have
+ * switched off, or a card that only exists on page one. Waiting ten seconds on
+ * one of those means ten seconds of scrim over nothing.
+ */
+const OPTIONAL_FIND_TIMEOUT_MS = 1500;
 /** How often to look for a step's target while waiting for it. */
 const HUNT_POLL_MS = 120;
 /**
@@ -99,6 +112,28 @@ function sameBox(a: Box | null, b: Box | null): boolean {
   );
 }
 
+/**
+ * Bring a target into view by its TOP edge, never its centre.
+ *
+ * `scrollIntoView({ block: "center" })` centres the element, which is wrong for
+ * anything tall: centring the store's product grid landed the page halfway down
+ * the catalogue, with the first cards — and the step's own text — scrolled off
+ * the top. Aligning the start puts the beginning of the cards just under the
+ * sticky header, which is where the step is actually pointing.
+ *
+ * A target already comfortably on screen is left alone: scrolling the page out
+ * from under someone who can already see the thing is just motion for its own
+ * sake.
+ */
+function scrollToTarget(el: HTMLElement, smooth: boolean): void {
+  const r = el.getBoundingClientRect();
+  const vh = window.innerHeight;
+  if (r.top >= HEADER_CLEARANCE && r.bottom <= vh - 8) return;
+  // Short targets get nudged up a little further so the card below them has room.
+  const y = window.scrollY + r.top - HEADER_CLEARANCE;
+  window.scrollTo({ top: Math.max(0, y), behavior: smooth ? "smooth" : "auto" });
+}
+
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -136,15 +171,20 @@ export function TourProvider({ children }: { children: ReactNode }) {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /**
-   * End the tour and stop it auto-running again.
+   * Record that the visitor has now SEEN the walkthrough.
    *
-   * Only ever called for something the VISITOR did — finishing, skipping, or
-   * pressing Escape. A tour that ended because the page wasn't ready must not
-   * come through here; see `abandon`.
+   * Called the moment a step is actually put on screen — not when the tour ends.
+   * That is the whole rule: once it has been shown, it never auto-runs again,
+   * whether they read it to the end, closed it early, or reloaded the page
+   * halfway through. The footer button is the only way back to it.
+   *
+   * Writing it on display rather than on exit also closes two holes. A tour
+   * abandoned by a reload used to come back on the next load, which on a slow
+   * connection could repeat; and a tour that never managed to show a single step
+   * used to be marked complete anyway, permanently hiding a walkthrough nobody
+   * had seen. Idempotent, so calling it per step costs nothing.
    */
-  const finish = useCallback(() => {
-    setIndex(null);
-    setBox(null);
+  const markSeen = useCallback(() => {
     try {
       localStorage.setItem(TOUR_DONE_KEY, "1");
     } catch {
@@ -153,16 +193,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Give up without marking the tour as seen.
-   *
-   * This is the bug that made the walkthrough look like it never existed: on a
-   * slow first load the step targets weren't on the page inside the find
-   * timeout, so every step was skipped in turn, the tour "completed" against an
-   * empty screen, and the flag was written — permanently, per browser. Nobody
-   * ever saw it, and it could not run again. Abandoning silently instead means
-   * the next visit gets a fair go.
+   * Close the tour. Does NOT write the flag: by the time anything can be closed
+   * a step has been displayed, so `markSeen` has already run.
    */
-  const abandon = useCallback(() => {
+  const close = useCallback(() => {
     setIndex(null);
     setBox(null);
   }, []);
@@ -172,32 +206,16 @@ export function TourProvider({ children }: { children: ReactNode }) {
     setIndex(0);
   }, []);
 
-  // Advancing off the last step IS completing the tour, so it goes through
-  // finish() and writes the "don't auto-run again" flag. Getting this wrong is
-  // how a tour ends up greeting someone again on their next visit.
+  /** Next step, or close when there isn't one. */
   const next = useCallback(() => {
     if (index === null) return;
     if (index + 1 >= TOUR_STEPS.length) {
-      finish();
+      close();
       return;
     }
     setBox(null);
     setIndex(index + 1);
-  }, [index, finish]);
-
-  /**
-   * A step's target never turned up. Move to the next one, but if this was the
-   * LAST step then nothing was shown to complete — abandon rather than finish.
-   */
-  const skipUnavailable = useCallback(() => {
-    if (index === null) return;
-    if (index + 1 >= TOUR_STEPS.length) {
-      abandon();
-      return;
-    }
-    setBox(null);
-    setIndex(index + 1);
-  }, [index, abandon]);
+  }, [index, close]);
 
   const back = useCallback(() => {
     setBox(null);
@@ -246,7 +264,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
     // per step — there is nothing to carry across.
     let last: Box | null = null;
     let target: HTMLElement | null = null;
-    const deadline = Date.now() + FIND_TIMEOUT_MS;
+    // A step whose target may genuinely not exist gets a short grace period; one
+    // that must be there gets long enough to cover a slow first paint.
+    const deadline =
+      Date.now() + (step.optional ? OPTIONAL_FIND_TIMEOUT_MS : FIND_TIMEOUT_MS);
     const reduced = prefersReducedMotion();
 
     const publish = () => {
@@ -273,6 +294,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
     const track = (el: HTMLElement) => {
       target = el;
+      // The step is about to be on screen. This is the moment the walkthrough
+      // counts as shown — see markSeen.
+      markSeen();
       const until = Date.now() + SETTLE_MS;
       const tick = () => {
         if (cancelled) return;
@@ -288,11 +312,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       const el = findVisible(step.target);
       if (el) {
-        el.scrollIntoView({
-          behavior: reduced ? "auto" : "smooth",
-          block: "center",
-          inline: "center",
-        });
+        scrollToTarget(el, !reduced);
         track(el);
         return;
       }
@@ -300,7 +320,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       // only exists on page 1. A step whose target never shows up is skipped
       // rather than left as a stuck overlay — without counting as "seen".
       if (Date.now() > deadline) {
-        skipUnavailable();
+        next();
         return;
       }
       // Polled on a timer, not per frame: this can run for seconds while a route
@@ -317,17 +337,17 @@ export function TourProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("scroll", onViewportChange);
       window.removeEventListener("resize", onViewportChange);
     };
-  }, [step, pathname, skipUnavailable]);
+  }, [step, pathname, next, markSeen]);
 
   // --- Escape closes it, like every other overlay in the app
   useEffect(() => {
     if (index === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") finish();
+      if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, finish]);
+  }, [index, close]);
 
   const value = useMemo<TourContextValue>(
     () => ({ active: index !== null, start }),
@@ -348,13 +368,12 @@ export function TourProvider({ children }: { children: ReactNode }) {
               dir={dir}
               onNext={next}
               onBack={back}
-              onSkip={finish}
+              onClose={close}
               labels={{
                 step: t("tour.step"),
                 of: t("tour.of"),
                 next: t("tour.next"),
                 back: t("tour.back"),
-                skip: t("tour.skip"),
                 finish: t("tour.finish"),
                 aria: t("tour.aria"),
                 close: t("aria.close"),
@@ -384,7 +403,7 @@ function TourOverlay({
   dir,
   onNext,
   onBack,
-  onSkip,
+  onClose,
   labels,
 }: {
   box: Box;
@@ -395,14 +414,35 @@ function TourOverlay({
   dir: "rtl" | "ltr";
   onNext: () => void;
   onBack: () => void;
-  onSkip: () => void;
+  onClose: () => void;
   labels: Record<
-    "step" | "of" | "next" | "back" | "skip" | "finish" | "aria" | "close",
+    "step" | "of" | "next" | "back" | "finish" | "aria" | "close",
     string
   >;
 }) {
   const isLast = stepIndex === total - 1;
   const reduced = prefersReducedMotion();
+
+  /**
+   * The card's own height, measured after it renders.
+   *
+   * Needed because the card must be kept FULLY on screen whatever the target is
+   * doing, and you can't clamp what you haven't measured. The earlier version
+   * dodged this by anchoring with `bottom` when placing above — which worked
+   * until the target was taller than the viewport (the store's product grid),
+   * where it put the card off-screen entirely and left the visitor scrolling
+   * around a dark page hunting for the text.
+   */
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardH, setCardH] = useState(0);
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    // Guarded so this can't loop: the updater returns the same value once the
+    // height has settled, and React bails out of an identical state.
+    setCardH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+  }, [title, body, stepIndex, box.top, box.height]);
 
   // These coordinates come from getBoundingClientRect, which is physical — so
   // they are set with physical `top`/`left`, NOT the logical properties used for
@@ -416,13 +456,24 @@ function TourOverlay({
     Math.max(8, vw - cardW - 8),
   );
 
-  // Placing the card ABOVE uses `bottom` rather than a computed `top`, so its
-  // height never has to be measured — which would otherwise need a second
-  // render pass and show a frame of the card in the wrong place.
-  const below = box.top + box.height / 2 < vh * 0.55;
-  const vertical = below
-    ? { top: Math.round(box.top + box.height + HALO + GAP) }
-    : { bottom: Math.round(vh - box.top + HALO + GAP) };
+  /**
+   * Below the target, else above it, else straight over it — and clamped into
+   * the viewport in every case, so the card is never the thing the visitor has
+   * to go looking for. A target taller than the screen always lands in the last
+   * case, which is why the card is allowed to overlay the highlight.
+   */
+  const EDGE = 8;
+  const offset = HALO + GAP;
+  const maxTop = Math.max(EDGE, vh - cardH - EDGE);
+  const fitsBelow = box.top + box.height + offset + cardH <= vh - EDGE;
+  const fitsAbove = box.top - offset - cardH >= EDGE;
+  const desiredTop = fitsBelow
+    ? box.top + box.height + offset
+    : fitsAbove
+      ? box.top - offset - cardH
+      : // Neither side has room: centre it on screen, over the highlight.
+        vh / 2 - cardH / 2;
+  const cardTop = Math.round(Math.min(Math.max(desiredTop, EDGE), maxTop));
 
   return (
     <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label={labels.aria}>
@@ -447,12 +498,16 @@ function TourOverlay({
       />
 
       <div
+        ref={cardRef}
         dir={dir}
-        className="absolute w-full rounded-2xl border border-line-2 bg-surface p-4 shadow-2xl"
+        className="absolute rounded-2xl border border-line-2 bg-surface p-4 shadow-2xl"
         style={{
-          ...vertical,
+          top: cardTop,
           left: Math.round(cardLeft),
           width: cardW,
+          // Hidden for the single frame before the height is known, so the card
+          // is never seen in the wrong place while it is being measured.
+          visibility: cardH === 0 ? "hidden" : undefined,
           animation: reduced ? undefined : "fade-in 0.2s ease both",
         }}
       >
@@ -463,9 +518,13 @@ function TourOverlay({
             </p>
             <h2 className="mt-1 text-[15px] font-black leading-snug text-ink">{title}</h2>
           </div>
+          {/* The only way out other than reading to the end. There is no
+              "skip the whole tour" button by design — but an overlay covering
+              the screen with no exit at all would be a trap, and on a phone
+              there is no Escape key to fall back on. */}
           <button
             type="button"
-            onClick={onSkip}
+            onClick={onClose}
             aria-label={labels.close}
             className="tap -me-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-3 transition hover:bg-surface-2 hover:text-ink"
           >
@@ -488,13 +547,6 @@ function TourOverlay({
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onSkip}
-            className="tap text-[12px] font-bold text-ink-3 transition hover:text-ink"
-          >
-            {labels.skip}
-          </button>
           <div className="ms-auto flex items-center gap-2">
             {stepIndex > 0 && (
               <button
@@ -510,7 +562,7 @@ function TourOverlay({
             )}
             <button
               type="button"
-              onClick={isLast ? onSkip : onNext}
+              onClick={isLast ? onClose : onNext}
               className="tap inline-flex items-center gap-1 rounded-xl bg-brand px-4 py-2 text-[12px] font-bold text-white transition hover:opacity-90"
             >
               {isLast ? labels.finish : labels.next}
