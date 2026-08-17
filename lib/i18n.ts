@@ -838,6 +838,8 @@ export const dict = {
     ar: "طلب قديم: الصور محفوظة مجمّعة دون تقسيم لكل نوع.",
     en: "Older order: its images were saved pooled together, without per-kind grouping.",
   },
+  "dash.manualOrders": { ar: "الطلبات اليدوية", en: "Manual orders" },
+  "dash.manualRevenue": { ar: "إيرادات الطلبات اليدوية", en: "Manual order revenue" },
   "dash.manualBadge": { ar: "طلب يدوي", en: "Manual" },
   "dash.manualPriced": { ar: "سعر يدوي", en: "Manual price" },
 
@@ -1177,11 +1179,28 @@ export const dict = {
   "tour.of": { ar: "من", en: "of" },
   "tour.next": { ar: "التالي", en: "Next" },
   "tour.back": { ar: "السابق", en: "Back" },
-  "tour.skip": { ar: "تخطّي", en: "Skip" },
+  /* No "skip" — the walkthrough deliberately offers no cancel-the-lot button.
+     The close (×) stays, since an overlay covering the screen with no exit at
+     all would be a trap on a phone, where there is no Escape key. */
   "tour.finish": { ar: "تم", en: "Done" },
   "tour.replay": { ar: "إعادة الشرح التعريفي", en: "Replay the tour" },
   "tour.aria": { ar: "شرح تعريفي للمتجر", en: "Store walkthrough" },
 
+  "tour.welcome.title": { ar: "أهلاً بك في رفوف", en: "Welcome to rofoof" },
+  "tour.welcome.body": {
+    ar: "متجر عراقي للستكرات والبروشات والميداليات والبوسترات. هذه الصفحة تعرّفك على المتجر بسرعة — والتوصيل لجميع المحافظات.",
+    en: "An Iraqi shop for stickers, brooches, medals and posters. This page is your quick introduction — and we deliver to every province.",
+  },
+  "tour.delivery.title": { ar: "التوصيل والأسعار", en: "Delivery and pricing" },
+  "tour.delivery.body": {
+    ar: "كلفة التوصيل واضحة من البداية قبل أي سعر، حتى لا تكون مفاجأة عند إتمام الطلب.",
+    en: "The delivery cost is shown up front, before any price — so it's never a surprise at checkout.",
+  },
+  "tour.rails.title": { ar: "الأكثر طلباً ووصل حديثاً", en: "Most ordered and just landed" },
+  "tour.rails.body": {
+    ar: "هنا أكثر المنتجات طلباً ومجموعات مختارة وآخر ما وصل. اضغط أي منتج لرؤية صوره وتفاصيله.",
+    en: "The best sellers, our curated picks, and the newest arrivals. Tap any item to see its photos and details.",
+  },
   "tour.catalog.title": { ar: "تصفّح المنتجات", en: "Browse the products" },
   "tour.catalog.body": {
     ar: "كل الستكرات والبروشات والميداليات والبوسترات هنا. فلتر حسب النوع أو الفاندوم أو السعر، واضغط أي منتج لرؤية صوره ومقاساته.",
@@ -1196,6 +1215,21 @@ export const dict = {
   "tour.cart.body": {
     ar: "كل ما تضيفه يتجمّع هنا مع تصاميمك المرفقة. راجع الطلب، أضف كود خصم إن كان عندك، ثم أكمل الطلب.",
     en: "Everything you add gathers here, attached designs included. Review it, add a discount code if you have one, then place the order.",
+  },
+  "tour.order.title": { ar: "كيف تطلب؟", en: "How to order" },
+  "tour.order.body": {
+    ar: "اضغط على المنتج لرؤية التفاصيل والمقاسات، أو اضغط أيقونة السلة لإضافته مباشرة. أيقونة القلب تحفظه في المفضلة.",
+    en: "Tap the item for details and sizes, or tap the cart icon to add it straight away. The heart saves it to your favourites.",
+  },
+  "tour.favorites.title": { ar: "المفضلة", en: "Favourites" },
+  "tour.favorites.body": {
+    ar: "كل ما تحفظه بالقلب يتجمّع هنا، ويبقى محفوظًا في حسابك — تقدر ترجع له وتطلبه وقت ما تحب.",
+    en: "Everything you heart gathers here and stays saved to your account — come back and order it whenever you like.",
+  },
+  "tour.replay.title": { ar: "تقدر تعيد الشرح", en: "You can replay this" },
+  "tour.replay.body": {
+    ar: "خلصنا! إذا حبيت تعيد هذا الشرح في أي وقت، اضغط هذا الزر في أسفل الصفحة.",
+    en: "That's everything. If you'd like to see this walkthrough again, press this button at the bottom of the page.",
   },
   "tour.profile.title": { ar: "أكمل بياناتك", en: "Complete your details" },
   "tour.profile.body": {

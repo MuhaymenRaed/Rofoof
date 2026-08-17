@@ -16,7 +16,11 @@ export function Hero() {
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-line-2 bg-surface card-shadow">
+    <section
+      // First stop on the guided tour — see lib/tour/steps.ts.
+      id="tour-hero"
+      className="relative overflow-hidden rounded-3xl border border-line-2 bg-surface card-shadow"
+    >
       {/* decorative glow */}
       <div className="pointer-events-none absolute -top-24 end-[-60px] h-64 w-64 rounded-full bg-brand/15 blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-80px] end-1/3 h-56 w-56 rounded-full bg-brand/10 blur-3xl" />

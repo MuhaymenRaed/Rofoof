@@ -87,6 +87,9 @@ export function ProductCard({
 
   return (
     <article
+      // Every card carries this; the tour spotlights the first visible one to
+      // explain how ordering works (see lib/tour/steps.ts).
+      data-tour="product-card"
       style={style}
       className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-line-2 bg-surface transition duration-200 hover:-translate-y-1 hover:border-[var(--c)] hover:shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--c)_55%,transparent)]"
     >

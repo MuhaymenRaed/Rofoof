@@ -25,6 +25,16 @@ export interface DashboardStats {
   totalOrders: number;
   customOrders: number;
   customRevenue: number;
+  /**
+   * Admin-created manual orders, and the revenue on their lines specifically.
+   *
+   * Their own pair because `is_custom` is false for a manual order — it isn't a
+   * customer's design request — so without this they contributed to the totals
+   * while appearing nowhere as a category, which read as the stats not having
+   * moved at all. Both are 0 until docs/manual-order-stats.sql runs.
+   */
+  manualOrders: number;
+  manualRevenue: number;
   revenue: number;
   revenue30d: number;
   avgOrder: number;
@@ -44,6 +54,8 @@ const EMPTY_STATS: DashboardStats = {
   totalOrders: 0,
   customOrders: 0,
   customRevenue: 0,
+  manualOrders: 0,
+  manualRevenue: 0,
   revenue: 0,
   revenue30d: 0,
   avgOrder: 0,
@@ -171,6 +183,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     totalOrders: n("total_orders"),
     customOrders: n("custom_orders"),
     customRevenue: n("custom_revenue"),
+    // Absent until the migration runs; n() reads a missing key as 0, so the
+    // tiles simply show nothing rather than the page failing.
+    manualOrders: n("manual_orders"),
+    manualRevenue: n("manual_revenue"),
     revenue: n("revenue"),
     revenue30d: n("revenue_30d"),
     avgOrder: n("avg_order"),

@@ -104,6 +104,9 @@ export function Header() {
           <Link
             href="/favorites"
             aria-label={t("aria.favorites")}
+            // Tour anchor — paired with the tab-bar link for phones; the engine
+            // spotlights whichever of the two is visible.
+            data-tour="favorites"
             className="tap relative hidden h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink md:grid"
           >
             <Heart size={18} filled={isActive("/favorites")} />

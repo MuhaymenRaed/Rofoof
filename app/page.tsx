@@ -68,14 +68,18 @@ export default async function HomePage() {
           cost is part of the first impression rather than a surprise found
           further down. The admin can switch it off from the dashboard. */}
       {siteSettings.deliveryNoticeActive && (
-        <div className="mt-6">
+        <div id="tour-delivery" className="mt-6">
           <DeliveryNotice />
         </div>
       )}
 
       {bestsellers.length > 0 && (
         <>
-          <section className="mt-9">
+          {/* Tour anchor for the home-page rails. On the bestsellers section
+              because it is the first one and the tour scrolls it into view;
+              marked optional in steps.ts since a shop with no sales yet and no
+              curated rail has nothing here to point at. */}
+          <section id="tour-rails" className="mt-9">
             <SectionTitle titleKey="section.bestsellers" viewAllHref="/store" />
             <Grid products={bestsellers} priorityCount={2} />
           </section>

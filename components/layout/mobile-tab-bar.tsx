@@ -73,7 +73,11 @@ export function MobileTabBar() {
           </button>
 
           {/* Favorites */}
-          <Link href="/favorites" className={tabClass(isActive("/favorites"))}>
+          <Link
+            href="/favorites"
+            data-tour="favorites"
+            className={tabClass(isActive("/favorites"))}
+          >
             {isActive("/favorites") && (
               <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" />
             )}
