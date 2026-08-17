@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 import { CategoryIcon } from "@/components/ui/category-icon";
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 
 /** Category chips driven by the DB `categories` table (admin can add more). */
 export function CategoryChips({ asLinks, active, onSelect }: Props) {
-  const { t, lang, categories } = useStore();
+  const { t, lang, categories } = useCatalog();
 
   const chips = [
     { code: "all", label: t("cat.all"), icon: "grid" },

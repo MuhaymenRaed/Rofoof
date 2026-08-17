@@ -1,6 +1,7 @@
 import {
   lowestBasePrice,
   tierUnitPrice,
+  type CustomCartRequest,
   type Offer,
   type Product,
   type ProductItem,
@@ -168,6 +169,24 @@ export function linePricing(
   const unit = unitPriceFor(product, qty, sel, offers, now);
   const free = freeUnitsFor(product, qty, offers);
   return { unit, free, total: unit * Math.max(qty - free, 0) };
+}
+
+/**
+ * What a queued custom design request costs.
+ *
+ * Normally the per-piece price times the number of uploaded designs. An admin
+ * can instead fix the price of the whole request, which replaces that
+ * calculation outright rather than adjusting it — mirroring place_order, where
+ * `manual_total` overrides `unit_price × qty` on the line. Display only, like
+ * everything else in this file; the RPC re-derives it at checkout.
+ *
+ * A manual total of 0 is honoured (a genuine giveaway), which is why this tests
+ * for null rather than falsiness.
+ */
+export function customRequestTotal(
+  req: Pick<CustomCartRequest, "images" | "unitPrice" | "manualTotal">,
+): number {
+  return req.manualTotal != null ? req.manualTotal : req.unitPrice * req.images.length;
 }
 
 /** Best conditional cart-percent discount for a subtotal (matches server). */

@@ -18,6 +18,10 @@ export function AccountMenu() {
     return (
       <Link
         href="/login"
+        // Tour anchor — the profile step points here for a visitor who hasn't
+        // signed in yet, and at the avatar below once they have.
+        id="tour-user-profile"
+        data-tour="profile"
         className="tap shrink-0 whitespace-nowrap rounded-full border border-line bg-surface-2 px-3.5 py-1.5 text-[11px] font-bold text-ink-2 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
       >
         {t("auth.login")}
@@ -33,6 +37,8 @@ export function AccountMenu() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={t("profile.title")}
+        id="tour-user-profile"
+        data-tour="profile"
         className="tap grid h-9 w-9 place-items-center rounded-full bg-brand text-sm font-black text-white ring-2 ring-transparent transition hover:ring-brand-line"
       >
         {initial}

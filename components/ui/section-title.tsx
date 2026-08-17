@@ -1,6 +1,6 @@
 "use client";
 
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 import { SectionHeader } from "@/components/ui/section-header";
 import type { DictKey } from "@/lib/i18n";
 
@@ -14,7 +14,7 @@ export function SectionTitle({
   viewAllHref?: string;
   icon?: React.ReactNode;
 }) {
-  const { t } = useStore();
+  const { t } = useCatalog();
   return (
     <SectionHeader
       title={t(titleKey)}

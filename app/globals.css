@@ -252,3 +252,33 @@
     opacity: 1;
   }
 }
+
+/**
+ * Starburst theme reveal — see components/layout/theme-toggle.tsx.
+ *
+ * The browser's default root transition cross-fades the two snapshots. Here the
+ * new theme is instead revealed through an expanding star clipped out of it, so
+ * both snapshots must stop animating themselves and stack deliberately: the old
+ * one holds still underneath while the new one is wiped in on top.
+ *
+ * Scoped to the `.theme-burst` class that the toggle puts on <html> for the
+ * duration of the transition. Left unscoped, this would also override any other
+ * root view transition on the site (a future Next.js navigation transition, for
+ * instance) and quietly break it.
+ */
+.theme-burst::view-transition-old(root),
+.theme-burst::view-transition-new(root) {
+  animation: none;
+  /* The default is `plus-lighter`, which is built for a cross-fade: while the
+     two snapshots overlap it would brighten wherever they do, flashing along
+     the star's edge as it sweeps out. */
+  mix-blend-mode: normal;
+}
+
+.theme-burst::view-transition-old(root) {
+  z-index: 1;
+}
+
+.theme-burst::view-transition-new(root) {
+  z-index: 9999;
+}

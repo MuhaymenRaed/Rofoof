@@ -1,10 +1,10 @@
 "use client";
 
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 import { statusStyle, type OrderStatus } from "@/lib/products";
 
 export function StatusPill({ status }: { status: OrderStatus }) {
-  const { t } = useStore();
+  const { t } = useCatalog();
   const meta = statusStyle[status];
   return (
     <span

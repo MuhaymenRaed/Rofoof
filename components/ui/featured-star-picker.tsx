@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useStore } from "@/components/providers/store-provider";
+import { useCatalog } from "@/components/providers/store-provider";
 import { Star, Check } from "@/components/icons";
 import { toggleProductInGroupAction } from "@/lib/actions/featured";
 
@@ -16,7 +16,7 @@ import { toggleProductInGroupAction } from "@/lib/actions/featured";
  * overflow; anchoring to the button's rect keeps it visually attached.
  */
 export function FeaturedStarPicker({ productId }: { productId: string }) {
-  const { t, lang, featuredGroups } = useStore();
+  const { t, lang, featuredGroups } = useCatalog();
   const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement>(null);
 

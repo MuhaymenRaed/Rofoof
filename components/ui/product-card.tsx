@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useStore } from "@/components/providers/store-provider";
+import {
+  useCatalog,
+  useStoreActions,
+  useWishlist,
+} from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { badgeMeta, ProductBadge } from "@/components/ui/badge";
 import { ProductMedia } from "@/components/ui/product-media";
@@ -11,23 +15,43 @@ import { Pencil } from "@/components/dashboard/dash-icons";
 import { Heart, Cart, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import { discountView } from "@/lib/pricing";
-import { hasVariablePrice, isSoldOut, type Product } from "@/lib/products";
+import { hasVariablePrice, isSoldOut } from "@/lib/products";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
+/**
+ * A product card, addressed by id rather than by object.
+ *
+ * The id matters for weight, not style. The home page is a Server Component, so
+ * a `Product` passed as a prop is serialized into the RSC payload for every card
+ * — on top of the full catalogue already being sent once for the store's client
+ * context. The home page was shipping the same 130 products roughly four times
+ * over. The card resolves the product from that one copy instead.
+ */
 export function ProductCard({
-  product,
+  productId,
   priority = false,
 }: {
-  product: Product;
+  productId: string;
   /** Skip lazy-loading for above-the-fold cards (improves LCP). */
   priority?: boolean;
 }) {
-  const { lang, t, addToCart, openQuickView, isWished, toggleWish, openCart, offers, now } =
-    useStore();
+  // Narrow on purpose. A card must NOT re-render because the cart drawer opened
+  // or a line's quantity changed — a busy page holds over a hundred of these,
+  // and each re-render re-runs discountView() across every live offer. See the
+  // context-splitting note in store-provider.tsx.
+  const { lang, t, offers, now, getProduct } = useCatalog();
+  const { addToCart, openQuickView, toggleWish, openCart } = useStoreActions();
+  const { isWished } = useWishlist();
   const { isAdmin, ready } = useAuth();
+  const product = getProduct(productId);
   const [justAdded, setJustAdded] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+
+  // After the hooks, never before. Only reachable if a rail still references a
+  // product that has since been deactivated — the server builds rails from the
+  // same getProducts() that fills the client catalogue, so the two agree.
+  if (!product) return null;
 
   const name = lang === "ar" ? product.nameAr : product.nameEn;
   const sub = lang === "ar" ? product.subAr : product.subEn;
@@ -38,6 +62,7 @@ export function ProductCard({
   const sale = discountView(product, offers, now);
   const showFrom = hasVariablePrice(product);
   const isPackage = product.kind === "package" && product.items.length > 0;
+  const isTiered = product.kind === "tiered";
   // From the count, not the stale sold_out flag — see isSoldOut(). Deliberately
   // no count on the card: the card is the package, and a package has no single
   // number — the per-design counts live in the quick view, admin-only.
@@ -50,11 +75,11 @@ export function ProductCard({
     if (soldOut) return;
     // Packages need an item choice (and tiered products benefit from the
     // quantity ladder) — open the quick view instead of blind-adding.
-    if (isPackage || product.kind === "tiered") {
-      openQuickView(product.id);
+    if (isPackage || isTiered) {
+      openQuickView(productId);
       return;
     }
-    addToCart(product.id);
+    addToCart(productId);
     setJustAdded(true);
     openCart();
     setTimeout(() => setJustAdded(false), 1200);

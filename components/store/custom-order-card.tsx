@@ -21,6 +21,11 @@ export function CustomOrderCard() {
   return (
     <button
       type="button"
+      // Anchor for the guided tour's custom-order step (see lib/tour/steps.ts).
+      // It sits on the button itself rather than a wrapper: the tour measures
+      // this element to draw its spotlight, and a `display: contents` wrapper
+      // has no box to measure.
+      id="tour-custom-order"
       onClick={openCustom}
       style={style}
       className="tap group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border-2 border-dashed text-start transition duration-200 hover:-translate-y-1 hover:shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--c)_55%,transparent)]"

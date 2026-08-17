@@ -20,6 +20,7 @@ import {
   getFeaturedGroups,
 } from "@/lib/data/catalog";
 import { CustomRequestModal } from "@/components/layout/custom-request-modal";
+import { ManualOrderModal } from "@/components/layout/manual-order-modal";
 import { Ticker } from "@/components/layout/ticker";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -28,6 +29,7 @@ import { QuickViewModal } from "@/components/layout/quick-view-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { InstallPrompt } from "@/components/layout/install-prompt";
 import { OfflineBanner } from "@/components/layout/offline-banner";
+import { TourProvider } from "@/components/tour/tour-provider";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -177,19 +179,25 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               customPricing={customPricing}
               initialAnnouncement={announcement}
             >
-              {/* pb clears the fixed mobile tab bar (h-14 + safe area) */}
-              <div className="flex min-h-screen flex-col pb-16 md:pb-0">
-                <InstallPrompt />
-                <Ticker />
-                <Header />
-                <main className="flex-1">{children}</main>
-                <Footer />
-              </div>
-              <MobileTabBar />
-              <OfflineBanner />
-              <CartDrawer />
-              <QuickViewModal />
-              <CustomRequestModal />
+              {/* Wraps everything the tour points at AND the footer's replay
+                  button, which needs the same context to start it. */}
+              <TourProvider>
+                {/* pb clears the fixed mobile tab bar (h-14 + safe area) */}
+                <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+                  <InstallPrompt />
+                  <Ticker />
+                  <Header />
+                  <main className="flex-1">{children}</main>
+                  <Footer />
+                </div>
+                <MobileTabBar />
+                <OfflineBanner />
+                <CartDrawer />
+                <QuickViewModal />
+                <CustomRequestModal />
+                {/* Renders nothing for anyone but an admin — see ManualOrderModal */}
+                <ManualOrderModal />
+              </TourProvider>
             </StoreProvider>
           </AuthProvider>
         </ThemeProvider>

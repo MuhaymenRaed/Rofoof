@@ -822,6 +822,54 @@ export const dict = {
   "dash.setStatus": { ar: "حالة الطلب", en: "Order status" },
   "dash.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
+  /* Artwork grouped per request, so a basket of stickers + brooches + posters
+     is three labelled sets to print rather than one merged grid. */
+  "dash.artworkTitle": { ar: "ملفات التنفيذ", en: "Files to print" },
+  "dash.artworkHint": {
+    ar: "كل طلب في مجموعة منفصلة — نزّل ما تحتاجه الآن فقط.",
+    en: "Each request is its own set — download only what you need right now.",
+  },
+  "dash.downloadGroup": { ar: "تحميل هذه المجموعة", en: "Download this set" },
+  "dash.downloadEverything": { ar: "تحميل الكل", en: "Download everything" },
+  "dash.productDesigns": { ar: "تصاميم من المتجر", en: "Store designs" },
+  /* Shown for orders placed before per-request grouping was recorded. Says the
+     grouping is missing for THIS order, not that it is broken. */
+  "dash.artworkUngrouped": {
+    ar: "طلب قديم: الصور محفوظة مجمّعة دون تقسيم لكل نوع.",
+    en: "Older order: its images were saved pooled together, without per-kind grouping.",
+  },
+  "dash.manualBadge": { ar: "طلب يدوي", en: "Manual" },
+  "dash.manualPriced": { ar: "سعر يدوي", en: "Manual price" },
+
+  /* Confirm-by-WhatsApp: the button, plus the labels that make up the message
+     body sent to the customer (see lib/order-message.ts). */
+  "dash.whatsappConfirm": { ar: "تأكيد الطلب عبر واتساب", en: "Confirm via WhatsApp" },
+  "dash.whatsappNoPhone": {
+    ar: "رقم الزبون غير صالح للواتساب",
+    en: "The customer's number isn't valid for WhatsApp",
+  },
+  "wa.greeting": {
+    ar: "السلام عليكم معكم متجر رفوف, يسرنا أنكم طلبتم من المتجر, معلومات طلبكم كالتالي :",
+    en: "Hello, this is rofoof. Thank you for your order — here are its details:",
+  },
+  "wa.confirmQuestion": { ar: "هل تريدون تأكيد الطلب؟", en: "Would you like to confirm the order?" },
+  "wa.orderCode": { ar: "رقم الطلب", en: "Order number" },
+  "wa.date": { ar: "التاريخ", en: "Date" },
+  "wa.name": { ar: "الاسم", en: "Name" },
+  "wa.phone": { ar: "الهاتف", en: "Phone" },
+  "wa.province": { ar: "المحافظة", en: "Province" },
+  "wa.address": { ar: "العنوان", en: "Address" },
+  "wa.note": { ar: "ملاحظة", en: "Note" },
+  "wa.items": { ar: "الطلبات", en: "Items" },
+  "wa.subtotal": { ar: "المجموع الفرعي", en: "Subtotal" },
+  "wa.discount": { ar: "الخصم", en: "Discount" },
+  "wa.delivery": { ar: "التوصيل", en: "Delivery" },
+  "wa.total": { ar: "الإجمالي", en: "Total" },
+  "wa.free": { ar: "مجاناً", en: "free" },
+  "wa.waterproof": { ar: "ضد الماء", en: "waterproof" },
+  "wa.customImages": { ar: "صورة مرفقة", en: "attached images" },
+  "wa.moreItems": { ar: "• و{n} طلبات أخرى", en: "• and {n} more items" },
+
   // Analytics
   "dash.statusDist": {
     ar: "توزيع حالات الطلبات",
@@ -903,6 +951,71 @@ export const dict = {
   "custom.pricingTitle": {
     ar: "أسعار الطلبات المخصصة",
     en: "Custom request pricing",
+  },
+
+  /* Admin-only manual price on a custom request. Worded as "instead of", not
+     "as well as": the typed number replaces the ladder rather than adjusting
+     it, and an admin who reads it the other way would undercharge. */
+  "custom.manualPrice": {
+    ar: "تحديد السعر يدويًا",
+    en: "Set the price manually",
+  },
+  "custom.manualPriceHint": {
+    ar: "سعر ثابت للطلب كامل، يستبدل حساب سعر القطعة × عدد الصور.",
+    en: "A fixed price for the whole request, replacing per-piece × image count.",
+  },
+  "custom.manualPriceLabel": { ar: "سعر الطلب كامل", en: "Price for the whole request" },
+  "custom.manualPriceAdmin": { ar: "للإدارة فقط", en: "Admin only" },
+  "custom.manualPriceApplied": { ar: "سعر محدد يدويًا", en: "Manually priced" },
+  "custom.autoPrice": { ar: "السعر التلقائي", en: "Automatic price" },
+
+  /* Admin-only manual order — a job that isn't in the catalogue at all. */
+  "manual.title": { ar: "طلب يدوي", en: "Manual order" },
+  "manual.subtitle": {
+    ar: "طلب خارج الكتالوك، بسعر تحدده أنت",
+    en: "An off-catalogue job, priced by you",
+  },
+  "manual.cardHint": { ar: "أنشئ طلبًا وسعّره بنفسك", en: "Create and price it yourself" },
+  "manual.badge": { ar: "طلب يدوي", en: "Manual" },
+  "manual.adminOnly": { ar: "يظهر للإدارة فقط", en: "Visible to admins only" },
+  "manual.name": { ar: "اسم العميل", en: "Customer name" },
+  "manual.namePlaceholder": { ar: "الاسم الكامل", en: "Full name" },
+  "manual.address": { ar: "العنوان", en: "Address" },
+  "manual.addressPlaceholder": { ar: "أقرب نقطة دالة", en: "Nearest landmark" },
+  "manual.jobTitle": { ar: "عنوان الطلب", en: "Order title" },
+  "manual.jobTitlePlaceholder": { ar: "مثال: بوستر مقاس خاص", en: "e.g. custom-size poster" },
+  "manual.description": { ar: "الوصف", en: "Description" },
+  "manual.descPlaceholder": {
+    ar: "اكتب تفاصيل الطلب: المقاسات، الكمية، أي ملاحظة للتنفيذ…",
+    en: "Order details: sizes, quantity, any production notes…",
+  },
+  "manual.price": { ar: "السعر", en: "Price" },
+  "manual.pricePlaceholder": { ar: "بالدينار العراقي", en: "In IQD" },
+  "manual.addToCart": { ar: "أضف إلى السلة", en: "Add to cart" },
+  "manual.required": {
+    ar: "العنوان والسعر مطلوبان.",
+    en: "A title and a price are required.",
+  },
+  /* The checkout still collects the phone and province — say so here, so the
+     admin isn't surprised by a form they thought they'd already filled. */
+  "manual.checkoutNote": {
+    ar: "سيُطلب رقم الهاتف والمحافظة عند إتمام الطلب، والاسم والعنوان سيُعبّآن تلقائيًا.",
+    en: "Checkout will ask for the phone and province; the name and address are prefilled from here.",
+  },
+  "manual.prefilled": { ar: "من الطلب اليدوي", en: "From the manual order" },
+  /* Admin-facing checkout outcomes for hand-priced lines. Each says what to do,
+     not just what failed. */
+  "manual.forbidden": {
+    ar: "الأسعار اليدوية للإدارة فقط. سجّل الدخول بحساب إداري أو احذف السطر اليدوي من السلة.",
+    en: "Manual prices are admin-only. Sign in as an admin, or remove the manual line from the cart.",
+  },
+  "manual.unsupported": {
+    ar: "قاعدة البيانات لم تُحدَّث بعد. شغّل docs/admin-manual-pricing.sql ثم أعد المحاولة.",
+    en: "The database hasn't been updated yet. Run docs/admin-manual-pricing.sql, then try again.",
+  },
+  "manual.ignoredWarning": {
+    ar: "تم إنشاء الطلب، لكن السعر اليدوي لم يُطبَّق — احتُسب السعر التلقائي. شغّل docs/admin-manual-pricing.sql وعدّل المجموع من لوحة التحكم.",
+    en: "The order was created, but the manual price wasn't applied — it was billed automatically. Run docs/admin-manual-pricing.sql, then correct the total from the dashboard.",
   },
 
   // Discounts (buyer-facing)
@@ -1055,6 +1168,40 @@ export const dict = {
   "store.next": { ar: "التالي", en: "Next" },
   "store.page": { ar: "صفحة", en: "Page" },
   "store.of": { ar: "من", en: "of" },
+
+  /* ------------------------------ Guided tour ------------------------------
+     Four steps across the shopper's journey. Kept short: this runs over a
+     highlighted element on a phone, where a paragraph would cover the very
+     thing it is pointing at. */
+  "tour.step": { ar: "خطوة", en: "Step" },
+  "tour.of": { ar: "من", en: "of" },
+  "tour.next": { ar: "التالي", en: "Next" },
+  "tour.back": { ar: "السابق", en: "Back" },
+  "tour.skip": { ar: "تخطّي", en: "Skip" },
+  "tour.finish": { ar: "تم", en: "Done" },
+  "tour.replay": { ar: "إعادة الشرح التعريفي", en: "Replay the tour" },
+  "tour.aria": { ar: "شرح تعريفي للمتجر", en: "Store walkthrough" },
+
+  "tour.catalog.title": { ar: "تصفّح المنتجات", en: "Browse the products" },
+  "tour.catalog.body": {
+    ar: "كل الستكرات والبروشات والميداليات والبوسترات هنا. فلتر حسب النوع أو الفاندوم أو السعر، واضغط أي منتج لرؤية صوره ومقاساته.",
+    en: "Every sticker, brooch, medal and poster lives here. Filter by type, fandom or price, and tap any item to see its photos and specs.",
+  },
+  "tour.custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your own design" },
+  "tour.custom.body": {
+    ar: "ارفع صورك وحوّلها إلى ستكرات أو بروشات أو بوسترات — تختار العدد والمقاس، والسعر يظهر لك قبل الإضافة للسلة.",
+    en: "Upload your own images and turn them into stickers, brooches or posters — pick the quantity and size, and see the price before it reaches your cart.",
+  },
+  "tour.cart.title": { ar: "سلتك وإتمام الطلب", en: "Your cart and checkout" },
+  "tour.cart.body": {
+    ar: "كل ما تضيفه يتجمّع هنا مع تصاميمك المرفقة. راجع الطلب، أضف كود خصم إن كان عندك، ثم أكمل الطلب.",
+    en: "Everything you add gathers here, attached designs included. Review it, add a discount code if you have one, then place the order.",
+  },
+  "tour.profile.title": { ar: "أكمل بياناتك", en: "Complete your details" },
+  "tour.profile.body": {
+    ar: "أضف رقمك ومحافظتك وعنوانك مرة واحدة، وسيُعبّأ تلقائيًا في كل طلب قادم — وتقدر تتابع طلباتك السابقة من هنا.",
+    en: "Save your phone, province and address once and every future order fills them in for you — and track your past orders from here too.",
+  },
 
   // Misc
   currency: { ar: "د.ع", en: "IQD" },

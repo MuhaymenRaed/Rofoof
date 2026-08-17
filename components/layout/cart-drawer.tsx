@@ -15,15 +15,17 @@ import {
   Droplet,
   Percent,
   Sparkles,
+  Tag,
   CUSTOM_TYPE_ICON,
 } from "@/components/icons";
 import { GuestBenefitsCard } from "@/components/checkout/guest-benefits-card";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { formatPrice } from "@/lib/format";
-import { cartDiscountFor, deliveryOfferFor } from "@/lib/pricing";
+import { cartDiscountFor, customRequestTotal, deliveryOfferFor } from "@/lib/pricing";
 import {
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
+  MANUAL_ORDER_COLOR,
   deliveryFeeFor,
   stockCeilingFor,
 } from "@/lib/products";
@@ -80,6 +82,8 @@ export function CartDrawer() {
     clearCart,
     customRequests,
     removeCustomRequest,
+    manualOrders,
+    removeManualOrder,
     getProduct,
     pricingFor,
     offers,
@@ -106,6 +110,9 @@ export function CartDrawer() {
   /** a queued sticker request is under the 10-design minimum */
   const [stickerMinError, setStickerMinError] = useState(false);
   const [stockError, setStockError] = useState(false);
+  /** a hand-priced line was refused, or its price silently didn't apply */
+  const [manualError, setManualError] = useState<DictKey | null>(null);
+  const [manualIgnored, setManualIgnored] = useState(false);
   const [orderCode, setOrderCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [couponInput, setCouponInput] = useState("");
@@ -165,7 +172,7 @@ export function CartDrawer() {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!orderCode) return;
-    if (cart.length === 0 && customRequests.length === 0) return;
+    if (cart.length === 0 && customRequests.length === 0 && manualOrders.length === 0) return;
     setOrderCode("");
     setStep("cart");
     try {
@@ -173,7 +180,7 @@ export function CartDrawer() {
     } catch {
       /* ignore */
     }
-  }, [orderCode, cart.length, customRequests.length]);
+  }, [orderCode, cart.length, customRequests.length, manualOrders.length]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Prefill checkout details from the signed-in profile (only empty fields).
@@ -185,6 +192,20 @@ export function CartDrawer() {
     setPhone2((v) => v || user.phone2 || "");
     setProvince((v) => v || user.provinceCode || "");
   }, [step, user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // A manual order carries the customer it was raised for, so it beats the
+  // admin's OWN profile for name and address — otherwise an admin creating an
+  // order for someone else would ship it to themselves. Runs after the profile
+  // prefill above and overwrites those two fields deliberately; phone and
+  // province are not in the manual form and stay for the admin to fill in.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  const manualContact = manualOrders.find((m) => m.customerName || m.addressLine);
+  useEffect(() => {
+    if (step !== "form" || !manualContact) return;
+    if (manualContact.customerName) setName(manualContact.customerName);
+    if (manualContact.addressLine) setAddress(manualContact.addressLine);
+  }, [step, manualContact]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // An order needs a name, phone, province and a full address. The note is
@@ -274,6 +295,8 @@ export function CartDrawer() {
     setStaleError(false);
     setStickerMinError(false);
     setStockError(false);
+    setManualError(null);
+    setManualIgnored(false);
 
     const contact = {
       customerName: name,
@@ -307,6 +330,12 @@ export function CartDrawer() {
           waterproof: r.waterproof,
           description: r.description,
           images: r.images,
+          manualTotal: r.manualTotal ?? null,
+        })),
+        manuals: manualOrders.map((m) => ({
+          title: m.title,
+          description: m.description,
+          price: m.price,
         })),
       });
     } catch {
@@ -321,9 +350,17 @@ export function CartDrawer() {
       // rather than the generic failure — the shopper can fix it themselves by
       // dropping the design, and "something went wrong" wouldn't tell them so.
       if (res.error === "out_of_stock") setStockError(true);
+      // Admin-only paths: the hand-priced line was refused. Each of these has a
+      // specific remedy, so neither is worth flattening into "try again".
+      else if (res.error === "manual_forbidden") setManualError("manual.forbidden");
+      else if (res.error === "manual_unsupported") setManualError("manual.unsupported");
       else setError(true);
       return;
     }
+
+    // The order went through but the database priced it automatically. Not a
+    // failure — but the admin has to know before the total is acted on.
+    if (res.manualPriceIgnored) setManualIgnored(true);
 
     setOrderCode(res.code);
     // Persist so the success screen (and the code) survives any refresh/remount
@@ -418,6 +455,14 @@ export function CartDrawer() {
             </div>
             <p className="text-lg font-black text-ink">{t("checkout.successTitle")}</p>
             <p className="text-sm text-ink-3">{t("checkout.successHint")}</p>
+            {/* Admin-only: the order exists but was priced automatically. Shown
+                on the success screen, not as a failure, because that is exactly
+                what happened — and it must not be missed. */}
+            {manualIgnored && (
+              <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-start text-[11px] font-semibold leading-relaxed text-amber-700">
+                {t("manual.ignoredWarning")}
+              </p>
+            )}
             <button
               type="button"
               onClick={copyCode}
@@ -457,7 +502,7 @@ export function CartDrawer() {
               {t("checkout.done")}
             </button>
           </div>
-        ) : cart.length === 0 && customRequests.length === 0 ? (
+        ) : cart.length === 0 && customRequests.length === 0 && manualOrders.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-surface-2 text-ink-3">
               <Bag size={28} />
@@ -571,6 +616,12 @@ export function CartDrawer() {
               {stockError && (
                 <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700">
                   {t("cart.outOfStock")}
+                </p>
+              )}
+
+              {manualError && (
+                <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold leading-relaxed text-red-500">
+                  {t(manualError)}
                 </p>
               )}
 
@@ -766,6 +817,16 @@ export function CartDrawer() {
                                 <Droplet size={9} /> {t("badge.waterproof")}
                               </span>
                             )}
+                            {/* Only an admin can have set this, and only they
+                                will see it — a customer's request never has one */}
+                            {req.manualTotal != null && (
+                              <span
+                                className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white"
+                                style={{ background: MANUAL_ORDER_COLOR }}
+                              >
+                                <Tag size={9} /> {t("custom.manualPriceApplied")}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <button
@@ -780,15 +841,81 @@ export function CartDrawer() {
                       <div className="mt-auto flex items-center justify-end pt-2">
                         <span
                           className="text-sm font-extrabold"
-                          style={{ color: CUSTOM_ORDER_COLOR }}
+                          style={{
+                            color:
+                              req.manualTotal != null ? MANUAL_ORDER_COLOR : CUSTOM_ORDER_COLOR,
+                          }}
                         >
-                          {formatPrice(req.unitPrice * req.images.length, lang)}
+                          {formatPrice(customRequestTotal(req), lang)}
                         </span>
                       </div>
                     </div>
                   </div>
                 );
               })}
+
+              {/* Admin manual lines — off-catalogue jobs priced by hand. They
+                  have no artwork and no quantity to step, so the row is just
+                  what it is and what it costs. */}
+              {manualOrders.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex gap-3 rounded-2xl border p-3"
+                  style={{
+                    borderColor: `color-mix(in srgb, ${MANUAL_ORDER_COLOR} 40%, transparent)`,
+                    background: `color-mix(in srgb, ${MANUAL_ORDER_COLOR} 6%, var(--surface))`,
+                  }}
+                >
+                  <div
+                    className="grid h-16 w-16 shrink-0 place-items-center rounded-xl text-white"
+                    style={{ background: MANUAL_ORDER_COLOR }}
+                  >
+                    <Tag size={24} />
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="line-clamp-1 text-[13px] font-bold text-ink">{m.title}</h3>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-black text-white"
+                            style={{ background: MANUAL_ORDER_COLOR }}
+                          >
+                            {t("manual.badge")}
+                          </span>
+                          {m.customerName && (
+                            <span className="truncate text-[10px] font-semibold text-ink-3">
+                              {m.customerName}
+                            </span>
+                          )}
+                        </div>
+                        {m.description && (
+                          <p className="mt-1 line-clamp-2 text-[10px] italic text-ink-3">
+                            {m.description}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeManualOrder(m.id)}
+                        aria-label={t("cart.remove")}
+                        className="tap shrink-0 text-ink-3 transition hover:text-brand"
+                      >
+                        <Trash size={16} />
+                      </button>
+                    </div>
+                    <div className="mt-auto flex items-center justify-end pt-2">
+                      <span
+                        className="text-sm font-extrabold"
+                        style={{ color: MANUAL_ORDER_COLOR }}
+                      >
+                        {formatPrice(m.price, lang)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="border-t border-line-2 px-5 py-4">

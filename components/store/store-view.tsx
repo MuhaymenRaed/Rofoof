@@ -7,6 +7,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { CategoryIcon } from "@/components/ui/category-icon";
 import { ProductCard } from "@/components/ui/product-card";
 import { CustomOrderCard } from "@/components/store/custom-order-card";
+import { ManualOrderCard } from "@/components/store/manual-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { FilterManagerModal } from "@/components/store/filter-manager-modal";
@@ -597,10 +598,19 @@ export function StoreView({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-                {current === 1 && <CustomOrderCard />}
+              <div
+                id="tour-catalog"
+                className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"
+              >
+                {current === 1 && (
+                  <>
+                    <CustomOrderCard />
+                    {/* Renders nothing for a customer — see ManualOrderCard */}
+                    <ManualOrderCard />
+                  </>
+                )}
                 {pageItems.map((p, i) => (
-                  <ProductCard key={p.id} product={p} priority={current === 1 && i < 2} />
+                  <ProductCard key={p.id} productId={p.id} priority={current === 1 && i < 2} />
                 ))}
               </div>
 
