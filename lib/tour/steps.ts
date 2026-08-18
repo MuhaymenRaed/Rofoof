@@ -45,13 +45,33 @@ export interface TourStep {
 }
 
 /**
+ * What to call each page the walkthrough can take someone to.
+ *
+ * Read by the travel veil, which names the destination out loud rather than
+ * letting the page swap underneath the visitor: a tour that silently moved from
+ * the home page to the store left people unsure whether they had been navigated
+ * or the site had reloaded. Reuses the nav labels, so the veil says the same
+ * word the tab bar does.
+ */
+export const ROUTE_LABELS: Record<string, DictKey> = {
+  "/": "nav.home",
+  "/store": "nav.store",
+};
+
+/**
  * The walkthrough, in the order a visitor actually meets the shop.
  *
  * It starts where they landed — the home page gets explained before anyone is
  * taken anywhere — and only then moves to the store. Grouped by route so the
  * whole tour costs exactly one navigation, which matters on the connections this
- * shop is used over: three steps on `/`, two on `/store`, then two on whatever
+ * shop is used over: three stops on `/`, four on `/store`, then four on whatever
  * page the visitor is left on.
+ *
+ * `optional` stops are resolved against the live DOM the moment the tour reaches
+ * their page, not when it reaches them — see the tour provider. That is what
+ * keeps the step counter honest: a switched-off banner is dropped from the
+ * running order before step one is drawn, rather than leaving a gap the visitor
+ * watches the tour fall into.
  */
 export const TOUR_STEPS: TourStep[] = [
   {
@@ -86,6 +106,16 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/store",
     titleKey: "tour.catalog.title",
     bodyKey: "tour.catalog.body",
+  },
+  {
+    // Straight after the catalogue, because narrowing it down is the next thing
+    // anyone does to it — and before the product-card step, so the shopper knows
+    // how to find an item before being shown what to do with one.
+    id: "filters",
+    target: "#tour-filters",
+    route: "/store",
+    titleKey: "tour.filters.title",
+    bodyKey: "tour.filters.body",
   },
   {
     // The first card, standing in for all of them: this is where the tour

@@ -282,3 +282,123 @@
 .theme-burst::view-transition-new(root) {
   z-index: 9999;
 }
+
+/* ---------------------------------------------------------------------------
+   Guided tour — the travel veil shown while the walkthrough changes page.
+   See components/tour/tour-provider.tsx.
+--------------------------------------------------------------------------- */
+@keyframes tour-veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tour-veil-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes tour-veil-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Expanding ring around the destination icon — a "we're on our way" pulse. */
+@keyframes tour-halo {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+/* Indeterminate progress sliver. Physical translateX, so it needs an RTL twin
+   below — a bar sweeping the wrong way reads as going backwards. */
+@keyframes tour-track {
+  from {
+    transform: translateX(-130%);
+  }
+  to {
+    transform: translateX(330%);
+  }
+}
+
+@keyframes tour-track-rtl {
+  from {
+    transform: translateX(130%);
+  }
+  to {
+    transform: translateX(-330%);
+  }
+}
+
+.tour-track {
+  animation: tour-track 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+[dir="rtl"] .tour-track {
+  animation-name: tour-track-rtl;
+}
+
+.tour-halo {
+  animation: tour-halo 1.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-track,
+  .tour-halo {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   iOS: stop Safari zooming the page when a field takes focus.
+
+   Every browser on iOS is WebKit, and WebKit scales the viewport up on focus
+   whenever a form control's computed font-size is under 16px — it is "helping"
+   by making text it considers too small to read legible. The page never zooms
+   back out on blur, so the shopper is left scrolling a catalogue that no longer
+   fits the screen. No other platform does this, which is why it only ever shows
+   up on an iPhone.
+
+   Fixing it by hand would mean auditing ~106 controls, and one new `text-sm`
+   field would bring it straight back. So it is set here instead, on the two
+   axes that make it safe: `@supports (-webkit-touch-callout: none)` is true only
+   on iOS, so no other platform's typography moves; and the rule is UNLAYERED,
+   which beats Tailwind's `@layer utilities` regardless of specificity — an
+   element selector would otherwise lose to `.text-sm` every time.
+
+   Controls with no text to zoom into are left alone: a range thumb, a checkbox
+   and a file picker's button all take their size from elsewhere.
+
+   The alternative — `maximum-scale=1` in the viewport meta — is not one: iOS
+   has ignored it since iOS 10 precisely because it also disables pinch-zoom,
+   and taking pinch-zoom away from a shopper reading Arabic product specs on a
+   phone would be a worse bug than the one being fixed.
+--------------------------------------------------------------------------- */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(
+      [type="color"]
+    ):not([type="submit"]):not([type="button"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

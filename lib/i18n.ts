@@ -839,13 +839,19 @@ export const dict = {
     en: "Older order: its images were saved pooled together, without per-kind grouping.",
   },
   "dash.manualOrders": { ar: "الطلبات اليدوية", en: "Manual orders" },
-  "dash.manualRevenue": { ar: "إيرادات الطلبات اليدوية", en: "Manual order revenue" },
+  "dash.manualRevenue": {
+    ar: "إيرادات الطلبات اليدوية",
+    en: "Manual order revenue",
+  },
   "dash.manualBadge": { ar: "طلب يدوي", en: "Manual" },
   "dash.manualPriced": { ar: "سعر يدوي", en: "Manual price" },
 
   /* Confirm-by-WhatsApp: the button, plus the labels that make up the message
      body sent to the customer (see lib/order-message.ts). */
-  "dash.whatsappConfirm": { ar: "تأكيد الطلب عبر واتساب", en: "Confirm via WhatsApp" },
+  "dash.whatsappConfirm": {
+    ar: "تأكيد الطلب عبر واتساب",
+    en: "Confirm via WhatsApp",
+  },
   "dash.whatsappNoPhone": {
     ar: "رقم الزبون غير صالح للواتساب",
     en: "The customer's number isn't valid for WhatsApp",
@@ -854,7 +860,10 @@ export const dict = {
     ar: "السلام عليكم معكم متجر رفوف, يسرنا أنكم طلبتم من المتجر, معلومات طلبكم كالتالي :",
     en: "Hello, this is rofoof. Thank you for your order — here are its details:",
   },
-  "wa.confirmQuestion": { ar: "هل تريدون تأكيد الطلب؟", en: "Would you like to confirm the order?" },
+  "wa.confirmQuestion": {
+    ar: "هل تريدون تأكيد الطلب؟",
+    en: "Would you like to confirm the order?",
+  },
   "wa.orderCode": { ar: "رقم الطلب", en: "Order number" },
   "wa.date": { ar: "التاريخ", en: "Date" },
   "wa.name": { ar: "الاسم", en: "Name" },
@@ -966,7 +975,10 @@ export const dict = {
     ar: "سعر ثابت للطلب كامل، يستبدل حساب سعر القطعة × عدد الصور.",
     en: "A fixed price for the whole request, replacing per-piece × image count.",
   },
-  "custom.manualPriceLabel": { ar: "سعر الطلب كامل", en: "Price for the whole request" },
+  "custom.manualPriceLabel": {
+    ar: "سعر الطلب كامل",
+    en: "Price for the whole request",
+  },
   "custom.manualPriceAdmin": { ar: "للإدارة فقط", en: "Admin only" },
   "custom.manualPriceApplied": { ar: "سعر محدد يدويًا", en: "Manually priced" },
   "custom.autoPrice": { ar: "السعر التلقائي", en: "Automatic price" },
@@ -977,7 +989,10 @@ export const dict = {
     ar: "طلب خارج الكتالوك، بسعر تحدده أنت",
     en: "An off-catalogue job, priced by you",
   },
-  "manual.cardHint": { ar: "أنشئ طلبًا وسعّره بنفسك", en: "Create and price it yourself" },
+  "manual.cardHint": {
+    ar: "أنشئ طلبًا وسعّره بنفسك",
+    en: "Create and price it yourself",
+  },
   "manual.badge": { ar: "طلب يدوي", en: "Manual" },
   "manual.adminOnly": { ar: "يظهر للإدارة فقط", en: "Visible to admins only" },
   "manual.name": { ar: "اسم العميل", en: "Customer name" },
@@ -985,7 +1000,10 @@ export const dict = {
   "manual.address": { ar: "العنوان", en: "Address" },
   "manual.addressPlaceholder": { ar: "أقرب نقطة دالة", en: "Nearest landmark" },
   "manual.jobTitle": { ar: "عنوان الطلب", en: "Order title" },
-  "manual.jobTitlePlaceholder": { ar: "مثال: بوستر مقاس خاص", en: "e.g. custom-size poster" },
+  "manual.jobTitlePlaceholder": {
+    ar: "مثال: بوستر مقاس خاص",
+    en: "e.g. custom-size poster",
+  },
   "manual.description": { ar: "الوصف", en: "Description" },
   "manual.descPlaceholder": {
     ar: "اكتب تفاصيل الطلب: المقاسات، الكمية، أي ملاحظة للتنفيذ…",
@@ -1172,17 +1190,22 @@ export const dict = {
   "store.of": { ar: "من", en: "of" },
 
   /* ------------------------------ Guided tour ------------------------------
-     Four steps across the shopper's journey. Kept short: this runs over a
-     highlighted element on a phone, where a paragraph would cover the very
-     thing it is pointing at. */
+     One string per stop along the shopper's journey — the running order lives
+     in lib/tour/steps.ts. Kept short: this runs over a highlighted element on a
+     phone, where a paragraph would cover the very thing it is pointing at. */
   "tour.step": { ar: "خطوة", en: "Step" },
   "tour.of": { ar: "من", en: "of" },
   "tour.next": { ar: "التالي", en: "Next" },
   "tour.back": { ar: "السابق", en: "Back" },
-  /* No "skip" — the walkthrough deliberately offers no cancel-the-lot button.
-     The close (×) stays, since an overlay covering the screen with no exit at
-     all would be a trap on a phone, where there is no Escape key. */
+  /* The way out, and it says so. This used to be a bare × in the card's corner,
+     which on a phone reads as "close this box" rather than "leave the tour" —
+     the one thing a visitor who wants out needs to be sure of. Spelling it
+     costs three characters and removes the guess. */
+  "tour.skip": { ar: "تخطي", en: "Skip" },
   "tour.finish": { ar: "تم", en: "Done" },
+  /* Shown over the travel veil while the walkthrough changes page — followed by
+     the destination's own name, so it reads "Taking you to … the Store". */
+  "tour.moving": { ar: "ننقلك إلى", en: "Taking you to" },
   "tour.replay": { ar: "إعادة الشرح التعريفي", en: "Replay the tour" },
   "tour.aria": { ar: "شرح تعريفي للمتجر", en: "Store walkthrough" },
 
@@ -1196,20 +1219,28 @@ export const dict = {
     ar: "كلفة التوصيل واضحة من البداية قبل أي سعر، حتى لا تكون مفاجأة عند إتمام الطلب.",
     en: "The delivery cost is shown up front, before any price — so it's never a surprise at checkout.",
   },
-  "tour.rails.title": { ar: "الأكثر طلباً ووصل حديثاً", en: "Most ordered and just landed" },
+  "tour.rails.title": {
+    ar: "الأكثر طلباً ووصل حديثاً",
+    en: "Most ordered and just landed",
+  },
   "tour.rails.body": {
     ar: "هنا أكثر المنتجات طلباً ومجموعات مختارة وآخر ما وصل. اضغط أي منتج لرؤية صوره وتفاصيله.",
     en: "The best sellers, our curated picks, and the newest arrivals. Tap any item to see its photos and details.",
   },
   "tour.catalog.title": { ar: "تصفّح المنتجات", en: "Browse the products" },
   "tour.catalog.body": {
-    ar: "كل الستكرات والبروشات والميداليات والبوسترات هنا. فلتر حسب النوع أو الفاندوم أو السعر، واضغط أي منتج لرؤية صوره ومقاساته.",
+    ar: "كل الستكرات والبروشات والميداليات والبوسترات هنا. فلتر حسب النوع أو الفئة أو السعر، واضغط أي منتج لرؤية صوره وتفاصيله.",
     en: "Every sticker, brooch, medal and poster lives here. Filter by type, fandom or price, and tap any item to see its photos and specs.",
+  },
+  "tour.filters.title": { ar: "البحث والفلاتر", en: "Search and filters" },
+  "tour.filters.body": {
+    ar: "من هنا تضيّق النتائج: ابحث باسم المنتج، رتّب حسب الأكثر طلباً أو الأحدث أو السعر، واضغط «فلتر» لتختار الاهتمام والسعر الأقصى والمقاوم للماء. وأزرار الفئات تحت مباشرة.",
+    en: "This row narrows the catalogue: search by name, sort by most ordered, newest or price, and press Filter for fandom, max price and waterproof-only. The category chips sit right below it.",
   },
   "tour.custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your own design" },
   "tour.custom.body": {
-    ar: "ارفع صورك وحوّلها إلى ستكرات أو بروشات أو بوسترات — تختار العدد والمقاس، والسعر يظهر لك قبل الإضافة للسلة.",
-    en: "Upload your own images and turn them into stickers, brooches or posters — pick the quantity and size, and see the price before it reaches your cart.",
+    ar: "ارفع صورك وحوّلها إلى ستكرات أو بروشات أو بوسترات — تختار العدد والسعر يظهر لك قبل الإضافة للسلة.",
+    en: "Upload your own images and turn them into stickers, brooches or posters — pick the quantity and see the price before it reaches your cart.",
   },
   "tour.cart.title": { ar: "سلتك وإتمام الطلب", en: "Your cart and checkout" },
   "tour.cart.body": {
@@ -1218,8 +1249,8 @@ export const dict = {
   },
   "tour.order.title": { ar: "كيف تطلب؟", en: "How to order" },
   "tour.order.body": {
-    ar: "اضغط على المنتج لرؤية التفاصيل والمقاسات، أو اضغط أيقونة السلة لإضافته مباشرة. أيقونة القلب تحفظه في المفضلة.",
-    en: "Tap the item for details and sizes, or tap the cart icon to add it straight away. The heart saves it to your favourites.",
+    ar: "اضغط على المنتج لرؤية التفاصيل، أيقونة القلب تحفظه في المفضلة.",
+    en: "Tap the item for details, The heart saves it to your favourites.",
   },
   "tour.favorites.title": { ar: "المفضلة", en: "Favourites" },
   "tour.favorites.body": {

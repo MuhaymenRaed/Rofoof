@@ -14,8 +14,8 @@ import {
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useCatalog } from "@/components/providers/store-provider";
-import { X, ChevronEnd } from "@/components/icons";
-import { TOUR_DONE_KEY, TOUR_STEPS } from "@/lib/tour/steps";
+import { Bag, ChevronEnd, Home } from "@/components/icons";
+import { ROUTE_LABELS, TOUR_DONE_KEY, TOUR_STEPS } from "@/lib/tour/steps";
 
 interface TourContextValue {
   /** true while the walkthrough is on screen */
@@ -49,6 +49,11 @@ const FIND_TIMEOUT_MS = 10000;
  * The same, for a step flagged `optional` — a section the admin may have
  * switched off, or a card that only exists on page one. Waiting ten seconds on
  * one of those means ten seconds of scrim over nothing.
+ *
+ * Reached far less often than it used to be: an optional step whose page is
+ * already open is resolved against the DOM before the tour ever advances to it
+ * (see `resolveSiblings`), so this is now only the backstop for one that could
+ * not be checked in advance.
  */
 const OPTIONAL_FIND_TIMEOUT_MS = 1500;
 /** How often to look for a step's target while waiting for it. */
@@ -65,6 +70,22 @@ const SETTLE_MS = 900;
  * looked at yet is worse than waiting a beat.
  */
 const AUTOSTART_DELAY_MS = 1400;
+/**
+ * How long the travel veil stays up after the destination is ready.
+ *
+ * Not a loading delay — by this point the page is there and the next spotlight
+ * is already drawn underneath. It is reading time for the one line that says
+ * where the visitor has just been taken, which is the entire point of the veil.
+ */
+const VEIL_HOLD_MS = 480;
+/**
+ * Hard cap on the veil, whether or not the destination ever became ready. A
+ * walkthrough that covers the screen while a slow page loads is a courtesy; one
+ * that covers it indefinitely because the page never arrived is a trap.
+ */
+const VEIL_MAX_MS = 3200;
+/** Length of the veil's fade-out — matches `tour-veil-out` in globals.css. */
+const VEIL_FADE_MS = 300;
 
 /**
  * Where an uninvited tour is welcome. A shopper walkthrough has no business
@@ -79,6 +100,16 @@ interface Box {
   left: number;
   width: number;
   height: number;
+}
+
+/** A page change the walkthrough is making on the visitor's behalf. */
+interface Travel {
+  /** Route being navigated to. */
+  to: string;
+  /** `in` while the veil covers the screen, `out` for the fade that removes it. */
+  phase: "in" | "out";
+  /** Land at the top of the destination — the closing trip back home. */
+  toTop: boolean;
 }
 
 /** First match that actually occupies space — see TourStep.target. */
@@ -143,7 +174,8 @@ function prefersReducedMotion(): boolean {
 
 /**
  * The guided walkthrough: a spotlight over one control at a time with a card
- * explaining it, across four steps and (at most) one route change.
+ * explaining it, across the shop's pages and (at most) one route change out and
+ * one back.
  *
  * Auto-runs once for a first-time visitor, and can be replayed from the footer
  * at any time. Built here rather than on a tour library because every such
@@ -159,12 +191,49 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  /** current step index, or null when the tour isn't running */
-  const [index, setIndex] = useState<number | null>(null);
+  /**
+   * The step on screen, held by ID rather than by index.
+   *
+   * Because the running order is pruned WHILE the tour runs — see `skipped` —
+   * an index would silently come to mean a different step the moment anything
+   * ahead of it was dropped. An id keeps pointing at the same step no matter
+   * what happens around it.
+   */
+  const [stepId, setStepId] = useState<string | null>(null);
+  /**
+   * Steps dropped from THIS run because their target isn't on the page.
+   *
+   * The tour used to handle a missing target by stalling on it for a second and
+   * a half and then jumping the counter — "step 1 of 10", a blank pause, "step 3
+   * of 10" — which looks exactly like a step that failed rather than one that
+   * was never applicable. Dropping them from the list instead means the numbers
+   * and the dots describe the walkthrough the visitor is actually being given.
+   *
+   * Cleared on every `start`, since the reason a step was absent (a banner
+   * switched off, an empty first page of the store) can have changed since.
+   */
+  const [skipped, setSkipped] = useState<readonly string[]>([]);
   const [box, setBox] = useState<Box | null>(null);
+  const [travel, setTravel] = useState<Travel | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  const step = index === null ? null : TOUR_STEPS[index] ?? null;
+  /** The running order for this run, with the dropped steps taken out. */
+  const steps = useMemo(() => TOUR_STEPS.filter((s) => !skipped.includes(s.id)), [skipped]);
+  const index = stepId === null ? -1 : steps.findIndex((s) => s.id === stepId);
+  const step = index === -1 ? null : steps[index];
+
+  /**
+   * The same list, readable without being a dependency.
+   *
+   * `drop` is called from inside the target-tracking effect, so it has to keep a
+   * stable identity — take `steps` as a dependency and every prune would tear
+   * that effect down and rebuild it mid-step, re-running the scroll and
+   * restarting the follow loop for nothing.
+   */
+  const skippedRef = useRef(skipped);
+  useEffect(() => {
+    skippedRef.current = skipped;
+  }, [skipped]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => setMounted(true), []);
@@ -193,34 +262,103 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Close the tour. Does NOT write the flag: by the time anything can be closed
-   * a step has been displayed, so `markSeen` has already run.
+   * Close the tour where it stands. Does NOT write the flag: by the time
+   * anything can be closed a step has been displayed, so `markSeen` has already
+   * run. Used by Skip and by Escape — someone leaving early has asked to be left
+   * alone, so unlike `finish` this moves them nowhere.
    */
   const close = useCallback(() => {
-    setIndex(null);
+    setStepId(null);
     setBox(null);
   }, []);
 
-  const start = useCallback(() => {
+  /**
+   * Show a step, raising the travel veil in the same commit when it lives on
+   * another page.
+   *
+   * The veil is set here rather than in the navigation effect so it is up before
+   * the router is ever told to move: the page must never be seen swapping
+   * underneath the visitor unannounced, which was the whole complaint about the
+   * hop from the home page to the store.
+   *
+   * Reads `window.location.pathname` rather than the `pathname` from props
+   * because this is also called from the autostart timer, whose closure was
+   * captured a second and a half earlier.
+   */
+  const goToStep = useCallback((id: string) => {
     setBox(null);
-    setIndex(0);
+    setStepId(id);
+    const to = TOUR_STEPS.find((s) => s.id === id)?.route;
+    setTravel(to && to !== window.location.pathname ? { to, phase: "in", toTop: false } : null);
   }, []);
 
-  /** Next step, or close when there isn't one. */
-  const next = useCallback(() => {
-    if (index === null) return;
-    if (index + 1 >= TOUR_STEPS.length) {
-      close();
+  /**
+   * End the tour properly, at the top of the home page.
+   *
+   * The closing step spotlights the replay button, which lives in the FOOTER —
+   * so finishing used to drop the visitor at the very bottom of whatever page
+   * the walkthrough happened to end on, facing the copyright line. They are
+   * taken back to where the tour began instead, behind the same veil it used on
+   * the way out, so the trip reads as the last beat of the walkthrough rather
+   * than a stray navigation.
+   */
+  const finish = useCallback(() => {
+    setStepId(null);
+    setBox(null);
+    if (window.location.pathname !== "/") {
+      setTravel({ to: "/", phase: "in", toTop: true });
+      router.push("/");
       return;
     }
-    setBox(null);
-    setIndex(index + 1);
-  }, [index, close]);
+    setTravel(null);
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [router]);
+
+  const start = useCallback(() => {
+    // A replay re-resolves the optional steps from scratch: the delivery banner
+    // may have been switched back on, or the store may now have the rails and
+    // the custom-order card it lacked last time.
+    setSkipped([]);
+    goToStep(TOUR_STEPS[0].id);
+  }, [goToStep]);
+
+  /** Next step, or finish when there isn't one. */
+  const next = useCallback(() => {
+    if (index === -1) return;
+    const following = steps[index + 1];
+    if (!following) {
+      finish();
+      return;
+    }
+    goToStep(following.id);
+  }, [index, steps, finish, goToStep]);
 
   const back = useCallback(() => {
-    setBox(null);
-    setIndex((i) => (i === null || i === 0 ? i : i - 1));
-  }, []);
+    if (index <= 0) return;
+    goToStep(steps[index - 1].id);
+  }, [index, steps, goToStep]);
+
+  /**
+   * Drop the current step from the run and move past it — what happens when its
+   * target never turned up. Unlike `next`, this also takes the step out of the
+   * count, so the visitor is never told they are on step 4 of 11 by a
+   * walkthrough that is only going to show them 9.
+   */
+  const drop = useCallback(
+    (id: string) => {
+      // Rebuilt from `skippedRef` rather than closed over `steps`, to keep this
+      // callback — and therefore the effect that calls it — stable.
+      const remaining = TOUR_STEPS.filter((s) => s.id === id || !skippedRef.current.includes(s.id));
+      const following = remaining[remaining.findIndex((s) => s.id === id) + 1];
+      setSkipped((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      if (!following) {
+        finish();
+        return;
+      }
+      goToStep(following.id);
+    },
+    [finish, goToStep],
+  );
 
   // --- auto-run, once, for a first-time visitor
   //
@@ -238,9 +376,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (done) return;
-    const id = setTimeout(() => setIndex(0), AUTOSTART_DELAY_MS);
+    const id = setTimeout(() => goToStep(TOUR_STEPS[0].id), AUTOSTART_DELAY_MS);
     return () => clearTimeout(id);
-  }, []);
+  }, [goToStep]);
 
   // --- navigate to the step's route when it lives on another page
   useEffect(() => {
@@ -281,6 +419,33 @@ export function TourProvider({ children }: { children: ReactNode }) {
     };
 
     /**
+     * Settle the rest of THIS page's optional steps while we are standing on it.
+     *
+     * The page is up and painted, so every optional step that shares this route
+     * can be answered right now with a DOM query instead of being discovered
+     * one at a time, each costing a stalled second and a half of blank scrim.
+     * The delivery banner and the home rails are both resolved before step one
+     * is drawn; the store's product card and custom-order card the moment the
+     * catalogue is found.
+     *
+     * Never touches the step being shown, and a step already on screen is by
+     * definition still findable — so this can only ever remove steps that lie
+     * ahead, which is what makes it safe to renumber around.
+     */
+    const resolveSiblings = () => {
+      const here = pathname;
+      const absent = TOUR_STEPS.filter(
+        (s) =>
+          s.optional &&
+          s.id !== step.id &&
+          (s.route ?? here) === here &&
+          findVisible(s.target) === null,
+      ).map((s) => s.id);
+      if (absent.length === 0) return;
+      setSkipped((prev) => [...prev, ...absent.filter((id) => !prev.includes(id))]);
+    };
+
+    /**
      * Follow the target only while it can still be moving.
      *
      * `scrollIntoView` animates, so the spotlight has to track the element for
@@ -294,6 +459,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
     const track = (el: HTMLElement) => {
       target = el;
+      // Prune before the first box is published, so the step counter and the
+      // dots are right on the frame they first appear rather than correcting
+      // themselves afterwards.
+      resolveSiblings();
       // The step is about to be on screen. This is the moment the walkthrough
       // counts as shown — see markSeen.
       markSeen();
@@ -317,10 +486,11 @@ export function TourProvider({ children }: { children: ReactNode }) {
         return;
       }
       // The catalogue grid isn't there on an empty search, the custom-order card
-      // only exists on page 1. A step whose target never shows up is skipped
-      // rather than left as a stuck overlay — without counting as "seen".
+      // only exists on page 1. A step whose target never shows up is dropped
+      // from the run rather than left as a stuck overlay — without counting as
+      // "seen".
       if (Date.now() > deadline) {
-        next();
+        drop(step.id);
         return;
       }
       // Polled on a timer, not per frame: this can run for seconds while a route
@@ -337,48 +507,93 @@ export function TourProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("scroll", onViewportChange);
       window.removeEventListener("resize", onViewportChange);
     };
-  }, [step, pathname, next, markSeen]);
+  }, [step, pathname, drop, markSeen]);
+
+  /** The veil's destination has been reached (or there is no veil). */
+  const arrived = travel === null || pathname === travel.to;
+  /** The destination has something to look at: a spotlight, or the tour's end. */
+  const handover = stepId === null || box !== null;
+
+  // --- the closing trip lands at the top, and does it behind the veil so the
+  //     jump is never seen
+  useEffect(() => {
+    if (travel === null || !travel.toTop || pathname !== travel.to) return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [travel, pathname]);
+
+  // --- lift the veil once the destination is worth looking at
+  //
+  // Deliberately waits for the next spotlight rather than for the route alone:
+  // lifting on arrival would show a bare page for the fraction of a second the
+  // hunt takes, which is the same "did something break?" flicker the veil exists
+  // to remove. `handover` and `arrived` are booleans, not the box itself, so
+  // this doesn't re-arm on every frame of a smooth scroll.
+  useEffect(() => {
+    if (travel === null) return;
+    if (travel.phase === "out") {
+      const id = window.setTimeout(() => setTravel(null), VEIL_FADE_MS);
+      return () => window.clearTimeout(id);
+    }
+    const id = window.setTimeout(
+      () => setTravel((t) => (t?.phase === "in" ? { ...t, phase: "out" } : t)),
+      arrived && handover ? VEIL_HOLD_MS : VEIL_MAX_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [travel, arrived, handover]);
 
   // --- Escape closes it, like every other overlay in the app
   useEffect(() => {
-    if (index === null) return;
+    if (stepId === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, close]);
+  }, [stepId, close]);
 
   const value = useMemo<TourContextValue>(
-    () => ({ active: index !== null, start }),
-    [index, start],
+    () => ({ active: stepId !== null, start }),
+    [stepId, start],
   );
 
   return (
     <TourContext.Provider value={value}>
       {children}
-      {mounted && step && box
+      {mounted
         ? createPortal(
-            <TourOverlay
-              box={box}
-              stepIndex={index ?? 0}
-              total={TOUR_STEPS.length}
-              title={t(step.titleKey)}
-              body={t(step.bodyKey)}
-              dir={dir}
-              onNext={next}
-              onBack={back}
-              onClose={close}
-              labels={{
-                step: t("tour.step"),
-                of: t("tour.of"),
-                next: t("tour.next"),
-                back: t("tour.back"),
-                finish: t("tour.finish"),
-                aria: t("tour.aria"),
-                close: t("aria.close"),
-              }}
-            />,
+            <>
+              {step && box ? (
+                <TourOverlay
+                  box={box}
+                  stepIndex={index}
+                  total={steps.length}
+                  title={t(step.titleKey)}
+                  body={t(step.bodyKey)}
+                  dir={dir}
+                  onNext={next}
+                  onBack={back}
+                  onClose={close}
+                  labels={{
+                    step: t("tour.step"),
+                    of: t("tour.of"),
+                    next: t("tour.next"),
+                    back: t("tour.back"),
+                    finish: t("tour.finish"),
+                    skip: t("tour.skip"),
+                    aria: t("tour.aria"),
+                  }}
+                />
+              ) : null}
+              {travel ? (
+                <TourTravel
+                  route={travel.to}
+                  leaving={travel.phase === "out"}
+                  dir={dir}
+                  heading={t("tour.moving")}
+                  label={t(ROUTE_LABELS[travel.to] ?? "nav.home")}
+                />
+              ) : null}
+            </>,
             document.body,
           )
         : null}
@@ -390,6 +605,80 @@ export function useTour() {
   const ctx = useContext(TourContext);
   if (!ctx) throw new Error("useTour must be used within <TourProvider>");
   return ctx;
+}
+
+/* -------------------------------- Travel -------------------------------- */
+
+/**
+ * The between-pages veil.
+ *
+ * A guided tour that changes the page under someone is only guiding them if
+ * they can tell it happened. Without this, the hop from the home page to the
+ * store was a scrim blinking out over one layout and back in over another —
+ * indistinguishable, on a phone over patchy data, from the site reloading or
+ * the tour losing its place. So the walkthrough covers the swap and says where
+ * it is going, in the same word the tab bar uses for that page.
+ *
+ * Sits ABOVE the spotlight (z-95 over z-90) on purpose: the destination's first
+ * step is drawn underneath while this is still up, so the veil hands straight
+ * over to a highlight that is already in place.
+ */
+function TourTravel({
+  route,
+  leaving,
+  dir,
+  heading,
+  label,
+}: {
+  route: string;
+  leaving: boolean;
+  dir: "rtl" | "ltr";
+  heading: string;
+  label: string;
+}) {
+  const reduced = prefersReducedMotion();
+  const Mark = route === "/store" ? Bag : Home;
+
+  return (
+    <div
+      dir={dir}
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-[95] grid place-items-center bg-bg/95 backdrop-blur-sm"
+      style={{
+        animation: reduced
+          ? undefined
+          : `${leaving ? "tour-veil-out" : "tour-veil-in"} ${
+              leaving ? VEIL_FADE_MS : 180
+            }ms ease both`,
+        // Reduced motion gets no fade, so the leaving frame has to hide itself.
+        opacity: reduced && leaving ? 0 : undefined,
+      }}
+    >
+      <div className="flex flex-col items-center gap-5 px-8 text-center">
+        <span
+          className="relative grid h-20 w-20 place-items-center rounded-full bg-brand-soft text-brand"
+          style={{
+            animation: reduced
+              ? undefined
+              : "tour-veil-mark 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both",
+          }}
+        >
+          <span aria-hidden className="tour-halo absolute inset-0 rounded-full ring-2 ring-brand" />
+          <Mark size={30} />
+        </span>
+
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-ink-3">{heading}</p>
+          <p className="mt-1 text-xl font-black text-ink">{label}</p>
+        </div>
+
+        <span className="block h-1 w-40 overflow-hidden rounded-full bg-line-2">
+          <span className="tour-track block h-full w-1/3 rounded-full bg-brand" />
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------- Overlay -------------------------------- */
@@ -415,10 +704,7 @@ function TourOverlay({
   onNext: () => void;
   onBack: () => void;
   onClose: () => void;
-  labels: Record<
-    "step" | "of" | "next" | "back" | "finish" | "aria" | "close",
-    string
-  >;
+  labels: Record<"step" | "of" | "next" | "back" | "finish" | "skip" | "aria", string>;
 }) {
   const isLast = stepIndex === total - 1;
   const reduced = prefersReducedMotion();
@@ -518,23 +804,28 @@ function TourOverlay({
             </p>
             <h2 className="mt-1 text-[15px] font-black leading-snug text-ink">{title}</h2>
           </div>
-          {/* The only way out other than reading to the end. There is no
-              "skip the whole tour" button by design — but an overlay covering
-              the screen with no exit at all would be a trap, and on a phone
-              there is no Escape key to fall back on. */}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={labels.close}
-            className="tap -me-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-3 transition hover:bg-surface-2 hover:text-ink"
-          >
-            <X size={16} />
-          </button>
+          {/* The way out, spelled out. This was a bare × for a while, which is
+              the wrong word for what it does: on a phone, over a highlighted
+              control, × reads as "close this box" and leaves the visitor
+              guessing whether the tour is still waiting behind it. Dropped on
+              the last step, where "Done" is already the exit and a second way
+              out would just be two buttons competing. */}
+          {!isLast && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="tap -me-1 -mt-0.5 shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-ink-3 transition hover:border-brand hover:bg-brand-soft hover:text-brand"
+            >
+              {labels.skip}
+            </button>
+          )}
         </div>
 
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{body}</p>
 
-        {/* Progress — four steps is few enough to show as dots rather than a bar */}
+        {/* Progress — few enough steps to show as dots rather than a bar. The
+            count is the PRUNED run, so it never promises steps that were
+            already resolved as not applicable to this shop. */}
         <div className="mt-3 flex items-center gap-1.5">
           {Array.from({ length: total }, (_, i) => (
             <span
@@ -562,7 +853,7 @@ function TourOverlay({
             )}
             <button
               type="button"
-              onClick={isLast ? onClose : onNext}
+              onClick={onNext}
               className="tap inline-flex items-center gap-1 rounded-xl bg-brand px-4 py-2 text-[12px] font-bold text-white transition hover:opacity-90"
             >
               {isLast ? labels.finish : labels.next}
