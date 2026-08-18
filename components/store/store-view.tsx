@@ -398,8 +398,11 @@ export function StoreView({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Toolbar — search, sort and the filter drawer's handle. Spotlighted as
+          one block by the tour's "filters" step, which is why the anchor sits
+          on the row rather than on the filter button alone: the three controls
+          are the same job, and highlighting one of them explains a third of it. */}
+      <div id="tour-filters" className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1">
           <span className="pointer-events-none absolute inset-y-0 start-3.5 grid place-items-center text-ink-3">
             <Search size={17} />

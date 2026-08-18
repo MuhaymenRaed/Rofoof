@@ -51,7 +51,11 @@ export function Hero() {
           <p className="mt-2.5 max-w-md text-[13px] leading-relaxed text-ink-2">
             {t("hero.desc")}
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
+          {/* Second stop on the guided tour. The three entry points into the
+              shop are worth a step of their own — the custom-design button in
+              particular is a headline feature that the walkthrough otherwise
+              only reaches deep inside the store. */}
+          <div id="tour-hero-actions" className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/store"
               className="tap inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-[13px] font-bold text-white transition hover:opacity-90"

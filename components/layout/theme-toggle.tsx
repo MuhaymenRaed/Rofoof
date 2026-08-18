@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useStore } from "@/components/providers/store-provider";
 import { Sun, Moon } from "@/components/icons";
-import { runThemeBurst } from "@/lib/theme-burst";
+import { runThemeSwap } from "@/lib/theme-swap";
 
 export function ThemeToggle() {
   const { t } = useStore();
@@ -29,24 +29,19 @@ export function ThemeToggle() {
   const isDark = mounted && resolvedTheme === "dark";
 
   /**
-   * The new theme is revealed through a star expanding from the point that was
-   * pressed, so the coordinates come off the event rather than from the
-   * button's box — a keyboard activation reports (0, 0) for both, which is why
-   * that case falls back to the button's own centre instead of the corner.
+   * The new theme cross-fades in over the old one.
+   *
+   * Takes no coordinates: the reveal used to be a star growing from the exact
+   * pixel that was pressed, which needed the click point and a fallback for
+   * keyboard activations reporting (0, 0). A fade covers the whole viewport at
+   * once, so there is no origin to compute — see lib/theme-swap.ts for why it
+   * stopped being a star.
    */
-  function toggle(e: React.MouseEvent<HTMLButtonElement>) {
+  function toggle() {
     const next = resolvedTheme === "dark" ? "light" : "dark";
-    let { clientX: x, clientY: y } = e;
-    if (x === 0 && y === 0) {
-      const r = e.currentTarget.getBoundingClientRect();
-      x = r.left + r.width / 2;
-      y = r.top + r.height / 2;
-    }
     // Not awaited: the theme is applied inside, and the button has nothing
-    // further to do once the sweep is under way.
-    void runThemeBurst({
-      x,
-      y,
+    // further to do once the fade is under way.
+    void runThemeSwap({
       // ThemeProvider is configured with attribute="class", so next-themes puts
       // the theme's own name on <html> — that is the class to wait for.
       nextClass: next,
