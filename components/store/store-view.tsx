@@ -398,183 +398,191 @@ export function StoreView({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      {/* Toolbar — search, sort and the filter drawer's handle. Spotlighted as
-          one block by the tour's "filters" step, which is why the anchor sits
-          on the row rather than on the filter button alone: the three controls
-          are the same job, and highlighting one of them explains a third of it. */}
-      <div id="tour-filters" className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <span className="pointer-events-none absolute inset-y-0 start-3.5 grid place-items-center text-ink-3">
-            <Search size={17} />
-          </span>
-          {searchInput && (
-            <button
-              type="button"
-              onClick={() => setSearchInput("")}
-              aria-label={t("aria.close")}
-              className="tap absolute inset-y-0 end-3 grid place-items-center text-ink-3 hover:text-brand"
+      {/* Everything that narrows the catalogue, in one box — search, sort,
+          the filter drawer's handle, and the category chips with the +
+          that opens each one's subcategories.
+
+          Wrapped rather than left as siblings so the tour's "filters" step
+          can spotlight the lot: highlighting the toolbar alone framed three
+          of the six controls and left the chips — the filter most people
+          actually reach for — outside the lit area, reading as "not this
+          part". Carries no styles of its own, so the layout is unchanged. */}
+      <div id="tour-filters">
+        {/* Toolbar — search, sort and the filter drawer's handle. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[200px] flex-1">
+            <span className="pointer-events-none absolute inset-y-0 start-3.5 grid place-items-center text-ink-3">
+              <Search size={17} />
+            </span>
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput("")}
+                aria-label={t("aria.close")}
+                className="tap absolute inset-y-0 end-3 grid place-items-center text-ink-3 hover:text-brand"
+              >
+                <X size={15} />
+              </button>
+            )}
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t("store.searchPlaceholder")}
+              aria-label={t("store.searchPlaceholder")}
+              className="h-11 w-full rounded-xl border border-line bg-surface ps-10 pe-9 text-sm text-ink outline-none transition placeholder:text-ink-3 focus:border-brand"
+            />
+          </div>
+
+          {/* Sort */}
+          <label className="relative">
+            <span className="sr-only">{t("store.sort")}</span>
+            <select
+              value={sort}
+              onChange={(e) =>
+                applyFilters({ sort: e.target.value === DEFAULT_SORT ? null : e.target.value })
+              }
+              className="tap h-11 cursor-pointer appearance-none rounded-xl border border-line bg-surface ps-4 pe-9 text-sm font-semibold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
             >
-              <X size={15} />
-            </button>
-          )}
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={t("store.searchPlaceholder")}
-            aria-label={t("store.searchPlaceholder")}
-            className="h-11 w-full rounded-xl border border-line bg-surface ps-10 pe-9 text-sm text-ink outline-none transition placeholder:text-ink-3 focus:border-brand"
-          />
-        </div>
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {t(o.key)}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 end-3 grid place-items-center text-ink-3">
+              ▾
+            </span>
+          </label>
 
-        {/* Sort */}
-        <label className="relative">
-          <span className="sr-only">{t("store.sort")}</span>
-          <select
-            value={sort}
-            onChange={(e) =>
-              applyFilters({ sort: e.target.value === DEFAULT_SORT ? null : e.target.value })
-            }
-            className="tap h-11 cursor-pointer appearance-none rounded-xl border border-line bg-surface ps-4 pe-9 text-sm font-semibold text-ink-2 outline-none transition hover:border-brand focus:border-brand"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.id} value={o.id}>
-                {t(o.key)}
-              </option>
-            ))}
-          </select>
-          <span className="pointer-events-none absolute inset-y-0 end-3 grid place-items-center text-ink-3">
-            ▾
-          </span>
-        </label>
-
-        {/* Filter toggle */}
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((v) => !v)}
-          className={`tap flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition ${
-            filtersOpen || hasActiveFilters
-              ? "border-brand bg-brand-soft text-brand"
-              : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
-          }`}
-        >
-          <Sliders size={17} />
-          {t("store.filter")}
-          {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
-        </button>
-      </div>
-
-      {/* Admin shortcuts — two equal buttons on phones, inline-right on desktop */}
-      {ready && isAdmin && (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+          {/* Filter toggle */}
           <button
             type="button"
-            onClick={() => setAddOpen(true)}
-            className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
-          >
-            <Plus size={17} />
-            {t("dash.newProduct")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFiltersManagerOpen(true)}
-            className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+            onClick={() => setFiltersOpen((v) => !v)}
+            className={`tap flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition ${
+              filtersOpen || hasActiveFilters
+                ? "border-brand bg-brand-soft text-brand"
+                : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+            }`}
           >
             <Sliders size={17} />
-            {t("store.manageFilters")}
+            {t("store.filter")}
+            {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
           </button>
         </div>
-      )}
 
-      {/* Category chips — multi-select: pick as many as you like and the results
-          merge (each product still shown once). A chip that has subfilters
-          carries a + that opens its subcategory dropdown, merged into one
-          control. The row wraps (not scrolls) so the dropdown is never clipped. */}
-      <div className="mt-4 flex flex-wrap gap-2">
-        {catChips.map((c) => {
-          const isAll = c.code === "all";
-          const isActive = isAll ? activeCategories.length === 0 : activeCategories.includes(c.code);
-          const subs = subsByCat.get(c.code) ?? [];
-          const menuOpen = subMenuFor === c.code;
-          const picked = activeSubcategories.filter((s) => subParent.get(s) === c.code);
-          return (
-            <div key={c.code} className="relative">
-              <div
-                className={`flex items-stretch overflow-hidden rounded-xl border transition ${
-                  isActive || menuOpen
-                    ? "border-brand bg-brand-soft text-brand"
-                    : "border-line bg-surface text-ink-2 hover:border-brand hover:bg-brand-soft hover:text-brand"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => (isAll ? selectAllCategories() : toggleCategory(c.code))}
-                  aria-pressed={isActive}
-                  className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
+        {/* Admin shortcuts — two equal buttons on phones, inline-right on desktop */}
+        {ready && isAdmin && (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+            >
+              <Plus size={17} />
+              {t("dash.newProduct")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltersManagerOpen(true)}
+              className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+            >
+              <Sliders size={17} />
+              {t("store.manageFilters")}
+            </button>
+          </div>
+        )}
+
+        {/* Category chips — multi-select: pick as many as you like and the results
+            merge (each product still shown once). A chip that has subfilters
+            carries a + that opens its subcategory dropdown, merged into one
+            control. The row wraps (not scrolls) so the dropdown is never clipped. */}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {catChips.map((c) => {
+            const isAll = c.code === "all";
+            const isActive = isAll ? activeCategories.length === 0 : activeCategories.includes(c.code);
+            const subs = subsByCat.get(c.code) ?? [];
+            const menuOpen = subMenuFor === c.code;
+            const picked = activeSubcategories.filter((s) => subParent.get(s) === c.code);
+            return (
+              <div key={c.code} className="relative">
+                <div
+                  className={`flex items-stretch overflow-hidden rounded-xl border transition ${
+                    isActive || menuOpen
+                      ? "border-brand bg-brand-soft text-brand"
+                      : "border-line bg-surface text-ink-2 hover:border-brand hover:bg-brand-soft hover:text-brand"
+                  }`}
                 >
-                  <CategoryIcon name={c.icon} size={15} />
-                  {c.label}
-                  {picked.length > 0 && (
-                    <span className="ms-0.5 rounded-md bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
-                      {picked.length === 1
-                        ? subcategories.find((s) => s.code === picked[0])?.[
-                            lang === "ar" ? "nameAr" : "nameEn"
-                          ]
-                        : picked.length}
-                    </span>
-                  )}
-                </button>
-                {subs.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setSubMenuFor(menuOpen ? null : c.code)}
-                    aria-label={t("store.subcategory")}
-                    aria-expanded={menuOpen}
-                    className="tap grid w-8 place-items-center border-s border-line-2"
+                    onClick={() => (isAll ? selectAllCategories() : toggleCategory(c.code))}
+                    aria-pressed={isActive}
+                    className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
                   >
-                    <Plus
-                      size={14}
-                      className={`transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
-                    />
+                    <CategoryIcon name={c.icon} size={15} />
+                    {c.label}
+                    {picked.length > 0 && (
+                      <span className="ms-0.5 rounded-md bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        {picked.length === 1
+                          ? subcategories.find((s) => s.code === picked[0])?.[
+                              lang === "ar" ? "nameAr" : "nameEn"
+                            ]
+                          : picked.length}
+                      </span>
+                    )}
                   </button>
+                  {subs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSubMenuFor(menuOpen ? null : c.code)}
+                      aria-label={t("store.subcategory")}
+                      aria-expanded={menuOpen}
+                      className="tap grid w-8 place-items-center border-s border-line-2"
+                    >
+                      <Plus
+                        size={14}
+                        className={`transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
+                      />
+                    </button>
+                  )}
+                </div>
+
+                {menuOpen && subs.length > 0 && (
+                  <>
+                    {/* click-away layer */}
+                    <button
+                      type="button"
+                      aria-hidden
+                      tabIndex={-1}
+                      onClick={() => setSubMenuFor(null)}
+                      className="fixed inset-0 z-20 cursor-default"
+                    />
+                    <div className="absolute z-30 mt-2 max-h-64 min-w-[190px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
+                      <SubItem
+                        label={t("cat.all")}
+                        on={picked.length === 0}
+                        onClick={() => clearSubcategoriesOf(c.code)}
+                      />
+                      {subs.map((s) => (
+                        <SubItem
+                          key={s.code}
+                          label={lang === "ar" ? s.nameAr : s.nameEn}
+                          on={activeSubcategories.includes(s.code)}
+                          onClick={() => toggleSubcategory(s.code)}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
+            );
+          })}
+        </div>
 
-              {menuOpen && subs.length > 0 && (
-                <>
-                  {/* click-away layer */}
-                  <button
-                    type="button"
-                    aria-hidden
-                    tabIndex={-1}
-                    onClick={() => setSubMenuFor(null)}
-                    className="fixed inset-0 z-20 cursor-default"
-                  />
-                  <div className="absolute z-30 mt-2 max-h-64 min-w-[190px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
-                    <SubItem
-                      label={t("cat.all")}
-                      on={picked.length === 0}
-                      onClick={() => clearSubcategoriesOf(c.code)}
-                    />
-                    {subs.map((s) => (
-                      <SubItem
-                        key={s.code}
-                        label={lang === "ar" ? s.nameAr : s.nameEn}
-                        on={activeSubcategories.includes(s.code)}
-                        onClick={() => toggleSubcategory(s.code)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
+        {/* Hint: which chips carry subfilters */}
+        {subcategories.length > 0 && (
+          <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
+        )}
       </div>
-
-      {/* Hint: which chips carry subfilters */}
-      {subcategories.length > 0 && (
-        <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
-      )}
 
       {/* Result count */}
       <p className="mt-4 text-xs font-semibold text-ink-3">

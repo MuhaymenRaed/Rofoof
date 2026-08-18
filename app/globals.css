@@ -283,8 +283,9 @@
 
 .theme-swap::view-transition-new(root) {
   /* Short on purpose: a theme switch should feel like the lights coming on, and
-     half a second of it feels like waiting for them. */
-  animation: theme-fade 190ms ease-out both;
+     anything longer feels like waiting for them. Keep in step with DURATION_MS
+     in lib/theme-swap.ts, which times itself against this. */
+  animation: theme-fade 140ms ease-out both;
   z-index: 2;
 }
 
