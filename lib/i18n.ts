@@ -1239,8 +1239,8 @@ export const dict = {
   },
   "tour.filters.title": { ar: "البحث والفلاتر", en: "Search and filters" },
   "tour.filters.body": {
-    ar: "من هنا تضيّق النتائج: ابحث باسم المنتج، رتّب حسب الأكثر طلباً أو الأحدث أو السعر، واضغط «فلتر» لتختار الاهتمام والسعر الأقصى والمقاوم للماء. وأزرار الفئات تحت مباشرة.",
-    en: "This row narrows the catalogue: search by name, sort by most ordered, newest or price, and press Filter for fandom, max price and waterproof-only. The category chips sit right below it.",
+    ar: "كل ما يضيّق النتائج هنا: ابحث باسم المنتج، رتّب حسب الأكثر رواجاً أو الأحدث أو السعر، و«تصفية» تفتح الاهتمام والسعر الأقصى والمقاوم للماء. وأزرار الفئات تختار أكثر من فئة معاً، وعلامة + على أي فئة تفتح تصنيفاتها الفرعية.",
+    en: "Everything that narrows the catalogue lives here: search by name, sort by most popular, newest or price, and Filter opens fandom, max price and waterproof-only. The category chips take more than one at a time, and the + on a chip opens its subcategories.",
   },
   "tour.custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your own design" },
   "tour.custom.body": {
