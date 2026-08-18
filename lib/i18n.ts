@@ -1214,6 +1214,11 @@ export const dict = {
     ar: "متجر عراقي للستكرات والبروشات والميداليات والبوسترات. هذه الصفحة تعرّفك على المتجر بسرعة — والتوصيل لجميع المحافظات.",
     en: "An Iraqi shop for stickers, brooches, medals and posters. This page is your quick introduction — and we deliver to every province.",
   },
+  "tour.start.title": { ar: "من أين تبدأ؟", en: "Where to start" },
+  "tour.start.body": {
+    ar: "ثلاثة أزرار تختصر كل شيء: «تسوّق الآن» يوديك لكل المنتجات، «تتبّع طلبك» يعرض لك حالة طلباتك، و«اطلب تصميمك الخاص» يحوّل صورك إلى ستكرات أو بروشات أو بوسترات.",
+    en: "Three buttons cover almost everything: Shop now opens the full catalogue, Track order shows where your orders have got to, and Order your custom design turns your own images into stickers, brooches or posters.",
+  },
   "tour.delivery.title": { ar: "التوصيل والأسعار", en: "Delivery and pricing" },
   "tour.delivery.body": {
     ar: "كلفة التوصيل واضحة من البداية قبل أي سعر، حتى لا تكون مفاجأة عند إتمام الطلب.",

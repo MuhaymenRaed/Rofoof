@@ -254,33 +254,55 @@
 }
 
 /**
- * Starburst theme reveal — see components/layout/theme-toggle.tsx.
+ * Theme cross-fade — see lib/theme-swap.ts, which explains why this replaced a
+ * starburst clip-path (it was too heavy for a phone).
  *
- * The browser's default root transition cross-fades the two snapshots. Here the
- * new theme is instead revealed through an expanding star clipped out of it, so
- * both snapshots must stop animating themselves and stack deliberately: the old
- * one holds still underneath while the new one is wiped in on top.
+ * The old snapshot holds still underneath while the new one fades in on top.
+ * Only `opacity` moves, which the compositor handles on its own thread — the
+ * whole point of the change — and it is declared here rather than driven from
+ * script, so nothing has to run on the main thread while the browser is already
+ * busy holding two full-page snapshots.
  *
- * Scoped to the `.theme-burst` class that the toggle puts on <html> for the
+ * Scoped to the `.theme-swap` class that the toggle puts on <html> for the
  * duration of the transition. Left unscoped, this would also override any other
  * root view transition on the site (a future Next.js navigation transition, for
  * instance) and quietly break it.
  */
-.theme-burst::view-transition-old(root),
-.theme-burst::view-transition-new(root) {
-  animation: none;
-  /* The default is `plus-lighter`, which is built for a cross-fade: while the
-     two snapshots overlap it would brighten wherever they do, flashing along
-     the star's edge as it sweeps out. */
+.theme-swap::view-transition-old(root),
+.theme-swap::view-transition-new(root) {
+  /* The default is `plus-lighter`, built for the browser's own paired
+     cross-fade: with both snapshots at full opacity for part of this one, it
+     would brighten wherever they overlap and flash the page mid-swap. */
   mix-blend-mode: normal;
 }
 
-.theme-burst::view-transition-old(root) {
+.theme-swap::view-transition-old(root) {
+  animation: none;
   z-index: 1;
 }
 
-.theme-burst::view-transition-new(root) {
-  z-index: 9999;
+.theme-swap::view-transition-new(root) {
+  /* Short on purpose: a theme switch should feel like the lights coming on, and
+     half a second of it feels like waiting for them. */
+  animation: theme-fade 190ms ease-out both;
+  z-index: 2;
+}
+
+@keyframes theme-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Belt and braces: the toggle already skips the whole transition under reduced
+   motion, but the class would still apply if it were ever reached another way. */
+@media (prefers-reduced-motion: reduce) {
+  .theme-swap::view-transition-new(root) {
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------

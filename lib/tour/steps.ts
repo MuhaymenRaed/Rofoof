@@ -12,8 +12,13 @@ import type { DictKey } from "@/lib/i18n";
  * Bumping the suffix is what gives those visitors (and anyone who tested the
  * broken build) the walkthrough back. Bump it again only to deliberately
  * re-show the tour to everyone.
+ *
+ * v3: the walkthrough gained the search-and-filters step and a second step that
+ * is always there, and it no longer stalls on a section the admin has switched
+ * off. Everyone who already sat through v2 is opted back in once, on purpose —
+ * a tour nobody is shown is not a tour.
  */
-export const TOUR_DONE_KEY = "rofoof_tour_completed_v2";
+export const TOUR_DONE_KEY = "rofoof_tour_completed_v3";
 
 export interface TourStep {
   /** stable key for React and for the engine's per-step state */
@@ -81,6 +86,18 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/",
     titleKey: "tour.welcome.title",
     bodyKey: "tour.welcome.body",
+  },
+  {
+    // Always here, which is the point: this slot used to hold the delivery
+    // banner alone, and every shop with that banner switched off simply had no
+    // second step — the walkthrough went from "welcome" to the product rails
+    // with a hole where an explanation should be. The hero's own buttons cannot
+    // be switched off, so the second thing a visitor is told is never nothing.
+    id: "start",
+    target: "#tour-hero-actions",
+    route: "/",
+    titleKey: "tour.start.title",
+    bodyKey: "tour.start.body",
   },
   {
     id: "delivery",

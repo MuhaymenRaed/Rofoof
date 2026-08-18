@@ -1,30 +1,32 @@
 "use client";
 
 /**
- * Starburst theme reveal, built on the View Transitions API.
+ * Theme cross-fade, built on the View Transitions API.
  *
- * The new theme is clipped out of its own snapshot as a star that expands from
- * wherever the toggle was pressed, so the switch reads as coming FROM the
- * button rather than happening to the whole page at once. The paired CSS lives
- * in app/globals.css under `.theme-burst`.
+ * The new theme's snapshot fades in over the old one, which holds still
+ * underneath. The paired CSS lives in app/globals.css under `.theme-swap`.
+ *
+ * This replaced a starburst: the incoming snapshot used to be clipped by a
+ * twelve-pointed `polygon()` that grew from wherever the toggle was pressed,
+ * animated over half a second. It looked lovely on a laptop and dragged badly
+ * on the phones this shop is actually used on. A polygon clip-path is not a
+ * compositor property — twenty-four vertices had to be re-rasterized against a
+ * full-viewport layer on every frame, on top of the snapshot capture the API
+ * already costs, which on a mid-range Android over a long store page meant a
+ * visibly stuttering wipe every time someone touched the button.
+ *
+ * Opacity is a compositor property. The fade is handed to the GPU as-is, runs
+ * off the main thread, and no longer cares how long the page underneath it is.
+ * It is also shorter — a theme switch wants to feel instant, and 500ms of
+ * anything is a wait.
  *
  * Everything here degrades to a plain theme swap: an unsupported browser, a
  * visitor who asked for less motion, or a transition the browser abandons all
  * end with the theme changed and nothing animated.
  */
 
-/** Points on the star. 12 reads as a sparkle; fewer looks like a cut gem. */
-const POINTS = 12;
-/**
- * Inner vertices sit at half the outer radius. Held constant through the
- * animation (both radii scale from 0 together), so the star keeps its shape as
- * it grows instead of unfurling from a circle.
- */
-const INNER_RATIO = 0.5;
-const DURATION_MS = 500;
-const EASING = "cubic-bezier(0.25, 1, 0.5, 1)";
 /** Scopes the pseudo-element overrides in globals.css to this transition only. */
-const TRANSITION_CLASS = "theme-burst";
+const TRANSITION_CLASS = "theme-swap";
 
 /**
  * Minimal shape of what we use — `startViewTransition` isn't in every
@@ -35,9 +37,7 @@ interface ViewTransitionLike {
   ready: Promise<void>;
   finished: Promise<void>;
 }
-type StartViewTransition = (
-  callback: () => void | Promise<void>,
-) => ViewTransitionLike;
+type StartViewTransition = (callback: () => void | Promise<void>) => ViewTransitionLike;
 
 function startViewTransition(): StartViewTransition | null {
   if (typeof document === "undefined") return null;
@@ -52,47 +52,9 @@ export function prefersReducedMotion(): boolean {
 }
 
 /**
- * A star as a `clip-path: polygon()`, centred on (x, y) in viewport pixels.
- *
- * Both keyframes must come out of this with the SAME vertex count or the
- * browser can't interpolate between them and falls back to a hard cut.
- */
-export function starburstPolygon(
-  x: number,
-  y: number,
-  outer: number,
-  inner: number,
-  points = POINTS,
-): string {
-  const vertices: string[] = [];
-  const total = points * 2;
-  for (let i = 0; i < total; i++) {
-    const radius = i % 2 === 0 ? outer : inner;
-    // Start at -90° so a point faces straight up rather than sideways.
-    const angle = (Math.PI * 2 * i) / total - Math.PI / 2;
-    const px = x + Math.cos(angle) * radius;
-    const py = y + Math.sin(angle) * radius;
-    vertices.push(`${px.toFixed(1)}px ${py.toFixed(1)}px`);
-  }
-  return `polygon(${vertices.join(", ")})`;
-}
-
-/**
- * Distance from (x, y) to the furthest corner of the viewport — how far the
- * star's INNER vertices have to travel for the screen to be fully covered. The
- * outer points then reach `/ INNER_RATIO` beyond that, off-screen, which is
- * what leaves no gap between the star's arms at the end of the sweep.
- */
-function coverRadius(x: number, y: number): number {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  return Math.hypot(Math.max(x, w - x), Math.max(y, h - y));
-}
-
-/**
  * Guard against overlapping transitions. Starting a second one mid-flight makes
  * the browser skip the first, which shows as the page snapping to the new theme
- * and then wiping in again — worse than ignoring the extra press.
+ * and then fading in again — worse than ignoring the extra press.
  */
 let running = false;
 
@@ -129,22 +91,20 @@ function waitForClass(className: string, timeoutMs = 250): Promise<void> {
   });
 }
 
-export interface ThemeBurstOptions {
-  /** click coordinates, relative to the viewport */
-  x: number;
-  y: number;
+export interface ThemeSwapOptions {
   /** the class next-themes will put on <html> — waited for before capturing */
   nextClass: string;
   /** performs the theme change */
   apply: () => void;
 }
 
-export async function runThemeBurst({
-  x,
-  y,
-  nextClass,
-  apply,
-}: ThemeBurstOptions): Promise<void> {
+/**
+ * No `root.animate()` call and no coordinates: the fade is declared entirely in
+ * CSS, so this only has to open the transition, mark the root for the duration,
+ * and clean up. One less script-driven animation on the main thread during the
+ * one moment the browser is already busy compositing two full-page snapshots.
+ */
+export async function runThemeSwap({ nextClass, apply }: ThemeSwapOptions): Promise<void> {
   const start = startViewTransition();
 
   // No API, reduced motion, or a transition already in flight: change the theme
@@ -174,35 +134,9 @@ export async function runThemeBurst({
   }
 
   try {
-    // Rejects when the browser skips the transition (a hidden tab, a competing
-    // one). The theme has still changed by then — only the animation is lost.
-    await transition.ready;
-
-    const radius = coverRadius(x, y);
-    root.animate(
-      {
-        clipPath: [
-          starburstPolygon(x, y, 0, 0),
-          starburstPolygon(x, y, radius / INNER_RATIO, radius),
-        ],
-      },
-      {
-        duration: DURATION_MS,
-        easing: EASING,
-        // The star is cut out of the INCOMING snapshot, which sits above the
-        // outgoing one — so the new theme is revealed rather than the old one
-        // being erased to whatever is behind the page.
-        pseudoElement: "::view-transition-new(root)",
-      },
-    );
-  } catch {
-    /* skipped — the theme is already correct, there is just no sweep */
-  }
-
-  try {
     await transition.finished;
   } catch {
-    /* ignore */
+    /* skipped — the theme is already correct, there is just no fade */
   } finally {
     root.classList.remove(TRANSITION_CLASS);
     running = false;
