@@ -34,6 +34,14 @@ export interface Database {
           sort_order: number;
           is_deleted: boolean;
           deleted_at: string | null;
+          /**
+           * Which of the store's two filter boxes the chip lives in — "type"
+           * or "theme". Optional because it arrives with
+           * docs/category-groups.sql, which may not have been run yet; the
+           * reader in lib/data/catalog.ts drops the column and groups by code
+           * when it isn't there.
+           */
+          category_group?: string | null;
         };
         Insert: {
           code: string;
@@ -43,6 +51,7 @@ export interface Database {
           sort_order?: number;
           is_deleted?: boolean;
           deleted_at?: string | null;
+          category_group?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: [];

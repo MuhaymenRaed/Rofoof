@@ -4,19 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { CategoryIcon } from "@/components/ui/category-icon";
 import { ProductCard } from "@/components/ui/product-card";
 import { CustomOrderCard } from "@/components/store/custom-order-card";
 import { ManualOrderCard } from "@/components/store/manual-order-card";
 import { FilterPanel } from "@/components/store/filter-panel";
+import { CategoryFilterGroup } from "@/components/store/category-filter-group";
 import { ProductEditorModal } from "@/components/dashboard/product-editor-modal";
 import { FilterManagerModal } from "@/components/store/filter-manager-modal";
-import { Search, Sliders, X, ChevronEnd, Plus, Check } from "@/components/icons";
+import { Search, Sliders, X, ChevronEnd, Plus, Package, Heart } from "@/components/icons";
 import {
   DEFAULT_MAX_PRICE,
   MAX_PRICE,
   MIN_PRICE,
   lowestPrice,
+  splitCategoryGroups,
+  type Product,
   type SubcategoryInfo,
 } from "@/lib/products";
 import { fuzzyMatch } from "@/lib/search";
@@ -47,6 +49,53 @@ const DEFAULT_SORT: Sort = "popular";
 const UNRANKED = Number.MAX_SAFE_INTEGER;
 
 /**
+ * The two filter boxes' header glyphs, built once. Inline JSX would be a fresh
+ * element on every render, which is exactly the prop that would defeat the
+ * memo on CategoryFilterGroup — the one place it matters, since the store
+ * re-renders on every keystroke in the search field.
+ */
+const TYPE_BOX_ICON = <Package size={15} />;
+const THEME_BOX_ICON = <Heart size={15} />;
+
+/**
+ * Whether a product satisfies ONE of the two category boxes.
+ *
+ * Inside a box the codes are OR-ed, and each one is either taken whole or
+ * narrowed by the subfilters picked under it — so "all of Football" plus "only
+ * Hollow Knight from Games" returns every football item AND the Hollow Knight
+ * games items, instead of the subfilter wiping out the other chip. A subfilter
+ * whose parent chip isn't selected stands on its own.
+ *
+ * An empty box matches everything, which is what makes "stickers, no theme
+ * chosen" mean "every sticker" rather than "nothing".
+ *
+ * The two boxes are then AND-ed by the caller: that is the whole point of the
+ * split. `stickers` × `gaming` reads as "gaming stickers", where one flat chip
+ * row could only ever say "stickers or gaming".
+ */
+function matchesFilterBox(
+  p: Pick<Product, "category" | "categories" | "subcategories">,
+  activeCodes: string[],
+  subsByParent: Map<string, string[]>,
+): boolean {
+  if (activeCodes.length === 0 && subsByParent.size === 0) return true;
+
+  for (const code of activeCodes) {
+    if (!(p.categories.includes(code) || p.category === code)) continue;
+    const subs = subsByParent.get(code);
+    if (!subs || subs.length === 0) return true;
+    if (subs.some((sub) => p.subcategories.includes(sub))) return true;
+  }
+
+  for (const [parent, subs] of subsByParent) {
+    if (activeCodes.includes(parent)) continue;
+    if (subs.some((sub) => p.subcategories.includes(sub))) return true;
+  }
+
+  return false;
+}
+
+/**
  * The storefront catalogue.
  *
  * Filtering stays 100% client-side (the whole catalogue is already in the store
@@ -55,10 +104,11 @@ const UNRANKED = Number.MAX_SAFE_INTEGER;
  * work for free. Only genuinely local UI (open dropdown, per-page preference)
  * stays in React state.
  *
- * Category / subcategory / fandom are multi-select: OR within a group, AND
- * across groups (stickers OR posters, AND anime OR games). Results come from a
- * single pass over the unique product list, so an item matching two selected
- * filters still appears exactly once.
+ * Categories are shown in two boxes — product type and theme — and every
+ * filter group is multi-select: OR within a group, AND across groups. So
+ * (stickers OR posters) AND (anime OR games) AND the side panel's fandom,
+ * waterproof and price. Results come from a single pass over the unique product
+ * list, so an item matching two selected filters still appears exactly once.
  */
 export function StoreView({
   popularity = [],
@@ -82,6 +132,25 @@ export function StoreView({
 
   const knownCategories = useMemo(() => new Set(categories.map((c) => c.code)), [categories]);
   const knownFandoms = useMemo(() => new Set(fandoms.map((f) => f.code)), [fandoms]);
+
+  /**
+   * The two filter boxes. Both live in the SAME `category` URL param — the
+   * grouping is a property of the taxonomy, not of the link — so every URL
+   * shared before the split, every home-page chip and every "show all" rail
+   * button keeps working untouched.
+   */
+  const { types: typeCats, themes: themeCats } = useMemo(
+    () => splitCategoryGroups(categories),
+    [categories],
+  );
+  const typeCodes = useMemo(() => new Set(typeCats.map((c) => c.code)), [typeCats]);
+  /**
+   * Anything that isn't a known product type belongs to the theme box — the
+   * same rule defaultCategoryGroup() applies server-side. A code we can't place
+   * (an orphaned subfilter, a category deleted mid-session) then still filters,
+   * instead of falling between the two boxes and being silently ignored.
+   */
+  const isTypeCode = useCallback((code: string) => typeCodes.has(code), [typeCodes]);
   /** subcategory code → its parent category code */
   const subParent = useMemo(
     () => new Map(subcategories.map((s) => [s.code, s.categoryCode])),
@@ -116,6 +185,25 @@ export function StoreView({
     }
     return m;
   }, [activeSubcategories, subParent]);
+
+  const activeTypes = useMemo(
+    () => activeCategories.filter(isTypeCode),
+    [activeCategories, isTypeCode],
+  );
+  const activeThemes = useMemo(
+    () => activeCategories.filter((c) => !isTypeCode(c)),
+    [activeCategories, isTypeCode],
+  );
+
+  /** The selected subfilters, split by which box their parent chip sits in. */
+  const typeSubs = useMemo(
+    () => new Map([...selectedSubsByParent].filter(([parent]) => isTypeCode(parent))),
+    [selectedSubsByParent, isTypeCode],
+  );
+  const themeSubs = useMemo(
+    () => new Map([...selectedSubsByParent].filter(([parent]) => !isTypeCode(parent))),
+    [selectedSubsByParent, isTypeCode],
+  );
 
   const activeFandoms = useMemo(() => {
     const raw = parseListParam(searchParams.get("fandom"));
@@ -191,9 +279,15 @@ export function StoreView({
     ),
   );
 
-  function toggleCategory(code: string) {
+  // Every handler the two memoised filter boxes receive is a useCallback: the
+  // store re-renders on each keystroke in the search field, and an inline arrow
+  // would hand the boxes a new prop each time and re-render every chip in the
+  // shop for nothing.
+  const toggleCategory = useCallback((code: string) => {
     const nextCategories = toggleInList(activeCategories, code);
-    // Un-selecting a category takes its subcategories with it.
+    // Un-selecting a category takes its subcategories with it. When nothing is
+    // left selected the subfilters are kept: they stand on their own, and
+    // dropping them would silently widen the results the shopper just narrowed.
     const nextSubs =
       nextCategories.length === 0
         ? activeSubcategories
@@ -202,24 +296,46 @@ export function StoreView({
             return parent ? nextCategories.includes(parent) : false;
           });
     setSubMenuFor(null);
-    applyFilters({ category: nextCategories, subcategory: nextSubs });
-  }
+    // `cat` is cleared alongside: it is the legacy single-category key, and an
+    // empty `category` drops out of the URL entirely — leaving a stale `cat`
+    // behind to resurface as the filter the shopper had just switched off.
+    applyFilters({ category: nextCategories, cat: null, subcategory: nextSubs });
+  }, [activeCategories, activeSubcategories, subParent, applyFilters]);
 
-  function toggleSubcategory(code: string) {
-    applyFilters({ subcategory: toggleInList(activeSubcategories, code) });
-  }
+  const toggleSubcategory = useCallback(
+    (code: string) => applyFilters({ subcategory: toggleInList(activeSubcategories, code) }),
+    [activeSubcategories, applyFilters],
+  );
 
   /** Clear every subcategory belonging to one category chip. */
-  function clearSubcategoriesOf(categoryCode: string) {
-    applyFilters({
-      subcategory: activeSubcategories.filter((s) => subParent.get(s) !== categoryCode),
-    });
-  }
+  const clearSubcategoriesOf = useCallback(
+    (categoryCode: string) =>
+      applyFilters({
+        subcategory: activeSubcategories.filter((s) => subParent.get(s) !== categoryCode),
+      }),
+    [activeSubcategories, subParent, applyFilters],
+  );
 
-  function selectAllCategories() {
-    setSubMenuFor(null);
-    applyFilters({ category: null, subcategory: null });
-  }
+  /**
+   * The "all" chip of ONE box: clears that box's chips and their subfilters and
+   * leaves the other box exactly as it was, so clearing the product types of a
+   * "gaming stickers" view widens it to all gaming rather than to everything.
+   */
+  const clearCategoryBox = useCallback(
+    (box: "type" | "theme") => {
+      const keep = (code: string) => (box === "type" ? !isTypeCode(code) : isTypeCode(code));
+      setSubMenuFor(null);
+      applyFilters({
+        category: activeCategories.filter(keep),
+        cat: null,
+        subcategory: activeSubcategories.filter((s) => {
+          const parent = subParent.get(s);
+          return parent ? keep(parent) : true;
+        }),
+      });
+    },
+    [activeCategories, activeSubcategories, subParent, applyFilters, isTypeCode],
+  );
 
   /** The side panel's filters (fandom / waterproof / price) back to defaults. */
   function clearFilters() {
@@ -274,36 +390,19 @@ export function StoreView({
   /* ------------------------------- results -------------------------------- */
 
   /**
-   * Category + subcategory matching, refined PER CATEGORY: each selected
-   * category is either taken whole, or narrowed by the subfilters chosen under
-   * it — then those results are OR-ed together. So "all of Football" + "only
-   * Hollow Knight from Games" returns every football item AND the Hollow Knight
-   * games items, instead of the subfilter wiping out the other category.
+   * Both boxes at once: OR inside each, AND between them.
    *
-   * A subfilter whose parent chip isn't selected still stands on its own, so
-   * you can pick just "Hollow Knight" without selecting Games.
+   *   stickers                     → every sticker
+   *   stickers + gaming            → gaming stickers only
+   *   posters, brooches + gaming, football
+   *                                → posters and brooches about games or football
+   *   gaming (no type chosen)      → every sticker, poster, brooch and medal
+   *                                  that is about games
    */
   const matchesTaxonomy = useCallback(
-    (p: (typeof products)[number]) => {
-      if (activeCategories.length === 0 && activeSubcategories.length === 0) return true;
-
-      for (const c of activeCategories) {
-        if (!(p.categories.includes(c) || p.category === c)) continue;
-        const subs = selectedSubsByParent.get(c);
-        // Whole category, or narrowed to the subfilters picked under it.
-        if (!subs || subs.length === 0) return true;
-        if (subs.some((s) => p.subcategories.includes(s))) return true;
-      }
-
-      // Subfilters chosen without their parent category act as their own filter.
-      for (const [parent, subs] of selectedSubsByParent) {
-        if (activeCategories.includes(parent)) continue;
-        if (subs.some((s) => p.subcategories.includes(s))) return true;
-      }
-
-      return false;
-    },
-    [activeCategories, activeSubcategories, selectedSubsByParent],
+    (p: (typeof products)[number]) =>
+      matchesFilterBox(p, activeTypes, typeSubs) && matchesFilterBox(p, activeThemes, themeSubs),
+    [activeTypes, typeSubs, activeThemes, themeSubs],
   );
 
   const filtered = useMemo(() => {
@@ -371,14 +470,37 @@ export function StoreView({
     return m;
   }, [subcategories]);
 
-  const catChips = [
-    { code: "all", label: t("cat.all"), icon: "grid" },
-    ...categories.map((c) => ({
-      code: c.code,
-      label: lang === "ar" ? c.nameAr : c.nameEn,
-      icon: c.icon,
-    })),
-  ];
+  const typeChips = useMemo(
+    () =>
+      typeCats.map((c) => ({
+        code: c.code,
+        label: lang === "ar" ? c.nameAr : c.nameEn,
+        icon: c.icon,
+      })),
+    [typeCats, lang],
+  );
+  const themeChips = useMemo(
+    () =>
+      themeCats.map((c) => ({
+        code: c.code,
+        label: lang === "ar" ? c.nameAr : c.nameEn,
+        icon: c.icon,
+      })),
+    [themeCats, lang],
+  );
+
+  const subLabel = useCallback(
+    (code: string) => {
+      const s = subcategories.find((x) => x.code === code);
+      return s ? (lang === "ar" ? s.nameAr : s.nameEn) : code;
+    },
+    [subcategories, lang],
+  );
+
+  // Stable callbacks so the two memoised boxes don't re-render on every
+  // keystroke in the search field.
+  const clearTypeBox = useCallback(() => clearCategoryBox("type"), [clearCategoryBox]);
+  const clearThemeBox = useCallback(() => clearCategoryBox("theme"), [clearCategoryBox]);
 
   /* ------------------------------ pagination ------------------------------ */
 
@@ -492,96 +614,62 @@ export function StoreView({
           </div>
         )}
 
-        {/* Category chips — multi-select: pick as many as you like and the results
-            merge (each product still shown once). A chip that has subfilters
-            carries a + that opens its subcategory dropdown, merged into one
-            control. The row wraps (not scrolls) so the dropdown is never clipped. */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {catChips.map((c) => {
-            const isAll = c.code === "all";
-            const isActive = isAll ? activeCategories.length === 0 : activeCategories.includes(c.code);
-            const subs = subsByCat.get(c.code) ?? [];
-            const menuOpen = subMenuFor === c.code;
-            const picked = activeSubcategories.filter((s) => subParent.get(s) === c.code);
-            return (
-              <div key={c.code} className="relative">
-                <div
-                  className={`flex items-stretch overflow-hidden rounded-xl border transition ${
-                    isActive || menuOpen
-                      ? "border-brand bg-brand-soft text-brand"
-                      : "border-line bg-surface text-ink-2 hover:border-brand hover:bg-brand-soft hover:text-brand"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => (isAll ? selectAllCategories() : toggleCategory(c.code))}
-                    aria-pressed={isActive}
-                    className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
-                  >
-                    <CategoryIcon name={c.icon} size={15} />
-                    {c.label}
-                    {picked.length > 0 && (
-                      <span className="ms-0.5 rounded-md bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
-                        {picked.length === 1
-                          ? subcategories.find((s) => s.code === picked[0])?.[
-                              lang === "ar" ? "nameAr" : "nameEn"
-                            ]
-                          : picked.length}
-                      </span>
-                    )}
-                  </button>
-                  {subs.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSubMenuFor(menuOpen ? null : c.code)}
-                      aria-label={t("store.subcategory")}
-                      aria-expanded={menuOpen}
-                      className="tap grid w-8 place-items-center border-s border-line-2"
-                    >
-                      <Plus
-                        size={14}
-                        className={`transition-transform duration-200 ${menuOpen ? "rotate-45" : ""}`}
-                      />
-                    </button>
-                  )}
-                </div>
+        {/* The category filter, in two boxes.
 
-                {menuOpen && subs.length > 0 && (
-                  <>
-                    {/* click-away layer */}
-                    <button
-                      type="button"
-                      aria-hidden
-                      tabIndex={-1}
-                      onClick={() => setSubMenuFor(null)}
-                      className="fixed inset-0 z-20 cursor-default"
-                    />
-                    <div className="absolute z-30 mt-2 max-h-64 min-w-[190px] animate-pop overflow-y-auto rounded-xl border border-line-2 bg-surface p-1.5 shadow-2xl">
-                      <SubItem
-                        label={t("cat.all")}
-                        on={picked.length === 0}
-                        onClick={() => clearSubcategoriesOf(c.code)}
-                      />
-                      {subs.map((s) => (
-                        <SubItem
-                          key={s.code}
-                          label={lang === "ar" ? s.nameAr : s.nameEn}
-                          on={activeSubcategories.includes(s.code)}
-                          onClick={() => toggleSubcategory(s.code)}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+            One flat run of chips could not say what it meant: "stickers" and
+            "games" sat side by side as if they were the same kind of choice,
+            and picking both widened the results instead of narrowing them.
+            Split, each box answers one question — what is it, what is it about
+            — and the two AND together, which is what a shopper looking for
+            "game stickers" was trying to say all along.
+
+            The boxes carry their own accents (warm brand / cool blue) so the
+            separation registers before any label is read, and they stack on a
+            phone and sit side by side from lg up. */}
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <CategoryFilterGroup
+            tone="brand"
+            title={t("store.groupType")}
+            hint={t("store.groupTypeHint")}
+            icon={TYPE_BOX_ICON}
+            allLabel={t("cat.all")}
+            chips={typeChips}
+            active={activeTypes}
+            subsByCat={subsByCat}
+            activeSubcategories={activeSubcategories}
+            subLabel={subLabel}
+            subMenuLabel={t("store.subcategory")}
+            openMenuFor={subMenuFor}
+            onOpenMenu={setSubMenuFor}
+            onToggle={toggleCategory}
+            onClearGroup={clearTypeBox}
+            onToggleSub={toggleSubcategory}
+            onClearSubsOf={clearSubcategoriesOf}
+          />
+          <CategoryFilterGroup
+            tone="sky"
+            title={t("store.groupTheme")}
+            hint={t("store.groupThemeHint")}
+            icon={THEME_BOX_ICON}
+            allLabel={t("cat.all")}
+            chips={themeChips}
+            active={activeThemes}
+            subsByCat={subsByCat}
+            activeSubcategories={activeSubcategories}
+            subLabel={subLabel}
+            subMenuLabel={t("store.subcategory")}
+            openMenuFor={subMenuFor}
+            onOpenMenu={setSubMenuFor}
+            onToggle={toggleCategory}
+            onClearGroup={clearThemeBox}
+            onToggleSub={toggleSubcategory}
+            onClearSubsOf={clearSubcategoriesOf}
+          />
         </div>
 
-        {/* Hint: which chips carry subfilters */}
-        {subcategories.length > 0 && (
-          <p className="mt-1.5 text-[11px] text-ink-3">{t("store.subHint")}</p>
-        )}
+        {/* How the two boxes combine — the one thing the layout can't say on
+            its own, and the only reason a shopper would think to use both. */}
+        <p className="mt-2 text-[11px] leading-relaxed text-ink-3">{t("store.groupsHint")}</p>
       </div>
 
       {/* Result count */}
@@ -707,23 +795,6 @@ export function StoreView({
         </>
       )}
     </div>
-  );
-}
-
-/** One row in the subcategory dropdown. */
-function SubItem({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={`tap flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-start text-xs font-bold transition ${
-        on ? "bg-brand text-white" : "text-ink-2 hover:bg-surface-2 hover:text-brand"
-      }`}
-    >
-      {label}
-      {on && <Check size={14} className="shrink-0" />}
-    </button>
   );
 }
 

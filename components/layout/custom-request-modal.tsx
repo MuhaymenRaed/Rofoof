@@ -25,6 +25,26 @@ const MAX_IMAGES = 100;
 const MIN_STICKER_IMAGES = 10;
 const TYPES: CustomType[] = ["brooch", "sticker", "poster"];
 
+/**
+ * Each preview is cut to the silhouette of the thing being ordered: a brooch is
+ * a disc, a sticker is a square, a poster is a portrait sheet.
+ *
+ * This is the only preview of the finished piece anyone gets before it is
+ * printed, and the crop is the part customers get wrong — artwork with the
+ * subject pushed into a corner survives a square sticker and loses a head to a
+ * round brooch. Showing the real outline lets them see that while they can
+ * still swap the file, instead of after it ships.
+ *
+ * `remove` places the delete button: on the disc the frame's top corner is
+ * outside the shape, so the button moves in along the diagonal to sit on the
+ * edge rather than float beside it.
+ */
+const SHAPE: Record<CustomType, { frame: string; remove: string }> = {
+  brooch: { frame: "aspect-square rounded-full", remove: "end-[7%] top-[7%]" },
+  sticker: { frame: "aspect-square rounded-lg", remove: "end-1 top-1" },
+  poster: { frame: "aspect-[3/4] rounded-md", remove: "end-1 top-1" },
+};
+
 interface Artwork {
   blob: Blob;
   ext: string;
@@ -94,6 +114,7 @@ function RequestForm({ onClose }: { onClose: () => void }) {
   useEffect(() => () => artworksRef.current.forEach((a) => URL.revokeObjectURL(a.preview)), []);
 
   const waterproofEligible = type === "sticker" || type === "poster";
+  const shape = SHAPE[type];
   const pricing = customPricing.find((p) => p.kind === type);
   const unit =
     (pricing?.unitPrice ?? 0) +
@@ -302,7 +323,13 @@ function RequestForm({ onClose }: { onClose: () => void }) {
             {artworks.map((a, i) => (
               <div
                 key={a.preview}
-                className="relative aspect-square overflow-hidden rounded-xl border border-line-2"
+                // The square folding into a disc is what tells you the switch
+                // you just made changed the product, not just a filter — so the
+                // radius animates and the ratio does not. A request may hold a
+                // hundred of these, and aspect-ratio is a layout property:
+                // animating it would re-lay-out the whole grid every frame on
+                // exactly the phones this shop is built for.
+                className={`relative overflow-hidden border border-line-2 transition-[border-radius] duration-300 motion-reduce:transition-none ${shape.frame}`}
               >
                 <Image
                   src={a.preview}
@@ -316,7 +343,7 @@ function RequestForm({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => removeArtwork(i)}
                   aria-label={t("aria.close")}
-                  className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
+                  className={`tap absolute grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500 ${shape.remove}`}
                 >
                   <X size={12} />
                 </button>
@@ -328,7 +355,7 @@ function RequestForm({ onClose }: { onClose: () => void }) {
                 onClick={() => fileRef.current?.click()}
                 disabled={converting}
                 aria-label={t("custom.addImages")}
-                className="tap grid aspect-square place-items-center rounded-xl border border-dashed border-line bg-surface-2 text-ink-3 transition hover:text-brand disabled:opacity-50"
+                className={`tap grid place-items-center border border-dashed border-line bg-surface-2 text-ink-3 transition-[border-radius,border-color,color] duration-300 hover:text-brand disabled:opacity-50 motion-reduce:transition-none ${shape.frame}`}
                 style={{ borderColor: missing > 0 ? CUSTOM_ORDER_COLOR : undefined }}
               >
                 {converting ? "…" : <Plus size={20} />}

@@ -8,6 +8,8 @@ import { useStore } from "@/components/providers/store-provider";
 import { X, Plus, Trash, Droplet, Photo, Cube, Star, Package } from "@/components/icons";
 import {
   canBeWaterproof,
+  splitCategoryGroups,
+  type CategoryGroup,
   type CategoryInfo,
   type FandomInfo,
   type Product,
@@ -153,6 +155,8 @@ export function ProductEditorModal({
   const [bulkStock, setBulkStock] = useState("");
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [catFormOpen, setCatFormOpen] = useState(false);
+  /** which store filter box a category created from here joins */
+  const [catGroup, setCatGroup] = useState<CategoryGroup>("theme");
   const [catNameAr, setCatNameAr] = useState("");
   const [catNameEn, setCatNameEn] = useState("");
   const [catPending, setCatPending] = useState(false);
@@ -260,6 +264,11 @@ export function ProductEditorModal({
   if (!open) return null;
 
   const allCats = [...storeCategories, ...extraCats];
+  // Same split the storefront draws, so the editor shows the two tags a product
+  // needs rather than one undifferentiated list. With the store's boxes AND-ed,
+  // a product tagged only "stickers" vanishes the moment a shopper picks a
+  // theme — the grouping here is what makes that omission visible.
+  const catBoxes = splitCategoryGroups(allCats);
   const allFandoms = [...storeFandoms, ...extraFandoms];
   // Only subcategories belonging to the categories this product is in.
   const allSubs = [...storeSubcategories, ...extraSubs];
@@ -411,7 +420,11 @@ export function ProductEditorModal({
   async function addCategory() {
     if (!catNameAr.trim() || !catNameEn.trim()) return;
     setCatPending(true);
-    const res = await createCategoryAction({ nameAr: catNameAr.trim(), nameEn: catNameEn.trim() });
+    const res = await createCategoryAction({
+      nameAr: catNameAr.trim(),
+      nameEn: catNameEn.trim(),
+      group: catGroup,
+    });
     setCatPending(false);
     if (!res.ok) {
       setError(res.error);
@@ -1062,23 +1075,49 @@ export function ProductEditorModal({
               {t("dash.fieldCategories")}
               <span className="ms-2 font-semibold text-ink-3">{t("dash.categoriesHint")}</span>
             </span>
-            <div className="flex flex-wrap gap-2">
-              {allCats.map((c) => {
-                const on = selectedCats.includes(c.code);
+            <div className="space-y-2">
+              {(["type", "theme"] as const).map((g) => {
+                const list = g === "type" ? catBoxes.types : catBoxes.themes;
+                if (list.length === 0) return null;
                 return (
-                  <button
-                    key={c.code}
-                    type="button"
-                    onClick={() => toggleCat(c.code)}
-                    aria-pressed={on}
-                    className={`tap rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
-                      on
-                        ? "border-brand bg-brand text-white"
-                        : "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+                  <div
+                    key={g}
+                    className={`rounded-xl border p-2.5 ${
+                      g === "type"
+                        ? "border-brand-line bg-brand-soft"
+                        : "border-accent-2-line bg-accent-2-soft"
                     }`}
                   >
-                    {lang === "ar" ? c.nameAr : c.nameEn}
-                  </button>
+                    <p className="mb-1.5 text-[10.5px] font-black text-ink">
+                      {t(g === "type" ? "store.groupType" : "store.groupTheme")}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {list.map((c) => {
+                        const on = selectedCats.includes(c.code);
+                        const onClass =
+                          g === "type"
+                            ? "border-brand bg-brand text-white"
+                            : "border-accent-2 bg-accent-2 text-accent-2-ink";
+                        const offClass =
+                          g === "type"
+                            ? "border-line bg-surface text-ink-2 hover:border-brand hover:text-brand"
+                            : "border-line bg-surface text-ink-2 hover:border-accent-2 hover:text-accent-2";
+                        return (
+                          <button
+                            key={c.code}
+                            type="button"
+                            onClick={() => toggleCat(c.code)}
+                            aria-pressed={on}
+                            className={`tap rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                              on ? onClass : offClass
+                            }`}
+                          >
+                            {lang === "ar" ? c.nameAr : c.nameEn}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
               <button
@@ -1091,28 +1130,49 @@ export function ProductEditorModal({
               </button>
             </div>
             {catFormOpen && (
-              <div className="mt-2 flex flex-col gap-2 rounded-xl border border-line-2 bg-surface-2/50 p-3 sm:flex-row">
-                <input
-                  value={catNameAr}
-                  onChange={(e) => setCatNameAr(e.target.value)}
-                  placeholder={t("dash.catNameAr")}
-                  className="dash-input h-9 flex-1"
-                />
-                <input
-                  value={catNameEn}
-                  onChange={(e) => setCatNameEn(e.target.value)}
-                  placeholder={t("dash.catNameEn")}
-                  dir="ltr"
-                  className="dash-input h-9 flex-1 text-start"
-                />
-                <button
-                  type="button"
-                  onClick={addCategory}
-                  disabled={catPending || !catNameAr.trim() || !catNameEn.trim()}
-                  className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
-                >
-                  {catPending ? "…" : t("dash.addCategory")}
-                </button>
+              <div className="mt-2 space-y-2 rounded-xl border border-line-2 bg-surface-2/50 p-3">
+                <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+                  {(["type", "theme"] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setCatGroup(g)}
+                      aria-pressed={catGroup === g}
+                      className={`tap flex-1 rounded-lg px-2 py-1.5 text-[11px] font-bold transition ${
+                        catGroup === g
+                          ? g === "type"
+                            ? "bg-brand text-white shadow-sm"
+                            : "bg-accent-2 text-accent-2-ink shadow-sm"
+                          : "text-ink-2 hover:text-ink"
+                      }`}
+                    >
+                      {t(g === "type" ? "store.groupType" : "store.groupTheme")}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={catNameAr}
+                    onChange={(e) => setCatNameAr(e.target.value)}
+                    placeholder={t("dash.catNameAr")}
+                    className="dash-input h-9 flex-1"
+                  />
+                  <input
+                    value={catNameEn}
+                    onChange={(e) => setCatNameEn(e.target.value)}
+                    placeholder={t("dash.catNameEn")}
+                    dir="ltr"
+                    className="dash-input h-9 flex-1 text-start"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCategory}
+                    disabled={catPending || !catNameAr.trim() || !catNameEn.trim()}
+                    className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {catPending ? "…" : t("dash.addCategory")}
+                  </button>
+                </div>
               </div>
             )}
           </div>

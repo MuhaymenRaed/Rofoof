@@ -6,12 +6,62 @@ export type Category = string;
 export type Fandom = string;
 export type Badge = "bestseller" | "new" | "waterproof";
 
+/**
+ * Which of the store's two filter groups a category belongs to.
+ *
+ *  - "type"  — what the thing physically IS: sticker, poster, brooch, medal.
+ *  - "theme" — what it is ABOUT: games, anime, football, girly…
+ *
+ * The distinction is the whole point of the split filter: the two groups are
+ * OR-ed inside themselves and AND-ed against each other, so "stickers" +
+ * "games" reads as "game stickers" rather than "stickers and games".
+ */
+export type CategoryGroup = "type" | "theme";
+
+/**
+ * How a category is grouped before `categories.category_group` exists.
+ *
+ * Schema and code land at different times here (see AGENTS.md), and a store
+ * whose type chips had all fallen into the theme group would be worse than
+ * the one flat row it replaces. These are the five product forms the shop
+ * sells; everything else an admin adds is a subject, which is also the right
+ * default for a brand-new category.
+ */
+export const PRODUCT_TYPE_CODES = [
+  "stickers",
+  "posters",
+  "brooches",
+  "medals",
+  "ps-keychains",
+] as const;
+
+export function defaultCategoryGroup(code: string): CategoryGroup {
+  return (PRODUCT_TYPE_CODES as readonly string[]).includes(code) ? "type" : "theme";
+}
+
 /** A category row from the DB (bilingual, drives chips + filters). */
 export interface CategoryInfo {
   code: string;
   nameAr: string;
   nameEn: string;
   icon: string;
+  /** which store filter group the chip lives in — see CategoryGroup */
+  group: CategoryGroup;
+}
+
+/**
+ * Split a category list into the store's two filter groups, each keeping the
+ * admin's `sort_order`. One pass, shared by the storefront and the two admin
+ * editors so a chip can never appear in a different group depending on where
+ * it is rendered.
+ */
+export function splitCategoryGroups<T extends { group: CategoryGroup }>(
+  categories: T[],
+): { types: T[]; themes: T[] } {
+  const types: T[] = [];
+  const themes: T[] = [];
+  for (const c of categories) (c.group === "type" ? types : themes).push(c);
+  return { types, themes };
 }
 
 /** A fandom row from the DB (bilingual, drives the store filter). */
