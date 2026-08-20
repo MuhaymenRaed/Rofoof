@@ -520,18 +520,18 @@ export function StoreView({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      {/* Everything that narrows the catalogue, in one box — search, sort,
-          the filter drawer's handle, and the category chips with the +
-          that opens each one's subcategories.
+      {/* Everything that narrows the catalogue: search, sort, the filter
+          drawer's handle, and the two category boxes.
 
-          Wrapped rather than left as siblings so the tour's "filters" step
-          can spotlight the lot: highlighting the toolbar alone framed three
-          of the six controls and left the chips — the filter most people
-          actually reach for — outside the lit area, reading as "not this
-          part". Carries no styles of its own, so the layout is unchanged. */}
-      <div id="tour-filters">
+          The tour spotlights the two halves SEPARATELY — #tour-toolbar then
+          #tour-categories. One step over the lot needed a paragraph to cover
+          six controls and two filter groups, which is more than anyone reads
+          standing in a shop; split, each stop is two sentences about the thing
+          it is lighting up. This wrapper carries no styles, so the layout is
+          the same either way. */}
+      <div>
         {/* Toolbar — search, sort and the filter drawer's handle. */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div id="tour-toolbar" className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-[200px] flex-1">
             <span className="pointer-events-none absolute inset-y-0 start-3.5 grid place-items-center text-ink-3">
               <Search size={17} />
@@ -626,50 +626,54 @@ export function StoreView({
             The boxes carry their own accents (warm brand / cool blue) so the
             separation registers before any label is read, and they stack on a
             phone and sit side by side from lg up. */}
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          <CategoryFilterGroup
-            tone="brand"
-            title={t("store.groupType")}
-            hint={t("store.groupTypeHint")}
-            icon={TYPE_BOX_ICON}
-            allLabel={t("cat.all")}
-            chips={typeChips}
-            active={activeTypes}
-            subsByCat={subsByCat}
-            activeSubcategories={activeSubcategories}
-            subLabel={subLabel}
-            subMenuLabel={t("store.subcategory")}
-            openMenuFor={subMenuFor}
-            onOpenMenu={setSubMenuFor}
-            onToggle={toggleCategory}
-            onClearGroup={clearTypeBox}
-            onToggleSub={toggleSubcategory}
-            onClearSubsOf={clearSubcategoriesOf}
-          />
-          <CategoryFilterGroup
-            tone="sky"
-            title={t("store.groupTheme")}
-            hint={t("store.groupThemeHint")}
-            icon={THEME_BOX_ICON}
-            allLabel={t("cat.all")}
-            chips={themeChips}
-            active={activeThemes}
-            subsByCat={subsByCat}
-            activeSubcategories={activeSubcategories}
-            subLabel={subLabel}
-            subMenuLabel={t("store.subcategory")}
-            openMenuFor={subMenuFor}
-            onOpenMenu={setSubMenuFor}
-            onToggle={toggleCategory}
-            onClearGroup={clearThemeBox}
-            onToggleSub={toggleSubcategory}
-            onClearSubsOf={clearSubcategoriesOf}
-          />
-        </div>
+        <div id="tour-categories">
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <CategoryFilterGroup
+              tone="brand"
+              title={t("store.groupType")}
+              hint={t("store.groupTypeHint")}
+              icon={TYPE_BOX_ICON}
+              allLabel={t("cat.all")}
+              chips={typeChips}
+              active={activeTypes}
+              subsByCat={subsByCat}
+              activeSubcategories={activeSubcategories}
+              subLabel={subLabel}
+              subMenuLabel={t("store.subcategory")}
+              openMenuFor={subMenuFor}
+              onOpenMenu={setSubMenuFor}
+              onToggle={toggleCategory}
+              onClearGroup={clearTypeBox}
+              onToggleSub={toggleSubcategory}
+              onClearSubsOf={clearSubcategoriesOf}
+            />
+            <CategoryFilterGroup
+              tone="sky"
+              title={t("store.groupTheme")}
+              hint={t("store.groupThemeHint")}
+              icon={THEME_BOX_ICON}
+              allLabel={t("cat.all")}
+              chips={themeChips}
+              active={activeThemes}
+              subsByCat={subsByCat}
+              activeSubcategories={activeSubcategories}
+              subLabel={subLabel}
+              subMenuLabel={t("store.subcategory")}
+              openMenuFor={subMenuFor}
+              onOpenMenu={setSubMenuFor}
+              onToggle={toggleCategory}
+              onClearGroup={clearThemeBox}
+              onToggleSub={toggleSubcategory}
+              onClearSubsOf={clearSubcategoriesOf}
+            />
+          </div>
 
-        {/* How the two boxes combine — the one thing the layout can't say on
-            its own, and the only reason a shopper would think to use both. */}
-        <p className="mt-2 text-[11px] leading-relaxed text-ink-3">{t("store.groupsHint")}</p>
+          {/* How the two boxes combine — the one thing the layout can't say on
+              its own, and the only reason a shopper would think to use both.
+              Inside the tour target with the boxes, so the step that explains
+              the AND lights up the sentence that states it. */}
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-3">{t("store.groupsHint")}</p>
+        </div>
       </div>
 
       {/* Result count */}

@@ -1255,10 +1255,18 @@ export const dict = {
     ar: "كل الستكرات والبروشات والميداليات والبوسترات هنا. فلتر حسب النوع أو الفئة أو السعر، واضغط أي منتج لرؤية صوره وتفاصيله.",
     en: "Every sticker, brooch, medal and poster lives here. Filter by type, fandom or price, and tap any item to see its photos and specs.",
   },
-  "tour.filters.title": { ar: "البحث والفلاتر", en: "Search and filters" },
+  // Two stops, not one — see the note in lib/tour/steps.ts. Each is kept to
+  // roughly two sentences: this is read standing in a shop, on a phone, and a
+  // paragraph gets skipped whole.
+  "tour.filters.title": { ar: "البحث والترتيب", en: "Search and sort" },
   "tour.filters.body": {
-    ar: "كل ما يضيّق النتائج هنا: ابحث باسم المنتج، رتّب حسب الأكثر رواجاً أو الأحدث أو السعر، و«تصفية» تفتح السعر الأقصى والمقاوم للماء. وتحتها صندوقان: الأحمر لنوع المنتج (ستكر، بوستر، بروش…) والأزرق للاهتمام (العاب، انمي، كرة قدم…) — اختر منهما معاً وتحصل على ستكرات العاب مثلاً، واترك أي صندوق فارغاً ليشمل الكل.",
-    en: "Everything that narrows the catalogue lives here: search by name, sort by most popular, newest or price, and Filter opens max price and waterproof-only. Below sit two boxes — the red one is the product type (sticker, poster, brooch…) and the blue one is the theme (games, anime, football…). Pick from both and you get game stickers; leave a box empty and it covers everything in it.",
+    ar: "تعرف شنو تريد؟ اكتب اسمه بالبحث. وإذا تتصفّح، رتّب حسب الأكثر رواجاً أو الأحدث أو السعر، و«تصفية» تفتح السعر الأقصى والمقاوم للماء.",
+    en: "Know what you want? Type its name in the search. Browsing instead? Sort by most popular, newest or price — and Filter opens max price and waterproof-only.",
+  },
+  "tour.categories.title": { ar: "صندوقا الفلترة", en: "The two filter boxes" },
+  "tour.categories.body": {
+    ar: "الأحمر يسأل: شنو تريد؟ (ستكر، بوستر، بروش…) والأزرق يسأل: عن شنو؟ (العاب، انمي، كرة قدم…). اختر من الاثنين وتحصل على ستكرات العاب، واترك أي صندوق فارغاً ليشمل الكل.",
+    en: "The red box asks what you want (sticker, poster, brooch…), the blue one asks what it's about (games, anime, football…). Pick from both and you get game stickers; leave a box empty and it covers everything in it.",
   },
   "tour.custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your own design" },
   "tour.custom.body": {
