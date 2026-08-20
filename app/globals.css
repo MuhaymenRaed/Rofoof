@@ -28,6 +28,20 @@
   --shadow: 0 1px 3px rgba(28, 18, 8, 0.06);
   --shadow-lg: 0 18px 50px -12px rgba(28, 18, 8, 0.22);
   --ring: rgba(232, 50, 26, 0.35);
+
+  /* Second accent — the store's THEME filters (games, anime, football…).
+     Deliberately a cool blue against the warm brand red, because the two
+     filter groups mean different things and combine rather than compete:
+     picking a product type and picking a subject are separate decisions, and
+     colour is what says so before any label is read. */
+  --accent-2: #0284c7;
+  --accent-2-soft: rgba(2, 132, 199, 0.07);
+  --accent-2-line: rgba(2, 132, 199, 0.22);
+  /* Text ON a filled accent-2 chip. It flips with the theme because the accent
+     itself has to: the blue must stay light enough to read as text on a dark
+     surface, and white on that same light blue is about 2:1. One token, so a
+     selected chip is legible in both. */
+  --accent-2-ink: #ffffff;
 }
 
 .dark {
@@ -50,12 +64,24 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
   --ring: rgba(255, 90, 66, 0.4);
+
+  /* Lifted well past the light-mode blue: #0284c7 on a near-black surface sits
+     around 3:1, under the 4.5:1 a chip label needs. */
+  --accent-2: #4cc4f8;
+  --accent-2-soft: rgba(76, 196, 248, 0.1);
+  --accent-2-line: rgba(76, 196, 248, 0.26);
+  --accent-2-ink: #06212e;
 }
 
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-line: var(--brand-line);
+
+  --color-accent-2: var(--accent-2);
+  --color-accent-2-soft: var(--accent-2-soft);
+  --color-accent-2-line: var(--accent-2-line);
+  --color-accent-2-ink: var(--accent-2-ink);
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);

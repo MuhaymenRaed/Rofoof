@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/dal";
 import { TAGS } from "@/lib/data/tags";
 import { getInventory, type InventoryPage } from "@/lib/data/dashboard";
-import type { SubcategoryInfo } from "@/lib/products";
+import type { CategoryGroup, CategoryInfo, SubcategoryInfo } from "@/lib/products";
 
 const upsertProductSchema = z.object({
   id: z
@@ -289,15 +289,58 @@ export async function loadMoreInventoryAction(offset: number): Promise<Inventory
 const createCategorySchema = z.object({
   nameAr: z.string().trim().min(1).max(60),
   nameEn: z.string().trim().min(1).max(60),
+  /** which store filter row the chip joins; defaults to the subject row */
+  group: z.enum(["type", "theme"]).optional().default("theme"),
 });
 
 export type CreateCategoryResult =
-  | { ok: true; category: { code: string; nameAr: string; nameEn: string; icon: string } }
+  | { ok: true; category: CategoryInfo }
   | { ok: false; error: string };
+
+/**
+ * Write a category's filter group, tolerating a database that hasn't got the
+ * column yet (see AGENTS.md — schema and code land in either order).
+ *
+ * The failure is swallowed rather than surfaced: the chip still exists and
+ * still filters, it just falls back to being grouped by its code until the
+ * migration in docs/category-groups.sql is run. Reporting that to the admin as
+ * a failed save would be a lie about what happened.
+ */
+async function writeCategoryGroup(code: string, group: CategoryGroup): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("categories")
+    .update({ category_group: group })
+    .eq("code", code);
+  if (error) console.warn("[categories] category_group not written:", error.message);
+}
+
+/** Move an existing category between the store's two filter rows. */
+export async function setCategoryGroupAction(
+  code: string,
+  group: CategoryGroup,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = z.enum(["type", "theme"]).safeParse(group);
+  if (!parsed.success || !code.trim()) return { ok: false, error: "invalid_input" };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("categories")
+    .update({ category_group: parsed.data })
+    .eq("code", code.trim());
+  if (error) return { ok: false, error: error.message };
+
+  revalidateTag(TAGS.categories, "max");
+  revalidatePath("/");
+  revalidatePath("/store");
+  return { ok: true };
+}
 
 export async function createCategoryAction(input: {
   nameAr: string;
   nameEn: string;
+  group?: CategoryGroup;
 }): Promise<CreateCategoryResult> {
   await requireAdmin();
   const parsed = createCategorySchema.safeParse(input);
@@ -319,14 +362,26 @@ export async function createCategoryAction(input: {
   });
   if (error) return { ok: false, error: error.message };
 
+  const c = data as { code: string; name_ar: string; name_en: string; icon: string };
+  // The RPC predates grouping and takes no group argument, so the row is
+  // stamped straight afterwards, before the cache is dropped. Unconditional on
+  // purpose: a re-created code that happens to match a built-in product type
+  // must land where the admin put it, not where defaultCategoryGroup() guesses.
+  await writeCategoryGroup(c.code, parsed.data.group);
+
   revalidateTag(TAGS.categories, "max");
   revalidatePath("/");
   revalidatePath("/store");
 
-  const c = data as { code: string; name_ar: string; name_en: string; icon: string };
   return {
     ok: true,
-    category: { code: c.code, nameAr: c.name_ar, nameEn: c.name_en, icon: c.icon },
+    category: {
+      code: c.code,
+      nameAr: c.name_ar,
+      nameEn: c.name_en,
+      icon: c.icon,
+      group: parsed.data.group,
+    },
   };
 }
 

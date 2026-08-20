@@ -710,14 +710,32 @@ export const dict = {
   "dash.newSubcategory": { ar: "تصنيف فرعي جديد", en: "New subcategory" },
   "store.subcategory": { ar: "التصنيف الفرعي", en: "Subcategory" },
   "store.perPage": { ar: "لكل صفحة", en: "Per page" },
-  "store.subHint": {
-    ar: "اختر أكثر من فئة معاً، واضغط + لتحديد تصنيفات فرعية لأي فئة منها فقط",
-    en: "Pick several categories at once, and press + to narrow any one of them to its subfilters",
+  // The store's two category boxes. Group 1 asks what the thing IS, group 2
+  // asks what it is ABOUT, and the hint is the only place the AND between them
+  // is spelled out — so it carries a worked example rather than a rule.
+  "store.groupType": { ar: "نوع المنتج", en: "Product type" },
+  "store.groupTypeHint": {
+    ar: "شنو تريد: ستكر، بوستر، بروش، ميدالية…",
+    en: "What you want: sticker, poster, brooch, medal…",
+  },
+  "store.groupTheme": { ar: "الاهتمام", en: "Theme" },
+  "store.groupThemeHint": {
+    ar: "عن شنو: العاب، انمي، كرة قدم…",
+    en: "What it's about: games, anime, football…",
+  },
+  "store.groupsHint": {
+    ar: "اختر من الصندوقين معاً لنتيجة أدق — ستكرات + العاب = ستكرات العاب. الصندوق الفارغ يعني «الكل»، وعلامة + على أي فئة تفتح تصنيفاتها الفرعية.",
+    en: "Combine the two boxes to narrow things down — stickers + games = game stickers. An empty box means “all”, and the + on a chip opens its subfilters.",
   },
   "store.manageFilters": { ar: "إدارة الفلاتر", en: "Manage filters" },
   "store.manageFiltersHint": {
     ar: "الحذف لا يمسح المنتجات — التصنيف يختفي من الفلاتر فقط",
     en: "Deleting never removes products — the entry just stops appearing in the filters",
+  },
+  "dash.catGroup": { ar: "صندوق الفلتر", en: "Filter box" },
+  "dash.catGroupHint": {
+    ar: "اضغط على أي فئة لنقلها بين الصندوقين",
+    en: "Tap a category to move it between the two boxes",
   },
   "cart.coupon": { ar: "كود الخصم", en: "Discount code" },
   "cart.couponApply": { ar: "تطبيق", en: "Apply" },
@@ -1239,8 +1257,8 @@ export const dict = {
   },
   "tour.filters.title": { ar: "البحث والفلاتر", en: "Search and filters" },
   "tour.filters.body": {
-    ar: "كل ما يضيّق النتائج هنا: ابحث باسم المنتج، رتّب حسب الأكثر رواجاً أو الأحدث أو السعر، و«تصفية» تفتح الاهتمام والسعر الأقصى والمقاوم للماء. وأزرار الفئات تختار أكثر من فئة معاً، وعلامة + على أي فئة تفتح تصنيفاتها الفرعية.",
-    en: "Everything that narrows the catalogue lives here: search by name, sort by most popular, newest or price, and Filter opens fandom, max price and waterproof-only. The category chips take more than one at a time, and the + on a chip opens its subcategories.",
+    ar: "كل ما يضيّق النتائج هنا: ابحث باسم المنتج، رتّب حسب الأكثر رواجاً أو الأحدث أو السعر، و«تصفية» تفتح السعر الأقصى والمقاوم للماء. وتحتها صندوقان: الأحمر لنوع المنتج (ستكر، بوستر، بروش…) والأزرق للاهتمام (العاب، انمي، كرة قدم…) — اختر منهما معاً وتحصل على ستكرات العاب مثلاً، واترك أي صندوق فارغاً ليشمل الكل.",
+    en: "Everything that narrows the catalogue lives here: search by name, sort by most popular, newest or price, and Filter opens max price and waterproof-only. Below sit two boxes — the red one is the product type (sticker, poster, brooch…) and the blue one is the theme (games, anime, football…). Pick from both and you get game stickers; leave a box empty and it covers everything in it.",
   },
   "tour.custom.title": { ar: "اطلب تصميمك الخاص", en: "Order your own design" },
   "tour.custom.body": {

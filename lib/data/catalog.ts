@@ -10,6 +10,7 @@ import {
   type OfferRowLike,
 } from "./mappers";
 import { TAGS } from "./tags";
+import { defaultCategoryGroup } from "@/lib/products";
 import type {
   CategoryInfo,
   CustomPricing,
@@ -57,20 +58,44 @@ export async function getProducts(): Promise<Product[]> {
   }
 }
 
-/** Bilingual categories — drive the chips + filters. Invalidated on admin edits. */
+const CATEGORY_COLUMNS = "code, name_ar, name_en, icon";
+
+/**
+ * Bilingual categories — drive the chips + filters. Invalidated on admin edits.
+ *
+ * `category_group` splits the chips into the store's two filter rows (product
+ * type vs subject). It is asked for separately and dropped on error, because
+ * the column arrives with a migration that may not have been run yet — and
+ * failing the whole read over it would empty every filter in the shop. When
+ * it's missing, or blank on a row an admin added before it existed,
+ * defaultCategoryGroup() places the chip by its code instead.
+ */
 const cachedCategories = unstable_cache(
   async (): Promise<CategoryInfo[]> => {
     const supabase = createAnonClient();
-    const { data, error } = await supabase
-      .from("categories")
-      .select("code, name_ar, name_en, icon")
-      .order("sort_order", { ascending: true });
+    const read = (columns: string) =>
+      supabase.from("categories").select(columns).order("sort_order", { ascending: true });
+
+    let { data, error } = await read(`${CATEGORY_COLUMNS}, category_group`);
+    if (error) ({ data, error } = await read(CATEGORY_COLUMNS));
     if (error) throw error;
-    return (data ?? []).map((c) => ({
+
+    const rows = (data ?? []) as unknown as {
+      code: string;
+      name_ar: string;
+      name_en: string;
+      icon: string;
+      category_group?: string | null;
+    }[];
+
+    return rows.map((c) => ({
       code: c.code,
       nameAr: c.name_ar,
       nameEn: c.name_en,
       icon: c.icon,
+      group: c.category_group === "type" || c.category_group === "theme"
+        ? c.category_group
+        : defaultCategoryGroup(c.code),
     }));
   },
   ["catalog:categories"],

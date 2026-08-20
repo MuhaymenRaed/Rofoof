@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Trash } from "@/components/icons";
+import { X, Plus, Trash, ChevronEnd } from "@/components/icons";
 import {
   createCategoryAction,
   deleteCategoryAction,
@@ -12,9 +12,23 @@ import {
   deleteFandomAction,
   createSubcategoryAction,
   deleteSubcategoryAction,
+  setCategoryGroupAction,
 } from "@/lib/actions/products";
+import { splitCategoryGroups, type CategoryGroup } from "@/lib/products";
 
 type Layer = "categories" | "subcategories" | "fandoms";
+
+/** Per-box styling for the category groups — see category-filter-group.tsx. */
+const BOX: Record<CategoryGroup, { panel: string; chip: string }> = {
+  type: {
+    panel: "border-brand-line bg-brand-soft",
+    chip: "border-brand-line bg-surface text-ink-2 hover:border-brand hover:text-brand",
+  },
+  theme: {
+    panel: "border-accent-2-line bg-accent-2-soft",
+    chip: "border-accent-2-line bg-surface text-ink-2 hover:border-accent-2 hover:text-accent-2",
+  },
+};
 
 /**
  * Admin-only manager for all three filter layers (category → subcategory, and
@@ -30,6 +44,8 @@ export function FilterManagerModal({ open, onClose }: { open: boolean; onClose: 
   const [nameAr, setNameAr] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [parent, setParent] = useState("");
+  /** which of the store's two filter boxes a new category joins */
+  const [group, setGroup] = useState<CategoryGroup>("theme");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,7 +71,7 @@ export function FilterManagerModal({ open, onClose }: { open: boolean; onClose: 
       const payload = { nameAr: nameAr.trim(), nameEn: nameEn.trim() };
       const res =
         layer === "categories"
-          ? await createCategoryAction(payload)
+          ? await createCategoryAction({ ...payload, group })
           : layer === "fandoms"
             ? await createFandomAction(payload)
             : await createSubcategoryAction({ ...payload, categoryCode: parent });
@@ -86,8 +102,21 @@ export function FilterManagerModal({ open, onClose }: { open: boolean; onClose: 
     });
   }
 
-  const rows =
-    layer === "categories" ? categories : layer === "fandoms" ? fandoms : subcategories;
+  /** Move one category to the other filter box. */
+  function moveCategory(code: string, to: CategoryGroup) {
+    setError(null);
+    startTransition(async () => {
+      const res = await setCategoryGroupAction(code, to);
+      if (!res.ok) {
+        setError(res.error ?? t("checkout.error"));
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  const rows = layer === "fandoms" ? fandoms : subcategories;
+  const boxes = splitCategoryGroups(categories);
 
   const LAYERS: { id: Layer; key: Parameters<typeof t>[0] }[] = [
     { id: "categories", key: "dash.fieldCategories" },
@@ -133,30 +162,102 @@ export function FilterManagerModal({ open, onClose }: { open: boolean; onClose: 
             ))}
           </div>
 
-          {/* Existing entries */}
-          <div className="flex flex-wrap gap-2">
-            {rows.length === 0 && <p className="text-xs text-ink-3">{t("dash.empty")}</p>}
-            {rows.map((r) => (
-              <span
-                key={r.code}
-                className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface py-1.5 pe-1 ps-3 text-xs font-bold text-ink-2"
-              >
-                {label(r)}
-                <button
-                  type="button"
-                  onClick={() => remove(r.code)}
-                  disabled={pending}
-                  aria-label={t("offer.delete")}
-                  className="tap grid h-5 w-5 place-items-center rounded-md opacity-60 transition hover:bg-red-500/10 hover:text-red-500 hover:opacity-100 disabled:opacity-30"
+          {/* Existing entries. Categories are shown in the two boxes the
+              storefront draws them in, because which box a chip sits in is now
+              part of what it means — a type in the theme box would quietly
+              break the AND between the two. Tapping a chip moves it across. */}
+          {layer === "categories" ? (
+            <div className="space-y-2">
+              {(["type", "theme"] as const).map((g) => {
+                const list = g === "type" ? boxes.types : boxes.themes;
+                return (
+                  <div key={g} className={`rounded-xl border p-3 ${BOX[g].panel}`}>
+                    <p className="mb-2 text-[11px] font-black text-ink">
+                      {t(g === "type" ? "store.groupType" : "store.groupTheme")}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {list.length === 0 && <p className="text-xs text-ink-3">{t("dash.empty")}</p>}
+                      {list.map((r) => (
+                        <span
+                          key={r.code}
+                          className={`inline-flex items-center gap-1 rounded-xl border px-1 py-1.5 text-xs font-bold transition ${BOX[g].chip}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => moveCategory(r.code, g === "type" ? "theme" : "type")}
+                            disabled={pending}
+                            title={t("dash.catGroupHint")}
+                            className="tap inline-flex items-center gap-1 rounded-lg px-2 py-0.5 disabled:opacity-40"
+                          >
+                            <ChevronEnd size={11} className="shrink-0 opacity-50 rtl:rotate-180" />
+                            {label(r)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => remove(r.code)}
+                            disabled={pending}
+                            aria-label={t("offer.delete")}
+                            className="tap grid h-5 w-5 place-items-center rounded-md opacity-60 transition hover:bg-red-500/10 hover:text-red-500 hover:opacity-100 disabled:opacity-30"
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-[11px] text-ink-3">{t("dash.catGroupHint")}</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {rows.length === 0 && <p className="text-xs text-ink-3">{t("dash.empty")}</p>}
+              {rows.map((r) => (
+                <span
+                  key={r.code}
+                  className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface py-1.5 pe-1 ps-3 text-xs font-bold text-ink-2"
                 >
-                  <X size={11} />
-                </button>
-              </span>
-            ))}
-          </div>
+                  {label(r)}
+                  <button
+                    type="button"
+                    onClick={() => remove(r.code)}
+                    disabled={pending}
+                    aria-label={t("offer.delete")}
+                    className="tap grid h-5 w-5 place-items-center rounded-md opacity-60 transition hover:bg-red-500/10 hover:text-red-500 hover:opacity-100 disabled:opacity-30"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Add new */}
           <div className="space-y-2 rounded-xl border border-line-2 bg-surface-2/50 p-3">
+            {layer === "categories" && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-bold text-ink-2">{t("dash.catGroup")}</p>
+                <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+                  {(["type", "theme"] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setGroup(g)}
+                      aria-pressed={group === g}
+                      className={`tap flex-1 rounded-lg px-2 py-1.5 text-[11px] font-bold transition ${
+                        group === g
+                          ? g === "type"
+                            ? "bg-brand text-white shadow-sm"
+                            : "bg-accent-2 text-accent-2-ink shadow-sm"
+                          : "text-ink-2 hover:text-ink"
+                      }`}
+                    >
+                      {t(g === "type" ? "store.groupType" : "store.groupTheme")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {layer === "subcategories" && (
               <select
                 value={parent}
