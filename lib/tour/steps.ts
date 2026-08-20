@@ -17,8 +17,13 @@ import type { DictKey } from "@/lib/i18n";
  * is always there, and it no longer stalls on a section the admin has switched
  * off. Everyone who already sat through v2 is opted back in once, on purpose —
  * a tour nobody is shown is not a tour.
+ *
+ * v4: the store's filters were split into two boxes that multiply together, and
+ * the one step covering them was split to match. Not bumped for the shorter
+ * copy — bumped because the shop now works differently, and someone who took
+ * the v3 tour was taught a filter that no longer behaves the way they were told.
  */
-export const TOUR_DONE_KEY = "rofoof_tour_completed_v3";
+export const TOUR_DONE_KEY = "rofoof_tour_completed_v4";
 
 export interface TourStep {
   /** stable key for React and for the engine's per-step state */
@@ -69,7 +74,7 @@ export const ROUTE_LABELS: Record<string, DictKey> = {
  * It starts where they landed — the home page gets explained before anyone is
  * taken anywhere — and only then moves to the store. Grouped by route so the
  * whole tour costs exactly one navigation, which matters on the connections this
- * shop is used over: three stops on `/`, four on `/store`, then four on whatever
+ * shop is used over: four stops on `/`, five on `/store`, then three on whatever
  * page the visitor is left on.
  *
  * `optional` stops are resolved against the live DOM the moment the tour reaches
@@ -128,11 +133,27 @@ export const TOUR_STEPS: TourStep[] = [
     // Straight after the catalogue, because narrowing it down is the next thing
     // anyone does to it — and before the product-card step, so the shopper knows
     // how to find an item before being shown what to do with one.
+    //
+    // Two stops, not one. Search, sort, the drawer and the two category boxes
+    // used to share a step, and covering all of it took a paragraph nobody
+    // finishes reading standing in a shop — the split point is that these are
+    // two different tools: one finds a thing you can name, the other narrows a
+    // catalogue you are browsing.
     id: "filters",
-    target: "#tour-filters",
+    target: "#tour-toolbar",
     route: "/store",
     titleKey: "tour.filters.title",
     bodyKey: "tour.filters.body",
+  },
+  {
+    // The half most people actually reach for, and the only part that needs
+    // teaching rather than labelling: nothing on screen says the red box and
+    // the blue box multiply together.
+    id: "categories",
+    target: "#tour-categories",
+    route: "/store",
+    titleKey: "tour.categories.title",
+    bodyKey: "tour.categories.body",
   },
   {
     // The first card, standing in for all of them: this is where the tour
