@@ -613,6 +613,17 @@ export const dict = {
   "restock.addToStock": { ar: "أضف للمخزون", en: "Add to stock" },
   "restock.customAmount": { ar: "كمية مخصصة", en: "Custom amount" },
   "restock.confirmRestock": { ar: "تأكيد الإضافة", en: "Confirm" },
+  // Discard vs. stop tracking: both take the row off the list, and the labels
+  // have to carry the whole difference, because the buttons sit side by side.
+  // "تجاهل" is the temporary one, "إيقاف التتبع" the permanent one.
+  "restock.discard": { ar: "تجاهل", en: "Discard" },
+  "restock.discardHint": {
+    ar: "اتركه كما هو وأزله من القائمة — سيعود عند أول عملية بيع جديدة",
+    en: "Leave the shelf as it is and drop it from the list — it returns on the next sale",
+  },
+  "restock.discardedOn": { ar: "تجاهلته في", en: "Discarded on" },
+  "restock.trackingSince": { ar: "التتبع يبدأ من", en: "Counting from" },
+  "restock.actionFailed": { ar: "تعذّر تنفيذ العملية", en: "That didn't go through" },
   "restock.blacklist": { ar: "إيقاف التتبع", en: "Stop tracking" },
   "restock.blacklistConfirm": {
     ar: "سيتوقف هذا المنتج عن الظهور في قائمة إعادة التخزين حتى تُعيد تفعيله.",

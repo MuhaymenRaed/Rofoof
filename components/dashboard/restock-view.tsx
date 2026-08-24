@@ -11,6 +11,7 @@ import { splitCategoryGroups, type ProductKind } from "@/lib/products";
 import {
   loadMoreRestockQueueAction,
   applyRestockAction,
+  dismissRestockAction,
   setRestockBlacklistAction,
 } from "@/lib/actions/restock";
 import type {
@@ -345,6 +346,7 @@ function RestockRow({
   const { t, lang, categoryLabel } = useStore();
   const [customOpen, setCustomOpen] = useState(false);
   const [customQty, setCustomQty] = useState(row.soldSinceRestock || 1);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const name = lang === "ar" ? row.nameAr : row.nameEn;
@@ -354,23 +356,45 @@ function RestockRow({
       : row.itemNameEn || row.nameEn
     : null;
 
-  function restock(qty: number) {
+  /**
+   * Every one of these three buttons removes the row on success — so a failure
+   * that removed nothing and said nothing was indistinguishable from a button
+   * that didn't register the tap. The row stays put and states the reason
+   * instead, and names the migration when that's what it is, since that one the
+   * admin can actually fix.
+   */
+  function run(action: () => Promise<{ ok: boolean; error?: string }>) {
+    setError(null);
     startTransition(async () => {
-      const res = await applyRestockAction({ productId: row.productId, itemId: row.itemId, qty });
-      if (res.ok) onResolved();
+      const res = await action();
+      if (res.ok) {
+        onResolved();
+        return;
+      }
+      setError(
+        res.error === "migration" ? t("restock.needsMigration") : t("restock.actionFailed"),
+      );
     });
+  }
+
+  function restock(qty: number) {
+    run(() => applyRestockAction({ productId: row.productId, itemId: row.itemId, qty }));
+  }
+
+  /** Leave the shelf alone; the row comes back by itself on the next sale. */
+  function discard() {
+    run(() => dismissRestockAction({ productId: row.productId, itemId: row.itemId }));
   }
 
   function blacklist() {
     if (!window.confirm(t("restock.blacklistConfirm"))) return;
-    startTransition(async () => {
-      const res = await setRestockBlacklistAction({
+    run(() =>
+      setRestockBlacklistAction({
         productId: row.productId,
         itemId: row.itemId,
         blacklisted: true,
-      });
-      if (res.ok) onResolved();
-    });
+      }),
+    );
   }
 
   return (
@@ -416,6 +440,14 @@ function RestockRow({
             <span className="text-[10px] font-bold text-ink-3">
               {t("dash.fieldStock")}: {row.stock}
             </span>
+            {/* Only a row that was discarded and has SINCE sold again can be
+                here carrying a discard date — the count below it is what came
+                in after that day. */}
+            {row.dismissedAt && (
+              <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-ink-3">
+                {t("restock.discardedOn")} {row.dismissedAt.slice(0, 10)}
+              </span>
+            )}
           </span>
         </span>
       </button>
@@ -472,11 +504,25 @@ function RestockRow({
             >
               <Pencil size={13} />
             </button>
+            {/* Spelled out rather than given an icon, and no confirm dialog:
+                the difference from the ✕ beside it is entirely in what it
+                MEANS, which no glyph carries, and it is the harmless one of
+                the pair — nothing is lost if it is tapped by mistake. */}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={discard}
+              title={t("restock.discardHint")}
+              className="tap rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-ink-2 transition hover:border-brand hover:text-brand disabled:opacity-50"
+            >
+              {t("restock.discard")}
+            </button>
             <button
               type="button"
               disabled={pending}
               onClick={blacklist}
               title={t("restock.blacklist")}
+              aria-label={t("restock.blacklist")}
               className="tap grid h-8 w-8 place-items-center rounded-lg border border-line text-ink-2 transition hover:border-red-500 hover:text-red-500 disabled:opacity-50"
             >
               <X size={14} />
@@ -484,6 +530,9 @@ function RestockRow({
           </>
         )}
       </div>
+
+      {/* `w-full` inside the wrapping row: its own line, under everything. */}
+      {error && <p className="w-full text-[11px] font-bold text-red-500">{error}</p>}
     </li>
   );
 }
