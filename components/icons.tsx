@@ -248,6 +248,16 @@ export const ChevronEnd = (p: IconProps) => (
   </Base>
 );
 
+/**
+ * Points down. Direction-neutral, so unlike ChevronEnd it needs no RTL flip —
+ * it marks a disclosure that opens downward (see ExpandableNote).
+ */
+export const ChevronDown = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Base>
+);
+
 export const Star = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
   <Base {...p} fill={filled ? "currentColor" : "none"}>
     <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5Z" />

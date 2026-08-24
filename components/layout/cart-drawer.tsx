@@ -20,6 +20,7 @@ import {
 } from "@/components/icons";
 import { GuestBenefitsCard } from "@/components/checkout/guest-benefits-card";
 import { QtyStepper } from "@/components/ui/qty-stepper";
+import { ExpandableNote } from "@/components/ui/expandable-note";
 import { formatPrice } from "@/lib/format";
 import { cartDiscountFor, customRequestTotal, deliveryOfferFor } from "@/lib/pricing";
 import {
@@ -749,6 +750,15 @@ export function CartDrawer() {
                           <Trash size={16} />
                         </button>
                       </div>
+                      {/* The note the shopper typed in the product modal, read
+                          back to them. It used to travel to the shop invisibly:
+                          typed once, never shown again, and unverifiable until
+                          the order was already placed — on a package, where one
+                          note is attached to every design picked, that meant
+                          several lines carrying instructions nobody could see. */}
+                      {line.note && (
+                        <ExpandableNote text={line.note} className="mt-1.5 text-[10px] text-ink-3" />
+                      )}
                       <div className="mt-auto flex items-center justify-between pt-2">
                         {/* Quantities are chosen here, not on the package
                             thumbnails, so this is where the ceiling shows: the
@@ -760,8 +770,19 @@ export function CartDrawer() {
                           max={stockCeilingFor(getProduct(line.id), line.itemId) ?? undefined}
                           size="sm"
                         />
-                        <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
-                          {formatPrice(pricing.total, lang)}
+                        <span className="flex flex-col items-end leading-tight">
+                          <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
+                            {formatPrice(pricing.total, lang)}
+                          </span>
+                          {/* By-count lines show the unit they landed on. The
+                              ladder is pooled across the cart, so this figure is
+                              the only place a shopper can see that adding a
+                              piece over there made this line cheaper. */}
+                          {product.volumePriced && (
+                            <span className="text-[9px] font-bold text-ink-3">
+                              {formatPrice(pricing.unit, lang)} {t("product.perUnit")}
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>

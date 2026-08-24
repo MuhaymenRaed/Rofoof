@@ -6,6 +6,7 @@ import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
+import { ExpandableNote } from "@/components/ui/expandable-note";
 import {
   X,
   Package,
@@ -798,8 +799,16 @@ function OrderDetailsModal({
                 </span>
               </p>
             )}
+            {/* The customer's own note on the whole order. Clamped rather than
+                run out in full: it sits directly above the item list, and a long
+                one used to push every product the order is actually for below
+                the fold of the modal. */}
             {order.notes && (
-              <p className="mt-2 text-[12px] italic text-ink-3">&ldquo;{order.notes}&rdquo;</p>
+              <ExpandableNote
+                text={order.notes}
+                lines={3}
+                className="mt-2 text-[12px] text-ink-3"
+              />
             )}
           </div>
 
@@ -857,10 +866,15 @@ function OrderDetailsModal({
                           <Tag size={10} /> {t("dash.manualPriced")}
                         </span>
                       )}
-                      {it.note && (
-                        <span className="truncate italic">&ldquo;{it.note}&rdquo;</span>
-                      )}
                     </span>
+                    {/* Its own line, below the chips rather than sharing them.
+                        A note is the one thing on this row that carries
+                        instructions — how to cut, which colour, what to write —
+                        and squeezed in beside "×1" it got the leftover width,
+                        which on a phone is a few words and an ellipsis. */}
+                    {it.note && (
+                      <ExpandableNote text={it.note} className="mt-1 text-[11px] text-ink-3" />
+                    )}
                   </span>
                   {it.customImageUrl && (
                     <a

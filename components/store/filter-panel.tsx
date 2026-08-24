@@ -33,7 +33,7 @@ export function FilterPanel({
   onClose,
   hasActive,
 }: Props) {
-  const { t, lang, fandoms } = useStore();
+  const { t, lang, fandoms, siteSettings } = useStore();
 
   // DB-driven fandoms + the "all" reset option (admins can add more)
   const options = [
@@ -102,7 +102,10 @@ export function FilterPanel({
         </div>
       </div>
 
-      {/* Waterproof toggle */}
+      {/* Waterproof toggle — gone entirely while the add-on is switched off
+          shop-wide, since filtering by an option nobody can buy right now only
+          narrows the catalogue for no reachable benefit. */}
+      {siteSettings.waterproofProductsActive && (
       <div className="mt-3 flex items-center justify-between rounded-2xl border border-line-2 bg-surface p-4">
         <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
           <Droplet size={16} className="text-brand" />
@@ -124,6 +127,7 @@ export function FilterPanel({
           />
         </button>
       </div>
+      )}
 
       {/* Max price */}
       <div className="mt-3 rounded-2xl border border-line-2 bg-surface p-4">

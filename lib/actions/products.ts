@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/dal";
 import { TAGS } from "@/lib/data/tags";
+import { revalidateCatalog } from "@/lib/cache";
 import { getInventory, type InventoryPage } from "@/lib/data/dashboard";
 import type { CategoryGroup, CategoryInfo, SubcategoryInfo } from "@/lib/products";
 
@@ -139,12 +140,6 @@ async function writeItemStock(
   return null;
 }
 
-function revalidateCatalog() {
-  revalidateTag(TAGS.products, "max");
-  revalidatePath("/");
-  revalidatePath("/store");
-  revalidatePath("/dashboard/inventory");
-}
 
 /** Create or fully update a product (admin). Categories replace the whole set. */
 export async function upsertProductAction(

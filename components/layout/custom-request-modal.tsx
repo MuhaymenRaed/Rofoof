@@ -89,7 +89,7 @@ export function CustomRequestModal() {
 }
 
 function RequestForm({ onClose }: { onClose: () => void }) {
-  const { t, lang, customPricing, addCustomRequest, openCart } = useStore();
+  const { t, lang, customPricing, addCustomRequest, openCart, siteSettings } = useStore();
   const { isAdmin, ready } = useAuth();
   const supabase = createSupabaseBrowserClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,7 +113,12 @@ function RequestForm({ onClose }: { onClose: () => void }) {
   }, [artworks]);
   useEffect(() => () => artworksRef.current.forEach((a) => URL.revokeObjectURL(a.preview)), []);
 
-  const waterproofEligible = type === "sticker" || type === "poster";
+  // Eligible by KIND (brooches can't be laminated), and only while the shop
+  // has the add-on switched on for custom work (dashboard → Inventory). The
+  // switch is independent of the catalogue one: running out of laminate for
+  // sheets needn't stop it being offered on a commission.
+  const waterproofEligible =
+    (type === "sticker" || type === "poster") && siteSettings.waterproofCustomActive;
   const shape = SHAPE[type];
   const pricing = customPricing.find((p) => p.kind === type);
   const unit =

@@ -88,12 +88,21 @@ const VEIL_MAX_MS = 3200;
 const VEIL_FADE_MS = 300;
 
 /**
- * Where an uninvited tour is welcome. A shopper walkthrough has no business
- * interrupting a sign-in, a password reset or the admin dashboard, and those are
- * exactly the pages where a scrim appearing over the screen unprompted would
- * read as a fault. Replaying it from the footer is always allowed, anywhere.
+ * The one page an uninvited tour may start itself from.
+ *
+ * A shopper walkthrough has no business interrupting a sign-in, a password reset
+ * or the admin dashboard — those are pages where a scrim appearing over the
+ * screen unprompted reads as a fault. The store used to be on this list too, and
+ * came off it for a sharper reason: the walkthrough's first step lives on `/`,
+ * so auto-starting anywhere else means immediately navigating away from the page
+ * the visitor actually asked for. Someone opening a shared `/store` link with
+ * filters already applied asked for that view on purpose, and was being dragged
+ * off it — filters and all — before they had read a single product name.
+ *
+ * The home page is the only place where starting costs nothing, because the tour
+ * starts there anyway. Replaying it from the footer is still allowed anywhere.
  */
-const AUTOSTART_ROUTES = ["/", "/store"];
+const AUTOSTART_ROUTE = "/";
 
 interface Box {
   top: number;
@@ -360,13 +369,35 @@ export function TourProvider({ children }: { children: ReactNode }) {
     [finish, goToStep],
   );
 
-  // --- auto-run, once, for a first-time visitor
+  /**
+   * Whether the walkthrough has already invited itself in this browsing session.
+   *
+   * Belt to `TOUR_DONE_KEY`'s braces. The flag is written the moment a step is
+   * drawn, which is what makes the tour a once-per-device event — but a browser
+   * with storage blocked writes nothing at all, and this effect now re-evaluates
+   * on every arrival at the home page rather than once on mount. Without an
+   * in-memory guard, such a visitor would be greeted afresh every time they
+   * tapped Home.
+   */
+  const autoStarted = useRef(false);
+
+  // --- auto-run, once per device, for a first-time visitor
   //
-  // Reads the landing route once, on mount, rather than following `pathname`:
-  // the tour's own first step navigates to /store, so re-evaluating this would
-  // let a tour that was just dismissed re-arm itself on arrival.
+  // Armed by ARRIVING on the home page, not by mounting. Landing anywhere else
+  // no longer starts anything (see AUTOSTART_ROUTE), so following `pathname` is
+  // what keeps a visitor who came in through a store link from losing the tour
+  // outright: they meet it the first time they reach the front door under their
+  // own steam, instead of being hauled there mid-browse.
+  //
+  // Re-evaluating is safe now in a way it wasn't when this read the route once:
+  // `markSeen` writes the flag on display rather than on exit, so a tour that was
+  // shown and then dismissed reads as done on the very next pass — including the
+  // pass caused by `finish` navigating back to `/`.
   useEffect(() => {
-    if (!AUTOSTART_ROUTES.includes(window.location.pathname)) return;
+    if (autoStarted.current) return;
+    if (pathname !== AUTOSTART_ROUTE) return;
+    // Already on screen — a replay from the footer got here first.
+    if (stepId !== null) return;
     let done = true;
     try {
       done = localStorage.getItem(TOUR_DONE_KEY) !== null;
@@ -376,9 +407,14 @@ export function TourProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (done) return;
-    const id = setTimeout(() => goToStep(TOUR_STEPS[0].id), AUTOSTART_DELAY_MS);
+    const id = setTimeout(() => {
+      autoStarted.current = true;
+      goToStep(TOUR_STEPS[0].id);
+    }, AUTOSTART_DELAY_MS);
+    // Left the home page before the delay was up: they went somewhere on
+    // purpose. Cancel, and let a later arrival arm it again.
     return () => clearTimeout(id);
-  }, [goToStep]);
+  }, [pathname, stepId, goToStep]);
 
   // --- navigate to the step's route when it lives on another page
   useEffect(() => {
@@ -761,15 +797,65 @@ function TourOverlay({
         vh / 2 - cardH / 2;
   const cardTop = Math.round(Math.min(Math.max(desiredTop, EDGE), maxTop));
 
-  return (
-    <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label={labels.aria}>
-      {/* Swallows interaction with the page underneath. Clicking it does
-          nothing on purpose — a mis-tap on a phone shouldn't end the tour. */}
-      <div className="absolute inset-0" />
+  /**
+   * The blocker's own hole, matching the ring drawn below (box expanded by
+   * HALO) rather than the raw target rect — so the clickable area lines up
+   * with what visually reads as highlighted, padding included.
+   *
+   * Four panels framing that rect, instead of one `inset-0` div: a mis-tap
+   * anywhere else on the page still does nothing (unchanged), but the exact
+   * control being spotlighted is reachable — someone being shown the filter
+   * boxes can try one right there instead of only reading about it. `Math.max`
+   * guards each panel against a ring that has scrolled partly off-screen,
+   * where the "other side" would otherwise go negative.
+   */
+  const ringTop = box.top - HALO;
+  const ringLeft = box.left - HALO;
+  const ringBottom = ringTop + box.height + HALO * 2;
+  const ringRight = ringLeft + box.width + HALO * 2;
 
-      {/* The scrim IS this element's outer shadow, which is how the hole in it
-          stays exactly on the highlighted control with no SVG mask or four
-          separately-positioned panels to keep in sync. */}
+  return (
+    // pointer-events-none on the WRAPPER, not just "no background on the four
+    // panels": pointer-events is hit-tested per element regardless of paint, so
+    // a plain `fixed inset-0` wrapper intercepts everything inside its own box
+    // even where none of its children do — the panels alone left the wrapper
+    // itself catching the click. Since the property inherits, the panels and
+    // the card below opt back in with their own `pointer-events-auto`.
+    <div
+      className="fixed inset-0 z-[90] pointer-events-none"
+      role="dialog"
+      aria-modal="true"
+      aria-label={labels.aria}
+    >
+      {/* Swallows interaction with the page underneath, EXCEPT the hole over
+          the spotlighted control itself. A mis-tap anywhere else on a phone
+          still can't end the tour. */}
+      <div
+        className="pointer-events-auto absolute"
+        style={{ top: 0, left: 0, width: vw, height: Math.max(0, ringTop) }}
+      />
+      <div
+        className="pointer-events-auto absolute"
+        style={{ top: ringBottom, left: 0, width: vw, height: Math.max(0, vh - ringBottom) }}
+      />
+      <div
+        className="pointer-events-auto absolute"
+        style={{ top: ringTop, left: 0, width: Math.max(0, ringLeft), height: ringBottom - ringTop }}
+      />
+      <div
+        className="pointer-events-auto absolute"
+        style={{
+          top: ringTop,
+          left: ringRight,
+          width: Math.max(0, vw - ringRight),
+          height: ringBottom - ringTop,
+        }}
+      />
+
+      {/* The VISUAL scrim (as opposed to the blocker panels above, which are
+          about clicks, not paint) is this element's own outer shadow, which is
+          how its dark hole stays exactly on the highlighted control with no
+          SVG mask to keep in sync — same ring rect as the panels use. */}
       <div
         aria-hidden
         className="pointer-events-none absolute rounded-2xl ring-2 ring-brand"
@@ -786,7 +872,7 @@ function TourOverlay({
       <div
         ref={cardRef}
         dir={dir}
-        className="absolute rounded-2xl border border-line-2 bg-surface p-4 shadow-2xl"
+        className="pointer-events-auto absolute rounded-2xl border border-line-2 bg-surface p-4 shadow-2xl"
         style={{
           top: cardTop,
           left: Math.round(cardLeft),
