@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
@@ -17,6 +17,7 @@ import {
   Search,
 } from "@/components/icons";
 import { QtyStepper } from "@/components/ui/qty-stepper";
+import { PriceLadder } from "@/components/ui/price-ladder";
 import { Lightbox } from "@/components/ui/lightbox";
 import { tintedBlurDataUrl } from "@/components/ui/product-media";
 import { RetryImage } from "@/components/ui/retry-image";
@@ -27,6 +28,7 @@ import {
   itemInStock,
   stockCeilingFor,
   tierUnitPrice,
+  type PriceTier,
   type Product,
 } from "@/lib/products";
 import {
@@ -68,8 +70,20 @@ export function QuickViewModal() {
 }
 
 function Content({ product, onClose }: { product: Product; onClose: () => void }) {
-  const { lang, t, addToCart, openCart, isWished, toggleWish, offers, volumeTiers, now } =
-    useStore();
+  const {
+    lang,
+    t,
+    addToCart,
+    openCart,
+    isWished,
+    toggleWish,
+    offers,
+    volumeTiers,
+    now,
+    cart,
+    getProduct,
+    siteSettings,
+  } = useStore();
   // Stock counts are shown to the shop, not to the shopper — see the picker grid.
   const { isAdmin, ready } = useAuth();
   const supabase = createSupabaseBrowserClient();
@@ -119,19 +133,60 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const selectedCount = isPackage
     ? product.items.reduce((s, it) => s + (selections[it.id] ?? 0), 0)
     : qty;
+  /**
+   * Pieces already in the cart that count toward the shared by-count ladder.
+   *
+   * The ladder is pooled across the WHOLE cart — that is the point of it, and
+   * `place_order` resolves the tier from the finished order, not from one line.
+   * Quoting this selection on its own therefore quoted a price the shopper would
+   * never be charged: always too dear, and only corrected once they had reached
+   * the cart, which reads exactly like the shop changing the price on them. The
+   * modal now prices what they will actually pay.
+   *
+   * Adding is safe rather than double-counting: `addToCart` merges into an
+   * existing line, so `selectedCount` is always the pieces being ADDED to this
+   * total, never pieces that are already inside it.
+   */
+  const cartVolumeCount = useMemo(
+    () =>
+      product.volumePriced
+        ? cart.reduce((n, l) => (getProduct(l.id)?.volumePriced ? n + l.qty : n), 0)
+        : 0,
+    [product.volumePriced, cart, getProduct],
+  );
+  /** What the ladder is answering for: this selection plus the cart's pieces. */
+  const ladderCount = selectedCount + cartVolumeCount;
   const volumeUnit = product.volumePriced
-    ? volumeUnitPrice(selectedCount, volumeTiers) ?? undefined
+    ? volumeUnitPrice(ladderCount, volumeTiers) ?? undefined
     : undefined;
+
+  /**
+   * Whether this product can be sold waterproof AT ALL right now: its own flag
+   * AND the shop-wide master switch (dashboard → Inventory).
+   *
+   * `waterproofOn` is what every price below reads, never the raw checkbox —
+   * so an admin switching the add-on off mid-session withdraws the surcharge
+   * along with the control, instead of leaving a checked box quietly charging
+   * for something the shop has stopped offering.
+   */
+  const waterproofOffered = Boolean(product.waterproof) && siteSettings.waterproofProductsActive;
+  const waterproofOn = waterproof && waterproofOffered;
 
   const packageLines = isPackage
     ? product.items
         .filter((it) => (selections[it.id] ?? 0) > 0)
         .map((it) => {
           const q = selections[it.id] ?? 0;
-          const p = linePricing(product, q, { item: it, waterproof, volumeUnit }, offers, now);
+          const p = linePricing(
+            product,
+            q,
+            { item: it, waterproof: waterproofOn, volumeUnit },
+            offers,
+            now,
+          );
           const baseUnit =
             (volumeUnit ?? it.price ?? product.price) +
-            (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
+            (waterproofOn ? product.waterproofSurcharge : 0);
           return { item: it, qty: q, ...p, baseTotal: baseUnit * Math.max(q - p.free, 0) };
         })
     : [];
@@ -141,12 +196,12 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const packageFree = packageLines.reduce((s, l) => s + l.free, 0);
 
   // Standard/tiered pricing.
-  const unit = unitPriceFor(product, qty, { waterproof, volumeUnit }, offers, now);
+  const unit = unitPriceFor(product, qty, { waterproof: waterproofOn, volumeUnit }, offers, now);
   const free = freeUnitsFor(product, qty, offers);
   const lineTotal = unit * Math.max(qty - free, 0);
   const stdBaseUnit =
     (product.kind === "tiered" ? tierUnitPrice(product, qty) : product.price) +
-    (waterproof && product.waterproof ? product.waterproofSurcharge : 0);
+    (waterproofOn ? product.waterproofSurcharge : 0);
 
   const displayTotal = isPackage ? packageTotal : lineTotal;
   const displayBase = isPackage ? packageBase : stdBaseUnit * Math.max(qty - free, 0);
@@ -161,6 +216,27 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   // product stayed unbuyable with its new count showing on it. See isSoldOut().
   const soldOut = isSoldOut(product);
   const canAdd = !soldOut && (isPackage ? packageCount > 0 : true);
+
+  /**
+   * The one ladder that actually sets this product's unit price.
+   *
+   * `unitPriceFor` prefers the global by-count ladder over a product's own tiers
+   * (a supplied `volumeUnit` short-circuits the tier lookup), and the product
+   * editor flags every `tiered` product as by-count — so a tiered product was
+   * drawing TWO boxes, both headed "Volume pricing", the second of which had no
+   * effect on any price and nothing on screen saying so. That is the "meaningless
+   * box" half of the complaint; the other half was products showing neither,
+   * which is correct — they are not sold by count.
+   *
+   * Whichever ladder is drawn, it is the one the shopper is actually being priced
+   * against, and `pooled` is what decides which sentence explains it.
+   */
+  const ladder: { rungs: readonly PriceTier[]; count: number; pooled: boolean } | null =
+    product.volumePriced && volumeTiers.length > 0
+      ? { rungs: volumeTiers, count: ladderCount, pooled: true }
+      : isTiered
+        ? { rungs: product.tiers, count: qty, pooled: false }
+        : null;
 
   // Left media: the previewed package item, or the gallery image.
   const previewItem = isPackage ? product.items.find((it) => it.id === previewId) : undefined;
@@ -205,7 +281,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
   function handleAdd() {
     if (!canAdd) return;
-    const wp = waterproof && product.waterproof ? true : undefined;
+    const wp = waterproofOn ? true : undefined;
     const trimmedNote = note.trim() || undefined;
 
     if (isPackage) {
@@ -518,61 +594,20 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           </div>
         )}
 
-        {/* Tiered: volume price ladder */}
-        {/* Shared by-count ladder — highlights the rung the buyer is on now */}
-        {product.volumePriced && volumeTiers.length > 0 && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-line-2">
-            <p className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2">
-              {t("product.tierTable")}
-            </p>
-            {/* Scrolls instead of cramping when the admin adds many rungs */}
-            <div className="no-scrollbar flex divide-x divide-line-2 overflow-x-auto rtl:divide-x-reverse">
-              {[...volumeTiers]
-                .sort((a, b) => a.minQty - b.minQty)
-                .map((tier) => {
-                  const active = volumeUnit === tier.unitPrice;
-                  return (
-                    <div
-                      key={tier.minQty}
-                      className={`min-w-16 flex-1 shrink-0 px-2 py-2 text-center transition ${active ? "bg-brand-soft" : ""}`}
-                    >
-                      <p className="text-[11px] font-bold text-ink-3">{tier.minQty}+</p>
-                      <p className={`text-[12px] font-black ${active ? "text-brand" : "text-ink"}`}>
-                        {tier.unitPrice.toLocaleString("en-US")}
-                      </p>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
+        {/* The by-count ladder — exactly one of them, see `ladder` above. */}
+        {ladder && (
+          <PriceLadder
+            rungs={ladder.rungs}
+            count={ladder.count}
+            hint={t(ladder.pooled ? "product.ladderPooled" : "product.ladderOwn")}
+          />
         )}
 
-        {isTiered && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-line-2">
-            <p className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-2">
-              {t("product.tierTable")}
-            </p>
-            <div className="flex divide-x divide-line-2 rtl:divide-x-reverse">
-              {product.tiers.map((tier) => {
-                const active = tierUnitPrice(product, qty) === tier.unitPrice;
-                return (
-                  <div
-                    key={tier.minQty}
-                    className={`flex-1 px-2 py-2 text-center transition ${active ? "bg-brand-soft" : ""}`}
-                  >
-                    <p className="text-[11px] font-bold text-ink-3">{tier.minQty}+</p>
-                    <p className={`text-[12px] font-black ${active ? "text-brand" : "text-ink"}`}>
-                      {tier.unitPrice.toLocaleString("en-US")}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Waterproof option */}
-        {product.waterproof && (
+        {/* Waterproof option — hidden entirely while the admin has the add-on
+            switched off shop-wide (dashboard → Inventory). `waterproofOffered`
+            also gates the price maths above, so a stale `waterproof` state can
+            never keep charging a surcharge for something no longer on sale. */}
+        {waterproofOffered && (
           <label className="mt-4 flex cursor-pointer items-center justify-between rounded-xl border border-line-2 bg-surface-2/50 px-3.5 py-2.5">
             <span className="flex items-center gap-2 text-[13px] font-semibold text-ink">
               <Droplet size={16} className="text-brand" />

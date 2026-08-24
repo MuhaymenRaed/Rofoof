@@ -217,6 +217,18 @@ export interface SiteSettings {
   deliveryFeeKarbala: number;
   /** admin switch for the delivery banner under the home-page hero */
   deliveryNoticeActive: boolean;
+  /**
+   * Master switches for the waterproof add-on, one per side of the shop:
+   * catalogue products and custom design requests. They hide the option
+   * outright rather than zeroing its price — a switched-off add-on is one the
+   * shop cannot currently do, not a free one.
+   *
+   * Default true, and true whenever the columns aren't in the database yet, so
+   * the shop keeps behaving exactly as it does today until an admin says
+   * otherwise (see AGENTS.md — schema and code land in either order).
+   */
+  waterproofProductsActive: boolean;
+  waterproofCustomActive: boolean;
   statFollowers: string;
   statProducts: string;
   statRating: string;

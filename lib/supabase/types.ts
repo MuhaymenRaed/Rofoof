@@ -188,6 +188,11 @@ export interface Database {
           is_featured: boolean;
           is_deleted: boolean;
           deleted_at: string | null;
+          /** restock-queue tracking; absent until docs/restock-queue.sql runs */
+          restock_baseline?: number;
+          restock_blacklisted?: boolean;
+          restock_last_qty?: number | null;
+          restocked_at?: string | null;
         } & Timestamps;
         Insert: {
           id: string;
@@ -237,6 +242,11 @@ export interface Database {
           is_active: boolean;
           is_deleted: boolean;
           created_at: string;
+          /** restock-queue tracking; absent until docs/restock-queue.sql runs */
+          restock_baseline?: number;
+          restock_blacklisted?: boolean;
+          restock_last_qty?: number | null;
+          restocked_at?: string | null;
         };
         Insert: {
           product_id: string;
@@ -514,6 +524,9 @@ export interface Database {
           delivery_fee_karbala: number;
           /** home-page delivery banner on/off; absent until the migration lands */
           delivery_notice_active?: boolean;
+          /** waterproof add-on master switches; absent until docs/waterproof-switches.sql runs */
+          waterproof_products_active?: boolean;
+          waterproof_custom_active?: boolean;
           stat_followers: string;
           stat_products: string;
           stat_rating: string;
@@ -530,6 +543,8 @@ export interface Database {
           delivery_fee_default?: number;
           delivery_fee_karbala?: number;
           delivery_notice_active?: boolean;
+          waterproof_products_active?: boolean;
+          waterproof_custom_active?: boolean;
           stat_followers?: string;
           stat_products?: string;
           stat_rating?: string;
@@ -583,6 +598,31 @@ export interface Database {
       /** move an order's pieces off the shelf (true) or put them back (false) */
       admin_set_order_stock: { Args: { p_code: string; p_apply: boolean }; Returns: Json };
       admin_set_price_tiers: { Args: { p_id: string; p_tiers: Json }; Returns: number };
+      /** The restock queue list — see docs/restock-queue.sql. */
+      admin_restock_queue: {
+        Args: {
+          p_search?: string | null;
+          p_categories?: string[] | null;
+          p_kind?: string | null;
+          p_sort?: string;
+          p_blacklisted?: boolean;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: Json;
+      };
+      admin_restock_item_detail: {
+        Args: { p_product_id: string; p_item_id?: string | null };
+        Returns: Json;
+      };
+      admin_apply_restock: {
+        Args: { p_product_id: string; p_item_id: string | null; p_qty: number };
+        Returns: Json;
+      };
+      admin_set_restock_blacklist: {
+        Args: { p_product_id: string; p_item_id: string | null; p_blacklisted: boolean };
+        Returns: Json;
+      };
       place_custom_request: {
         Args: {
           p_customer_name: string;

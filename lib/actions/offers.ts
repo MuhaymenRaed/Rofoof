@@ -370,6 +370,54 @@ export async function updateDeliveryFeesAction(input: {
   return { ok: true };
 }
 
+/* ------------------------ Waterproof master switches --------------------- */
+
+const waterproofSchema = z.object({
+  products: z.boolean(),
+  custom: z.boolean(),
+});
+
+/**
+ * Turn the waterproof add-on on or off for the catalogue and for custom
+ * requests independently — the shop can run out of the laminate for sheets
+ * while still offering it on commissions, and vice versa.
+ *
+ * Tolerates a database without the columns the same way the delivery banner
+ * switch does: the error is reported rather than swallowed, because unlike the
+ * fees there is nothing else in this form that did save, and an admin who
+ * flicked a switch that silently did nothing would go on believing the option
+ * is withdrawn while the shop keeps selling it.
+ */
+export async function updateWaterproofSettingsAction(input: {
+  products: boolean;
+  custom: boolean;
+}): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = waterproofSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("settings")
+    .update({
+      waterproof_products_active: parsed.data.products,
+      waterproof_custom_active: parsed.data.custom,
+    })
+    .eq("id", true);
+  if (error) {
+    if (error.code === "42703" || /waterproof_(products|custom)_active/.test(error.message)) {
+      return { ok: false, error: "migration_missing" };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidateTag(TAGS.settings, "max");
+  revalidatePath("/");
+  revalidatePath("/store");
+  revalidatePath("/dashboard/inventory");
+  return { ok: true };
+}
+
 const statsSchema = z.object({
   statFollowers: z.string().trim().min(1).max(12),
   statProducts: z.string().trim().min(1).max(12),

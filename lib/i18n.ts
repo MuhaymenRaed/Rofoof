@@ -582,6 +582,66 @@ export const dict = {
   "dash.topProducts": { ar: "الأكثر مبيعاً", en: "Top sellers" },
   "dash.sold": { ar: "مباع", en: "sold" },
 
+  // Waterproof master switches (top of the inventory page)
+  "dash.waterproofSwitches": { ar: "خدمة المقاوم للماء", en: "Waterproof add-on" },
+  "dash.waterproofSwitchesHint": {
+    ar: "إيقاف أي منهما يخفي خيار المقاوم للماء عن الزبون — إعدادات كل منتج تبقى كما هي وترجع عند التفعيل.",
+    en: "Switching either off hides the waterproof option from shoppers. Each product keeps its own setting and gets it back when you switch it on.",
+  },
+  "dash.waterproofProducts": { ar: "منتجات المتجر", en: "Store products" },
+  "dash.waterproofCustom": { ar: "الطلبات المخصصة", en: "Custom requests" },
+  "dash.waterproofMigration": {
+    ar: "شغّل docs/waterproof-switches.sql في Supabase أولاً لتفعيل هذين المفتاحين.",
+    en: "Run docs/waterproof-switches.sql in Supabase first to enable these two switches.",
+  },
+
+  // Restock queue (dashboard)
+  "dash.restock": { ar: "إعادة التخزين", en: "Restock" },
+  "restock.subtitle": {
+    ar: "المنتجات التي بيعت منذ آخر مرة أعدت تعبئتها",
+    en: "Products that have sold since you last restocked them",
+  },
+  "restock.searchPlaceholder": { ar: "ابحث عن منتج…", en: "Search a product…" },
+  "restock.sortLabel": { ar: "الترتيب", en: "Sort" },
+  "restock.sortDemand": { ar: "الأكثر طلباً للتعبئة", en: "Most needed" },
+  "restock.sortDateNew": { ar: "الأحدث إضافة", en: "Newest added" },
+  "restock.sortDateOld": { ar: "الأقدم إضافة", en: "Oldest added" },
+  "restock.sortOrdersDesc": { ar: "الأكثر طلبات", en: "Most orders" },
+  "restock.sortOrdersAsc": { ar: "الأقل طلبات", en: "Fewest orders" },
+  "restock.categoryFilter": { ar: "الفئة", en: "Category" },
+  "restock.soldSince": { ar: "بيع منذ آخر تعبئة", en: "Sold since restock" },
+  "restock.addToStock": { ar: "أضف للمخزون", en: "Add to stock" },
+  "restock.customAmount": { ar: "كمية مخصصة", en: "Custom amount" },
+  "restock.confirmRestock": { ar: "تأكيد الإضافة", en: "Confirm" },
+  "restock.blacklist": { ar: "إيقاف التتبع", en: "Stop tracking" },
+  "restock.blacklistConfirm": {
+    ar: "سيتوقف هذا المنتج عن الظهور في قائمة إعادة التخزين حتى تُعيد تفعيله.",
+    en: "This item will stop appearing in the restock queue until you re-enable it.",
+  },
+  "restock.unblacklist": { ar: "إعادة التتبع", en: "Track again" },
+  "restock.blacklistedSection": { ar: "متوقّفة عن التتبع", en: "Not tracked" },
+  "restock.blacklistedEmpty": { ar: "لا عناصر متوقفة عن التتبع", en: "Nothing muted" },
+  "restock.lifetimeSold": { ar: "إجمالي المبيعات", en: "Lifetime sold" },
+  "restock.lastRestocked": { ar: "آخر تعبئة", en: "Last restocked" },
+  "restock.neverRestocked": { ar: "لم تُعبَّأ من قبل", en: "Never restocked" },
+  "restock.recentOrders": { ar: "أحدث الطلبات", en: "Recent orders" },
+  // `dash.kind` is also "نوع المنتج", which put that exact title on two
+  // different boxes side by side. This one names the box that asks HOW a
+  // product is sold, so the two read as the different questions they are.
+  "restock.kindFilter": { ar: "شكل البيع", en: "Sold as" },
+  "restock.loadFailed": { ar: "تعذّر تحميل القائمة", en: "Couldn't load the list" },
+  "restock.needsMigration": {
+    ar: "شغّل docs/restock-queue.sql في Supabase أولاً.",
+    en: "Run docs/restock-queue.sql in Supabase first.",
+  },
+  "restock.soldUnits": { ar: "مباع", en: "sold" },
+  "restock.emptyQueue": { ar: "لا شيء يحتاج تعبئة الآن 🎉", en: "Nothing needs restocking 🎉" },
+  "restock.emptyQueueHint": {
+    ar: "أي منتج يُباع سيظهر هنا تلقائياً.",
+    en: "Anything that sells will show up here automatically.",
+  },
+  "restock.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
+
   // Product editor modal
   "dash.newProduct": { ar: "منتج جديد", en: "New product" },
   "dash.editProduct": { ar: "تعديل المنتج", en: "Edit product" },
@@ -1103,6 +1163,19 @@ export const dict = {
   "product.customUploaded": { ar: "تم رفع صورتك ✓", en: "Image uploaded ✓" },
   "product.tierTable": { ar: "سعر الكمية", en: "Volume pricing" },
   "product.perUnit": { ar: "للقطعة", en: "each" },
+
+  // The by-count price ladder — see components/ui/price-ladder.tsx. The hint is
+  // the load-bearing string: without it a row of "+1 +2 +4" boxes says nothing
+  // about what makes the price move, and the shopper only finds out in the cart.
+  "product.ladderPooled": {
+    ar: "سعر القطعة ينزل كلما زاد عدد القطع — والعدد يُجمع من كل المنتجات المسعّرة حسب العدد في سلتك",
+    en: "The unit price drops as the piece count rises — counted across every by-count product in your cart",
+  },
+  "product.ladderOwn": {
+    ar: "سعر القطعة ينزل كلما زادت الكمية التي تختارها من هذا المنتج",
+    en: "The unit price drops as you pick more of this product",
+  },
+  "product.ladderNow": { ar: "سعرك الآن", en: "Your price now" },
   "offer.endsIn": { ar: "ينتهي خلال", en: "Ends in" },
   "offer.discount": { ar: "خصم", en: "Save" },
   "offer.youSave": { ar: "توفّر", en: "You save" },
@@ -1152,6 +1225,10 @@ export const dict = {
   "checkout.selectProvince": { ar: "اختر المحافظة", en: "Select a province" },
   "aria.prev": { ar: "السابق", en: "Previous" },
   "aria.next": { ar: "التالي", en: "Next" },
+
+  // Disclosure for text the layout had to cut short — see components/ui/expandable-note.tsx.
+  "text.more": { ar: "عرض المزيد", en: "Show more" },
+  "text.less": { ar: "عرض أقل", en: "Show less" },
   "checkout.address": { ar: "العنوان", en: "Address" },
   "checkout.note": { ar: "ملاحظة (اختياري)", en: "Note (optional)" },
   "checkout.confirm": { ar: "تأكيد الطلب", en: "Place order" },

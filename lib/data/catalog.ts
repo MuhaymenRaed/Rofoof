@@ -256,6 +256,8 @@ const SITE_SETTINGS_FALLBACK: SiteSettings = {
   deliveryFeeDefault: 5000,
   deliveryFeeKarbala: 3000,
   deliveryNoticeActive: true,
+  waterproofProductsActive: true,
+  waterproofCustomActive: true,
   statFollowers: "16K",
   statProducts: "75+",
   statRating: "4.9",
@@ -263,24 +265,40 @@ const SITE_SETTINGS_FALLBACK: SiteSettings = {
 
 const SETTINGS_COLUMNS = "delivery_fee_default, delivery_fee_karbala, stat_followers, stat_products, stat_rating";
 
+/**
+ * Column sets to try, richest first, falling back one migration at a time.
+ *
+ * PostgREST rejects the WHOLE select when any one column is unknown, so a
+ * single optimistic-then-base pair would throw away `delivery_notice_active`
+ * (already migrated) the moment the newer waterproof columns were missing.
+ * Stepping down one group at a time keeps whatever the database does have.
+ */
+const SETTINGS_COLUMN_SETS = [
+  `${SETTINGS_COLUMNS}, delivery_notice_active, waterproof_products_active, waterproof_custom_active`,
+  `${SETTINGS_COLUMNS}, delivery_notice_active`,
+  SETTINGS_COLUMNS,
+];
+
 const cachedSiteSettings = unstable_cache(
   async (): Promise<SiteSettings> => {
     const supabase = createAnonClient();
     const read = (columns: string) =>
       supabase.from("settings").select(columns).limit(1).maybeSingle();
 
-    // Same shape as the products read: ask for the new column, and drop back to
-    // the old set if the migration hasn't been run. Without the retry a missing
-    // delivery_notice_active would fail the whole settings read, which is what
-    // the delivery fees and the hero's stat numbers come from.
-    let { data, error } = await read(`${SETTINGS_COLUMNS}, delivery_notice_active`);
-    if (error) ({ data, error } = await read(SETTINGS_COLUMNS));
+    let data: unknown = null;
+    let error: { message?: string } | null = null;
+    for (const columns of SETTINGS_COLUMN_SETS) {
+      ({ data, error } = await read(columns));
+      if (!error) break;
+    }
     if (error) throw error;
     if (!data) return SITE_SETTINGS_FALLBACK;
     const row = data as Partial<{
       delivery_fee_default: number;
       delivery_fee_karbala: number;
       delivery_notice_active: boolean;
+      waterproof_products_active: boolean;
+      waterproof_custom_active: boolean;
       stat_followers: string;
       stat_products: string;
       stat_rating: string;
@@ -290,6 +308,10 @@ const cachedSiteSettings = unstable_cache(
       deliveryFeeKarbala: row.delivery_fee_karbala ?? SITE_SETTINGS_FALLBACK.deliveryFeeKarbala,
       // Absent column → keep showing it, which is what the shop does today.
       deliveryNoticeActive: row.delivery_notice_active ?? true,
+      // Same rule: an un-migrated database keeps offering waterproof exactly as
+      // it does now, rather than silently withdrawing a paid add-on.
+      waterproofProductsActive: row.waterproof_products_active ?? true,
+      waterproofCustomActive: row.waterproof_custom_active ?? true,
       statFollowers: row.stat_followers ?? SITE_SETTINGS_FALLBACK.statFollowers,
       statProducts: row.stat_products ?? SITE_SETTINGS_FALLBACK.statProducts,
       statRating: row.stat_rating ?? SITE_SETTINGS_FALLBACK.statRating,
