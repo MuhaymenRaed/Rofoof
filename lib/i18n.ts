@@ -651,6 +651,13 @@ export const dict = {
     ar: "أي منتج يُباع سيظهر هنا تلقائياً.",
     en: "Anything that sells will show up here automatically.",
   },
+  // Shown in place of the hint above when the queue is empty ONLY because the
+  // sales landed on rows the admin had muted — otherwise the 🎉 above it is a
+  // claim about the shop that isn't true.
+  "restock.emptyButMuted": {
+    ar: "لكن هناك عناصر متوقّفة عن التتبع بيعت منذ آخر تعبئة — افتح القائمة بالأسفل.",
+    en: "But untracked items have sold since their last restock — open the list below.",
+  },
   "restock.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
   // Product editor modal
