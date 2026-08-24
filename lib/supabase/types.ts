@@ -193,6 +193,8 @@ export interface Database {
           restock_blacklisted?: boolean;
           restock_last_qty?: number | null;
           restocked_at?: string | null;
+          restock_dismissed_at?: string | null;
+          restock_tracking_started_at?: string | null;
         } & Timestamps;
         Insert: {
           id: string;
@@ -247,6 +249,8 @@ export interface Database {
           restock_blacklisted?: boolean;
           restock_last_qty?: number | null;
           restocked_at?: string | null;
+          restock_dismissed_at?: string | null;
+          restock_tracking_started_at?: string | null;
         };
         Insert: {
           product_id: string;
@@ -621,6 +625,11 @@ export interface Database {
       };
       admin_set_restock_blacklist: {
         Args: { p_product_id: string; p_item_id: string | null; p_blacklisted: boolean };
+        Returns: Json;
+      };
+      /** Discard one row: no stock change, and it returns on the next sale. */
+      admin_dismiss_restock: {
+        Args: { p_product_id: string; p_item_id: string | null };
         Returns: Json;
       };
       place_custom_request: {

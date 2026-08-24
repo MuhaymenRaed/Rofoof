@@ -4,17 +4,19 @@
 --  HOW TO USE THIS FILE
 --  Open the Supabase SQL editor and run the steps IN ORDER:
 --
---    STEP 1   four tracking columns on products + product_items
+--    STEP 1   six tracking columns on products + product_items
+--    STEP 1B  ONE-TIME: forget every sale that has already happened
 --    STEP 2   admin_restock_queue()        — the list itself
 --    STEP 3   admin_restock_item_detail()  — the row's detail panel
 --    STEP 4   admin_apply_restock()        — the "add to stock" button
 --    STEP 5   admin_set_restock_blacklist()— the blacklist toggle
+--    STEP 6   admin_dismiss_restock()      — the "discard" button
 --
 --  It is safe to run this file more than once — every statement does nothing
 --  if it has already been applied.
 --
 --  Nothing here can break the live site. Until you run it, the dashboard's
---  Restock tab simply shows an empty list instead of erroring — the four
+--  Restock tab simply shows an empty list instead of erroring — the five
 --  functions it calls don't exist yet, and the app already knows how to treat
 --  that as "not tracked" rather than a failure.
 -- ============================================================================
@@ -25,7 +27,7 @@
 --  STEP 1 — Tracking columns for "already restocked" and "stop tracking this"
 -- ============================================================================
 --  WHAT THIS DOES
---  Adds four columns to BOTH products and product_items (a package's designs
+--  Adds six columns to BOTH products and product_items (a package's designs
 --  carry their own stock, so they need their own tracking too):
 --
 --    restock_baseline     how many units-ever-sold had already been dealt
@@ -35,6 +37,16 @@
 --    restock_blacklisted  admin said "stop showing me this one".
 --    restock_last_qty     how many pieces the last restock added (display only).
 --    restocked_at         when that last restock happened (display only).
+--    restock_dismissed_at when the admin last DISCARDED this row — said "leave
+--                          the shelf as it is" without adding stock. Display
+--                          only: the discard itself is just a baseline move,
+--                          exactly like a restock, so the row leaves the queue
+--                          and comes back by itself on the next sale.
+--    restock_tracking_started_at
+--                         when this row's queue tracking began. Display only —
+--                          it is what explains a row reading "lifetime sold 14,
+--                          sold since restock 1". It doubles as STEP 1B's
+--                          once-only marker; see there.
 --
 --  WHY A BASELINE NUMBER INSTEAD OF A "NEEDS RESTOCK" FLAG
 --  This app already has a flag exactly like that — products.sold_out — and it
@@ -52,13 +64,92 @@ alter table public.products
   add column if not exists restock_baseline integer not null default 0,
   add column if not exists restock_blacklisted boolean not null default false,
   add column if not exists restock_last_qty integer,
-  add column if not exists restocked_at timestamptz;
+  add column if not exists restocked_at timestamptz,
+  add column if not exists restock_dismissed_at timestamptz;
 
 alter table public.product_items
   add column if not exists restock_baseline integer not null default 0,
   add column if not exists restock_blacklisted boolean not null default false,
   add column if not exists restock_last_qty integer,
-  add column if not exists restocked_at timestamptz;
+  add column if not exists restocked_at timestamptz,
+  add column if not exists restock_dismissed_at timestamptz;
+
+
+
+-- ============================================================================
+--  STEP 1B — ONE TIME: forget every sale that has already happened
+-- ============================================================================
+--  WHAT THIS DOES
+--  Moves every row's baseline up to its CURRENT lifetime-sold count, so the
+--  queue starts empty and fills up again only from sales made after this
+--  moment. Nothing is deleted and no stock moves — the orders are all still
+--  there; the queue simply stops counting them as demand still owed a restock.
+--
+--  WHY IT IS FENCED OFF
+--  A second run would silently throw away real pending demand: every row an
+--  admin has not restocked YET would be marked as dealt with. So it runs on
+--  the first pass only, and the fence is the restock_tracking_started_at
+--  column this block adds — column already present means the reset has already
+--  happened, so skip. That keeps the promise at the top of this file (safe to
+--  run more than once) true for the one statement here that is not naturally
+--  idempotent.
+--
+--  TO START FROM TODAY AGAIN, DELIBERATELY: run the two UPDATEs below by hand
+--  — they are this block's whole body. For a single row, the dashboard's
+--  Discard button already does exactly this.
+-- ----------------------------------------------------------------------------
+
+do $$
+declare
+  v_first_run boolean := not exists (
+    select 1
+      from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'products'
+       and column_name = 'restock_tracking_started_at'
+  );
+begin
+  -- `default now()` backfills every existing row in the same statement, so the
+  -- column reads "tracking this row started when you ran this file", and any
+  -- product added later carries its own creation moment.
+  alter table public.products
+    add column if not exists restock_tracking_started_at timestamptz not null default now();
+  alter table public.product_items
+    add column if not exists restock_tracking_started_at timestamptz not null default now();
+
+  if not v_first_run then
+    raise notice 'restock STEP 1B skipped — baselines were already reset on an earlier run';
+    return;
+  end if;
+
+  -- Whole products (standard / tiered): the shelf unit is the product row, and
+  -- its sales are the order lines carrying no item_id — the same split
+  -- admin_restock_queue() makes in STEP 2.
+  update public.products p
+     set restock_baseline = s.sold
+    from (
+      select oi.product_id, sum(oi.qty)::int as sold
+        from public.order_items oi
+        join public.orders o on o.id = oi.order_id and o.stock_applied = true
+       where oi.product_id is not null
+         and oi.item_id is null
+       group by oi.product_id
+    ) s
+   where s.product_id = p.id;
+
+  -- Package designs: one shelf unit per product_items row.
+  update public.product_items i
+     set restock_baseline = s.sold
+    from (
+      select oi.product_id, oi.item_id, sum(oi.qty)::int as sold
+        from public.order_items oi
+        join public.orders o on o.id = oi.order_id and o.stock_applied = true
+       where oi.item_id is not null
+       group by oi.product_id, oi.item_id
+    ) s
+   where s.item_id = i.id
+     and s.product_id = i.product_id;
+end $$;
 
 
 
@@ -131,6 +222,7 @@ begin
       p.category_code, p.kind::text as kind, p.stock,
       s.lifetime_sold, s.orders_count, s.last_sold_at,
       p.restock_baseline, p.restock_blacklisted, p.restock_last_qty, p.restocked_at,
+      p.restock_dismissed_at, p.restock_tracking_started_at,
       p.created_at
       from public.products p
       join sold s on s.product_id = p.id and s.item_id is null
@@ -147,6 +239,7 @@ begin
       p.category_code, p.kind::text as kind, i.stock,
       s.lifetime_sold, s.orders_count, s.last_sold_at,
       i.restock_baseline, i.restock_blacklisted, i.restock_last_qty, i.restocked_at,
+      i.restock_dismissed_at, i.restock_tracking_started_at,
       p.created_at
       from public.product_items i
       join public.products p on p.id = i.product_id
@@ -259,8 +352,16 @@ begin
         coalesce(i.stock, p.stock) as stock,
         coalesce(i.restock_baseline, p.restock_baseline) as restock_baseline,
         coalesce(i.restock_blacklisted, p.restock_blacklisted) as restock_blacklisted,
-        coalesce(i.restock_last_qty, p.restock_last_qty) as restock_last_qty,
-        coalesce(i.restocked_at, p.restocked_at) as restocked_at,
+        -- `case when i.id is not null`, not coalesce(), for the four nullable
+        -- ones: a design that has never been restocked or discarded holds NULL,
+        -- and coalesce would then fall through and show the PARENT product's
+        -- dates as if they were this design's own.
+        case when i.id is not null then i.restock_last_qty else p.restock_last_qty end as restock_last_qty,
+        case when i.id is not null then i.restocked_at else p.restocked_at end as restocked_at,
+        case when i.id is not null then i.restock_dismissed_at else p.restock_dismissed_at end
+          as restock_dismissed_at,
+        case when i.id is not null then i.restock_tracking_started_at else p.restock_tracking_started_at end
+          as restock_tracking_started_at,
         p.created_at,
         coalesce(sum(oi.qty) filter (where o.stock_applied), 0)::int as lifetime_sold,
         (count(distinct oi.order_id) filter (where o.stock_applied))::int as orders_count
@@ -340,7 +441,9 @@ begin
        set stock = stock + p_qty,
            restock_baseline = v_lifetime_sold,
            restock_last_qty = p_qty,
-           restocked_at = now()
+           restocked_at = now(),
+           -- A real restock supersedes any earlier "leave it as it is".
+           restock_dismissed_at = null
      where id = p_item_id and product_id = p_product_id;
     if not found then raise exception 'not_found'; end if;
   else
@@ -348,7 +451,8 @@ begin
        set stock = stock + p_qty,
            restock_baseline = v_lifetime_sold,
            restock_last_qty = p_qty,
-           restocked_at = now()
+           restocked_at = now(),
+           restock_dismissed_at = null
      where id = p_product_id;
     if not found then raise exception 'not_found'; end if;
   end if;
@@ -400,4 +504,73 @@ $function$;
 
 grant execute on function public.admin_set_restock_blacklist(text, uuid, boolean)
   to authenticated, service_role;
+-- ============================================================================
+
+
+
+-- ============================================================================
+--  STEP 6 — admin_dismiss_restock()  (the "discard" button)
+-- ============================================================================
+--  The discard button beside each row: "I have looked at this one and I am
+--  leaving the shelf exactly as it is." No stock change, and NOT the
+--  blacklist — the row is only cleared out of today's list. The moment it
+--  sells again it comes back, counting from here.
+--
+--  HOW IT DIFFERS FROM ITS TWO NEIGHBOURS
+--    add to stock   →  stock goes up, baseline catches up, discard note cleared
+--    discard        →  baseline catches up, nothing else moves
+--    stop tracking  →  nothing catches up; the row is muted until un-muted
+--
+--  So a discard is a restock of zero pieces, and it inherits that mechanism's
+--  one good property: it cannot get stuck. Nothing stores "dismissed" as a
+--  state anyone has to remember to clear — the row's own next sale lifts the
+--  baseline above it again and back it comes.
+-- ----------------------------------------------------------------------------
+
+create or replace function public.admin_dismiss_restock(
+  p_product_id text,
+  p_item_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_lifetime_sold int;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden';
+  end if;
+
+  -- Counted exactly the way admin_apply_restock counts it, so "discard" and
+  -- "add to stock" leave the row in the same state as far as the queue is
+  -- concerned. A sale that lands after this read is not forgiven by it — it
+  -- lifts the live count above the baseline we are about to write, and the row
+  -- reappears with that sale on it.
+  select coalesce(sum(oi.qty), 0)::int into v_lifetime_sold
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id and o.stock_applied = true
+   where oi.product_id = p_product_id
+     and ((p_item_id is null and oi.item_id is null) or oi.item_id = p_item_id);
+
+  if p_item_id is not null then
+    update public.product_items
+       set restock_baseline = v_lifetime_sold,
+           restock_dismissed_at = now()
+     where id = p_item_id and product_id = p_product_id;
+    if not found then raise exception 'not_found'; end if;
+  else
+    update public.products
+       set restock_baseline = v_lifetime_sold,
+           restock_dismissed_at = now()
+     where id = p_product_id;
+    if not found then raise exception 'not_found'; end if;
+  end if;
+
+  return jsonb_build_object('ok', true, 'lifetime_sold', v_lifetime_sold);
+end;
+$function$;
+
+grant execute on function public.admin_dismiss_restock(text, uuid) to authenticated, service_role;
 -- ============================================================================

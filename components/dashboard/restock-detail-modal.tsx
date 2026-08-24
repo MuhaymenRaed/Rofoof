@@ -7,6 +7,7 @@ import { X } from "@/components/icons";
 import {
   getRestockItemDetailAction,
   applyRestockAction,
+  dismissRestockAction,
   setRestockBlacklistAction,
 } from "@/lib/actions/restock";
 import type { RestockItemDetail } from "@/lib/data/restock";
@@ -34,6 +35,7 @@ export function RestockDetailModal({
   const [detail, setDetail] = useState<RestockItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [customQty, setCustomQty] = useState(1);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -59,19 +61,33 @@ export function RestockDetailModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function restock(qty: number) {
+  /** Same contract as the row's: on failure the modal stays open and says why. */
+  function run(action: () => Promise<{ ok: boolean; error?: string }>) {
+    setError(null);
     startTransition(async () => {
-      const res = await applyRestockAction({ productId, itemId, qty });
-      if (res.ok) onResolved();
+      const res = await action();
+      if (res.ok) {
+        onResolved();
+        return;
+      }
+      setError(
+        res.error === "migration" ? t("restock.needsMigration") : t("restock.actionFailed"),
+      );
     });
+  }
+
+  function restock(qty: number) {
+    run(() => applyRestockAction({ productId, itemId, qty }));
+  }
+
+  /** Leave the shelf alone; the row comes back by itself on the next sale. */
+  function discard() {
+    run(() => dismissRestockAction({ productId, itemId }));
   }
 
   function blacklist() {
     if (!window.confirm(t("restock.blacklistConfirm"))) return;
-    startTransition(async () => {
-      const res = await setRestockBlacklistAction({ productId, itemId, blacklisted: true });
-      if (res.ok) onResolved();
-    });
+    run(() => setRestockBlacklistAction({ productId, itemId, blacklisted: true }));
   }
 
   const name = detail ? (lang === "ar" ? detail.nameAr : detail.nameEn) : "";
@@ -156,6 +172,19 @@ export function RestockDetailModal({
                     ? `${detail.restockedAt.slice(0, 10)} · +${detail.lastRestockedQty ?? 0}`
                     : t("restock.neverRestocked")}
                 </p>
+                {detail.dismissedAt && (
+                  <p className="mt-1.5 text-[11px] font-bold text-ink-3">
+                    {t("restock.discardedOn")} {detail.dismissedAt.slice(0, 10)}
+                  </p>
+                )}
+                {/* The line that reconciles the two numbers above it: lifetime
+                    sold counts every sale ever, while "sold since restock"
+                    starts here. Without it the pair just looks wrong. */}
+                {detail.trackingStartedAt && (
+                  <p className="mt-1 text-[11px] text-ink-3">
+                    {t("restock.trackingSince")} {detail.trackingStartedAt.slice(0, 10)}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -201,12 +230,25 @@ export function RestockDetailModal({
                 <button
                   type="button"
                   disabled={pending}
+                  onClick={discard}
+                  title={t("restock.discardHint")}
+                  className="tap rounded-xl border border-line px-4 py-2.5 text-xs font-bold text-ink-2 transition hover:border-brand hover:text-brand disabled:opacity-50"
+                >
+                  {t("restock.discard")}
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
                   onClick={blacklist}
                   className="tap rounded-xl border border-line px-4 py-2.5 text-xs font-bold text-ink-2 transition hover:border-red-500 hover:text-red-500 disabled:opacity-50"
                 >
                   {t("restock.blacklist")}
                 </button>
+                {error && (
+                  <p className="w-full text-[11px] font-bold text-red-500">{error}</p>
+                )}
               </div>
+              <p className="text-[11px] text-ink-3">{t("restock.discardHint")}</p>
             </>
           )}
         </div>

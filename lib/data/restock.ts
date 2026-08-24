@@ -36,6 +36,15 @@ export interface RestockQueueItem {
   blacklisted: boolean;
   lastRestockedQty: number | null;
   restockedAt: string | null;
+  /**
+   * When the admin last discarded this row — "leave the shelf as it is". A row
+   * carrying one is a row that came BACK: it was discarded, and has sold again
+   * since. Null until docs/restock-queue.sql STEP 6 has been run, so read it as
+   * "unknown", never as "never discarded".
+   */
+  dismissedAt: string | null;
+  /** When this row started being counted at all (STEP 1B's "start from now"). */
+  trackingStartedAt: string | null;
   createdAt: string;
 }
 
@@ -70,13 +79,13 @@ export interface RestockQueuePage {
  * migrated yet" would tell the admin to run SQL they have already run, while
  * hiding the actual message that says what is wrong.
  */
-function isMissingRestockFn(error: { code?: string; message?: string } | null): boolean {
+export function isMissingRestockFn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   // PostgREST couldn't find the function at all (not in its schema cache).
   if (error.code === "PGRST202") return true;
   return (
     error.code === "42883" &&
-    /admin_restock_queue|admin_restock_item_detail|admin_apply_restock|admin_set_restock_blacklist/i.test(
+    /admin_restock_queue|admin_restock_item_detail|admin_apply_restock|admin_set_restock_blacklist|admin_dismiss_restock/i.test(
       error.message ?? "",
     )
   );
@@ -100,6 +109,11 @@ interface RestockRow {
   restock_blacklisted: boolean | null;
   restock_last_qty: number | null;
   restocked_at: string | null;
+  // Optional, not `| null`: these two arrive only once STEP 1B/STEP 6 of
+  // docs/restock-queue.sql have been run. The queue keeps working without
+  // them — see the fallbacks in mapRestockRow.
+  restock_dismissed_at?: string | null;
+  restock_tracking_started_at?: string | null;
   created_at: string;
   recent_orders?: { code: string; created_at: string; qty: number }[];
 }
@@ -125,6 +139,8 @@ function mapRestockRow(row: RestockRow): RestockQueueItem {
     blacklisted: Boolean(row.restock_blacklisted),
     lastRestockedQty: row.restock_last_qty,
     restockedAt: row.restocked_at,
+    dismissedAt: row.restock_dismissed_at ?? null,
+    trackingStartedAt: row.restock_tracking_started_at ?? null,
     createdAt: row.created_at,
   };
 }
