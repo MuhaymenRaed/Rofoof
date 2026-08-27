@@ -12,6 +12,7 @@ export async function getUserOrders(userId: string): Promise<Order[]> {
     .from("orders")
     .select(ORDER_SELECT)
     .eq("user_id", userId)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -31,11 +32,15 @@ export interface OrdersPage {
  * gates this). Fetches `limit + 1` rows to detect `hasMore` without a
  * separate count query, then trims back to `limit`.
  */
-export async function getAllOrders(offset = 0, limit = 40): Promise<OrdersPage> {
+export async function getAllOrders(
+  offset = 0,
+  limit = 40,
+): Promise<OrdersPage> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("orders")
     .select(ORDER_SELECT)
+    .eq("is_deleted", false)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit); // limit + 1 rows
 

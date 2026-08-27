@@ -5,7 +5,13 @@
  *   npx supabase gen types typescript --project-id kzcsriqzxgcdeikjmivg > lib/supabase/types.ts
  */
 
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export type BadgeType = "bestseller" | "new" | "waterproof";
 export type OrderStatusDb = "review" | "accepted" | "shipped" | "delivered";
@@ -20,8 +26,18 @@ export interface Database {
   public: {
     Tables: {
       provinces: {
-        Row: { code: string; name_ar: string; name_en: string; sort_order: number };
-        Insert: { code: string; name_ar: string; name_en: string; sort_order?: number };
+        Row: {
+          code: string;
+          name_ar: string;
+          name_en: string;
+          sort_order: number;
+        };
+        Insert: {
+          code: string;
+          name_ar: string;
+          name_en: string;
+          sort_order?: number;
+        };
         Update: Partial<Database["public"]["Tables"]["provinces"]["Insert"]>;
         Relationships: [];
       };
@@ -110,7 +126,11 @@ export interface Database {
           ends_at?: string | null;
           is_deleted?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["coupons"]["Insert"]>;
+        // `used_count` is written by the redemption ledger (lib/coupon-guard),
+        // never by an admin form — hence Update-only, not part of Insert.
+        Update: Partial<Database["public"]["Tables"]["coupons"]["Insert"]> & {
+          used_count?: number;
+        };
         Relationships: [];
       };
       coupon_redemptions: {
@@ -120,9 +140,20 @@ export interface Database {
           user_id: string | null;
           order_code: string | null;
           created_at: string;
+          /** Added by docs/coupon-device-limits.sql — see lib/coupon-guard.ts. */
+          device_id?: string | null;
+          customer_phone?: string | null;
         };
-        Insert: { coupon_code: string; user_id?: string | null; order_code?: string | null };
-        Update: Partial<Database["public"]["Tables"]["coupon_redemptions"]["Insert"]>;
+        Insert: {
+          coupon_code: string;
+          user_id?: string | null;
+          order_code?: string | null;
+          device_id?: string | null;
+          customer_phone?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["coupon_redemptions"]["Insert"]
+        >;
         Relationships: [];
       };
       volume_tiers: {
@@ -132,7 +163,12 @@ export interface Database {
         Relationships: [];
       };
       login_attempts: {
-        Row: { id: number; identifier: string; success: boolean; created_at: string };
+        Row: {
+          id: number;
+          identifier: string;
+          success: boolean;
+          created_at: string;
+        };
         Insert: { identifier: string; success?: boolean };
         Update: Partial<{ identifier: string; success: boolean }>;
         Relationships: [];
@@ -262,7 +298,9 @@ export interface Database {
           sort_order?: number;
           is_active?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["product_items"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["product_items"]["Insert"]
+        >;
         Relationships: [];
       };
       subcategories: {
@@ -283,7 +321,9 @@ export interface Database {
           sort_order?: number;
           is_deleted?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["subcategories"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["subcategories"]["Insert"]
+        >;
         Relationships: [];
       };
       product_subcategories: {
@@ -385,13 +425,19 @@ export interface Database {
           link_value?: string | null;
           is_deleted?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["featured_groups"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["featured_groups"]["Insert"]
+        >;
         Relationships: [];
       };
       featured_group_products: {
         Row: { group_id: string; product_id: string; sort_order: number };
         Insert: { group_id: string; product_id: string; sort_order?: number };
-        Update: Partial<{ group_id: string; product_id: string; sort_order: number }>;
+        Update: Partial<{
+          group_id: string;
+          product_id: string;
+          sort_order: number;
+        }>;
         Relationships: [];
       };
       product_categories: {
@@ -429,6 +475,7 @@ export interface Database {
           custom_type: string | null;
           custom_images: string[];
           custom_waterproof: boolean;
+          is_deleted: boolean;
         } & Timestamps;
         Insert: {
           user_id?: string | null;
@@ -442,8 +489,11 @@ export interface Database {
           coupon_code?: string | null;
           delivery_fee?: number;
           discount_total?: number;
+          is_deleted?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]> & { status?: OrderStatusDb };
+        Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]> & {
+          status?: OrderStatusDb;
+        };
         Relationships: [];
       };
       order_items: {
@@ -561,13 +611,20 @@ export interface Database {
     };
     Views: {
       daily_revenue: {
-        Row: { day: string | null; revenue: number | null; orders: number | null };
+        Row: {
+          day: string | null;
+          revenue: number | null;
+          orders: number | null;
+        };
         Relationships: [];
       };
     };
     Functions: {
       cancel_order: { Args: { p_code: string }; Returns: boolean };
-      preview_coupon: { Args: { p_code: string; p_subtotal: number }; Returns: Json };
+      preview_coupon: {
+        Args: { p_code: string; p_subtotal: number };
+        Returns: Json;
+      };
       search_products: {
         Args: { search_term: string; match_limit?: number };
         Returns: { id: string; score: number }[];
@@ -587,21 +644,39 @@ export interface Database {
         Returns: Json;
       };
       dashboard_stats: { Args: Record<string, never>; Returns: Json };
-      admin_customers: { Args: { p_limit: number; p_offset: number }; Returns: Json };
-      admin_set_product_categories: { Args: { p_id: string; p_codes: string[] }; Returns: string[] };
+      admin_customers: {
+        Args: { p_limit: number; p_offset: number };
+        Returns: Json;
+      };
+      admin_set_product_categories: {
+        Args: { p_id: string; p_codes: string[] };
+        Returns: string[];
+      };
       admin_create_category: {
         Args: { p_code: string; p_name_ar: string; p_name_en: string };
         Returns: Json;
       };
-      admin_set_product_fandoms: { Args: { p_id: string; p_codes: string[] }; Returns: string[] };
+      admin_set_product_fandoms: {
+        Args: { p_id: string; p_codes: string[] };
+        Returns: string[];
+      };
       admin_create_fandom: {
         Args: { p_code: string; p_name_ar: string; p_name_en: string };
         Returns: Json;
       };
-      admin_set_product_items: { Args: { p_id: string; p_items: Json }; Returns: number };
+      admin_set_product_items: {
+        Args: { p_id: string; p_items: Json };
+        Returns: number;
+      };
       /** move an order's pieces off the shelf (true) or put them back (false) */
-      admin_set_order_stock: { Args: { p_code: string; p_apply: boolean }; Returns: Json };
-      admin_set_price_tiers: { Args: { p_id: string; p_tiers: Json }; Returns: number };
+      admin_set_order_stock: {
+        Args: { p_code: string; p_apply: boolean };
+        Returns: Json;
+      };
+      admin_set_price_tiers: {
+        Args: { p_id: string; p_tiers: Json };
+        Returns: number;
+      };
       /** The restock queue list — see docs/restock-queue.sql. */
       admin_restock_queue: {
         Args: {
@@ -624,7 +699,11 @@ export interface Database {
         Returns: Json;
       };
       admin_set_restock_blacklist: {
-        Args: { p_product_id: string; p_item_id: string | null; p_blacklisted: boolean };
+        Args: {
+          p_product_id: string;
+          p_item_id: string | null;
+          p_blacklisted: boolean;
+        };
         Returns: Json;
       };
       /** Discard one row: no stock change, and it returns on the next sale. */
@@ -649,7 +728,10 @@ export interface Database {
       /** Guest order lookup by code + phone (SECURITY DEFINER); null on mismatch. */
       track_order: { Args: { p_code: string; p_phone: string }; Returns: Json };
       /** Guest order cancel by code + phone (SECURITY DEFINER); null on mismatch. */
-      cancel_order_guest: { Args: { p_code: string; p_phone: string }; Returns: Json };
+      cancel_order_guest: {
+        Args: { p_code: string; p_phone: string };
+        Returns: Json;
+      };
     };
     Enums: {
       badge_type: BadgeType;

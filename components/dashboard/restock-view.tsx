@@ -114,8 +114,77 @@ export function RestockView({
     return { items: page.items, hasMore: page.hasMore };
   });
 
+  /**
+   * The muted list, fetched HERE rather than inside the collapsed section it
+   * belongs to — because its count has to be known while that section is still
+   * shut. A sale on a muted row is otherwise completely invisible: the queue
+   * says "nothing needs restocking 🎉" and the silent "not tracked" header
+   * below it gives no hint that the sale landed in there.
+   *
+   * `mutedVersion` is bumped by every action that resolves a row, so muting
+   * something from the queue lands in this list straight away instead of on
+   * the next full reload.
+   */
+  const [muted, setMuted] = useState<{ items: RestockQueueItem[] | null; hasMore: boolean }>({
+    items: null,
+    hasMore: false,
+  });
+  const [mutedVersion, setMutedVersion] = useState(0);
+  useEffect(() => {
+    let active = true;
+    startTransition(async () => {
+      const page = await loadMoreRestockQueueAction(0, { ...filters, blacklisted: true });
+      if (active) setMuted({ items: page.items, hasMore: page.hasMore });
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey(filters), mutedVersion]);
+
+  /** Muted rows that have sold since their last restock — the ones worth a badge. */
+  const mutedPending = (muted.items ?? []).filter((r) => r.soldSinceRestock > 0).length;
+
   function resolveRow(productId: string, itemId: string | null) {
     setList((prev) => prev.filter((r) => !(r.productId === productId && r.itemId === itemId)));
+    setMutedVersion((v) => v + 1);
+  }
+
+  function loadMoreMuted() {
+    startTransition(async () => {
+      const page = await loadMoreRestockQueueAction(muted.items?.length ?? 0, {
+        ...filters,
+        blacklisted: true,
+      });
+      setMuted((prev) => ({
+        items: [...(prev.items ?? []), ...page.items],
+        hasMore: page.hasMore,
+      }));
+    });
+  }
+
+  /**
+   * Un-mute a row: take it out of the muted list and, when it has demand
+   * waiting, hand it straight to the queue above.
+   *
+   * That second half is not a nicety. The server revalidates, but this list is
+   * seeded into state once and never re-reads its props, so an un-muted row
+   * with pending sales went nowhere the admin could see until a full page
+   * reload — which is indistinguishable from the button doing nothing.
+   */
+  function untrack(row: RestockQueueItem) {
+    setMuted((prev) => ({
+      ...prev,
+      items: (prev.items ?? []).filter(
+        (r) => !(r.productId === row.productId && r.itemId === row.itemId),
+      ),
+    }));
+    if (row.soldSinceRestock <= 0) return;
+    setList((prev) =>
+      prev.some((r) => r.productId === row.productId && r.itemId === row.itemId)
+        ? prev
+        : [{ ...row, blacklisted: false }, ...prev],
+    );
   }
 
   function toggleCategory(code: string) {
@@ -249,7 +318,12 @@ export function RestockView({
         ) : list.length === 0 ? (
           <div className="py-6">
             <p className="text-sm font-extrabold text-ink">{t("restock.emptyQueue")}</p>
-            <p className="mt-1 text-[11px] text-ink-3">{t("restock.emptyQueueHint")}</p>
+            {/* The queue really is empty — but "nothing needs restocking" is
+                only half true while a muted row has sales on it, so say where
+                they went rather than leaving the admin to find them. */}
+            <p className="mt-1 text-[11px] text-ink-3">
+              {mutedPending > 0 ? t("restock.emptyButMuted") : t("restock.emptyQueueHint")}
+            </p>
           </div>
         ) : hasMore ? (
           t("dash.loadingMore")
@@ -258,7 +332,13 @@ export function RestockView({
         )}
       </div>
 
-      <BlacklistSection filters={filters} onResolved={resolveRow} />
+      <BlacklistSection
+        items={muted.items}
+        hasMore={muted.hasMore}
+        pendingCount={mutedPending}
+        onLoadMore={loadMoreMuted}
+        onUntrack={untrack}
+      />
 
       {detail && (
         <RestockDetailModal
@@ -538,31 +618,23 @@ function RestockRow({
 }
 
 function BlacklistSection({
-  filters,
-  onResolved,
+  items,
+  hasMore,
+  pendingCount,
+  onLoadMore,
+  onUntrack,
 }: {
-  filters: RestockFilters;
-  onResolved: (productId: string, itemId: string | null) => void;
+  /** null while the first page is still in flight. */
+  items: RestockQueueItem[] | null;
+  hasMore: boolean;
+  /** Muted rows with sales waiting on them — 0 hides the badge entirely. */
+  pendingCount: number;
+  onLoadMore: () => void;
+  onUntrack: (row: RestockQueueItem) => void;
 }) {
   const { t, lang, categoryLabel } = useStore();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<RestockQueueItem[] | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [pending, startTransition] = useTransition();
-
-  function load(offset: number) {
-    startTransition(async () => {
-      const page = await loadMoreRestockQueueAction(offset, { ...filters, blacklisted: true });
-      setItems((prev) => (offset === 0 ? page.items : [...(prev ?? []), ...page.items]));
-      setHasMore(page.hasMore);
-    });
-  }
-
-  function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && items === null) load(0);
-  }
 
   function unblacklist(row: RestockQueueItem) {
     startTransition(async () => {
@@ -571,10 +643,7 @@ function BlacklistSection({
         itemId: row.itemId,
         blacklisted: false,
       });
-      if (res.ok) {
-        setItems((prev) => (prev ?? []).filter((r) => r !== row));
-        onResolved(row.productId, row.itemId);
-      }
+      if (res.ok) onUntrack(row);
     });
   }
 
@@ -582,15 +651,29 @@ function BlacklistSection({
     <div className="border-t border-line-2">
       <button
         type="button"
-        onClick={toggle}
+        onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className="tap flex w-full items-center justify-between px-5 py-3 text-xs font-bold text-ink-2 transition hover:text-ink"
       >
-        {t("restock.blacklistedSection")}
+        {/* The badge is the whole reason this list loads before it is opened:
+            shut and silent, this header is where a sale on a muted row goes to
+            disappear. `+` when there are more pages than the one counted. */}
+        <span className="flex items-center gap-2">
+          {t("restock.blacklistedSection")}
+          {pendingCount > 0 && (
+            <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-black text-amber-600">
+              {pendingCount}
+              {hasMore ? "+" : ""} {t("restock.soldUnits")}
+            </span>
+          )}
+        </span>
         <ChevronDown size={14} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <ul className="divide-y divide-line-2 border-t border-line-2">
+          {items === null && (
+            <li className="p-5 text-center text-[11px] text-ink-3">{t("dash.loadingMore")}</li>
+          )}
           {items !== null && items.length === 0 && (
             <li className="p-5 text-center text-[11px] text-ink-3">{t("restock.blacklistedEmpty")}</li>
           )}
@@ -615,7 +698,17 @@ function BlacklistSection({
                   <span className="block truncate text-[12px] font-bold text-ink">
                     {itemName ? `${name} — ${itemName}` : name}
                   </span>
-                  <span className="text-[10px] font-bold text-ink-3">{categoryLabel(row.categoryCode)}</span>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-ink-3">
+                      {categoryLabel(row.categoryCode)}
+                    </span>
+                    {/* Which of the muted rows actually sold, and how much. */}
+                    {row.soldSinceRestock > 0 && (
+                      <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-black text-amber-600">
+                        {t("restock.soldSince")}: {row.soldSinceRestock}
+                      </span>
+                    )}
+                  </span>
                 </span>
                 <button
                   type="button"
@@ -633,7 +726,7 @@ function BlacklistSection({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => load(items?.length ?? 0)}
+                onClick={onLoadMore}
                 className="tap text-[11px] font-bold text-brand hover:opacity-80 disabled:opacity-50"
               >
                 {t("dash.loadingMore")}

@@ -651,6 +651,13 @@ export const dict = {
     ar: "أي منتج يُباع سيظهر هنا تلقائياً.",
     en: "Anything that sells will show up here automatically.",
   },
+  // Shown in place of the hint above when the queue is empty ONLY because the
+  // sales landed on rows the admin had muted — otherwise the 🎉 above it is a
+  // claim about the shop that isn't true.
+  "restock.emptyButMuted": {
+    ar: "لكن هناك عناصر متوقّفة عن التتبع بيعت منذ آخر تعبئة — افتح القائمة بالأسفل.",
+    en: "But untracked items have sold since their last restock — open the list below.",
+  },
   "restock.viewDetails": { ar: "عرض التفاصيل", en: "View details" },
 
   // Product editor modal
@@ -827,6 +834,12 @@ export const dict = {
   "cart.couponLogin": {
     ar: "سجّل الدخول لاستخدام هذا الكود",
     en: "Sign in to use this code",
+  },
+  // The per-customer cap, which now binds to the device (and, at checkout, to
+  // the phone number) rather than only to an account — see lib/coupon-guard.ts.
+  "cart.couponDeviceUsed": {
+    ar: "سبق أن استُخدم هذا الكود على هذا الجهاز — لا يمكن استخدامه مرة أخرى",
+    en: "This code has already been used on this device — it can't be used again",
   },
   "cart.couponScoped": {
     ar: "يطبَّق على منتجات محددة — يُحتسب النهائي عند الإتمام",

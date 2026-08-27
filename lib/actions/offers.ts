@@ -97,8 +97,8 @@ export async function createOfferAction(
     buy_qty: o.kind === "bundle" ? o.buyQty : null,
     free_qty: o.kind === "bundle" ? o.freeQty : null,
     min_cart_total: "minCartTotal" in o ? o.minCartTotal : null,
-    percent: "percent" in o ? o.percent ?? null : null,
-    fixed_amount: o.kind === "cart_percent" ? o.fixedAmount ?? null : null,
+    percent: "percent" in o ? (o.percent ?? null) : null,
+    fixed_amount: o.kind === "cart_percent" ? (o.fixedAmount ?? null) : null,
     delivery_fee: o.kind === "cart_delivery" ? o.deliveryFee : null,
     starts_at: o.startsAt ?? null,
     ends_at: o.endsAt ?? null,
@@ -116,14 +116,19 @@ export async function setOfferActiveAction(
 ): Promise<{ ok: boolean; error?: string }> {
   await requireAdmin();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("offers").update({ active }).eq("id", id);
+  const { error } = await supabase
+    .from("offers")
+    .update({ active })
+    .eq("id", id);
   if (error) return { ok: false, error: error.message };
 
   revalidateOffers();
   return { ok: true };
 }
 
-export async function deleteOfferAction(id: string): Promise<{ ok: boolean; error?: string }> {
+export async function deleteOfferAction(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
   await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
@@ -184,13 +189,18 @@ export async function getAdminCoupons(): Promise<AdminCoupon[]> {
 
 /** Resolve customer emails → auth user ids so a coupon can target people. */
 async function resolveUserIds(emails: string[]): Promise<string[]> {
-  const wanted = new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean));
+  const wanted = new Set(
+    emails.map((e) => e.trim().toLowerCase()).filter(Boolean),
+  );
   if (wanted.size === 0) return [];
 
   const supabase = createAdminClient();
   const ids: string[] = [];
   for (let page = 1; page <= 10; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
     if (error || !data?.users?.length) break;
     for (const u of data.users) {
       if (u.email && wanted.has(u.email.toLowerCase())) ids.push(u.id);
@@ -215,9 +225,17 @@ const createCouponSchema = z.object({
   usageLimit: z.number().int().min(1).max(1_000_000).nullable().optional(),
   perUserLimit: z.number().int().min(1).max(1000).nullable().optional(),
   /** empty = applies to the whole cart */
-  productIds: z.array(z.string().trim().min(1).max(60)).max(50).optional().default([]),
+  productIds: z
+    .array(z.string().trim().min(1).max(60))
+    .max(50)
+    .optional()
+    .default([]),
   /** empty = everyone */
-  targetEmails: z.array(z.string().trim().email().max(160)).max(200).optional().default([]),
+  targetEmails: z
+    .array(z.string().trim().email().max(160))
+    .max(200)
+    .optional()
+    .default([]),
   startsAt: z.string().datetime().nullable().optional(),
   endsAt: z.string().datetime().nullable().optional(),
 });
@@ -231,7 +249,8 @@ export async function createCouponAction(
   const parsed = createCouponSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_input" };
   const c = parsed.data;
-  if (c.discountType === "percent" && c.value > 90) return { ok: false, error: "invalid_input" };
+  if (c.discountType === "percent" && c.value > 90)
+    return { ok: false, error: "invalid_input" };
 
   const targetUserIds = await resolveUserIds(c.targetEmails);
   // Asked to target specific people but none matched → refuse rather than
@@ -241,6 +260,38 @@ export async function createCouponAction(
   }
 
   const supabase = createAdminClient();
+  // A soft-deleted coupon keeps its code unique. Reuse that row when an admin
+  // creates the same code again instead of trying to insert a duplicate.
+  const { data: deletedCoupon } = await supabase
+    .from("coupons")
+    .select("code")
+    .eq("code", c.code.toUpperCase())
+    .eq("is_deleted", true)
+    .maybeSingle();
+  if (deletedCoupon) {
+    const { error } = await supabase
+      .from("coupons")
+      .update({
+        title: c.title || null,
+        discount_type: c.discountType,
+        value: c.value,
+        min_subtotal: c.minSubtotal,
+        usage_limit: c.usageLimit ?? null,
+        per_user_limit: c.perUserLimit ?? null,
+        product_ids: c.productIds.length > 0 ? c.productIds : null,
+        target_user_ids: targetUserIds.length > 0 ? targetUserIds : null,
+        starts_at: c.startsAt ?? null,
+        ends_at: c.endsAt ?? null,
+        active: true,
+        is_deleted: false,
+      })
+      .eq("code", c.code.toUpperCase())
+      .eq("is_deleted", true);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/dashboard/offers");
+    return { ok: true };
+  }
+
   const { error } = await supabase.from("coupons").insert({
     code: c.code.toUpperCase(),
     title: c.title || null,
@@ -267,13 +318,18 @@ export async function setCouponActiveAction(
 ): Promise<{ ok: boolean; error?: string }> {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("coupons").update({ active }).eq("code", code);
+  const { error } = await supabase
+    .from("coupons")
+    .update({ active })
+    .eq("code", code);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/dashboard/offers");
   return { ok: true };
 }
 
-export async function deleteCouponAction(code: string): Promise<{ ok: boolean; error?: string }> {
+export async function deleteCouponAction(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
   await requireAdmin();
   const supabase = createAdminClient();
   const { error } = await supabase
@@ -312,12 +368,17 @@ export async function updateVolumeTiersAction(input: {
   if (!parsed.success) return { ok: false, error: "invalid_input" };
 
   // One row per minQty, ascending — the pricing lookup assumes both.
-  const rows = Array.from(new Map(parsed.data.tiers.map((t) => [t.minQty, t])).values())
+  const rows = Array.from(
+    new Map(parsed.data.tiers.map((t) => [t.minQty, t])).values(),
+  )
     .sort((a, b) => a.minQty - b.minQty)
     .map((t) => ({ min_qty: t.minQty, unit_price: t.unitPrice }));
 
   const supabase = createAdminClient();
-  const { error: delErr } = await supabase.from("volume_tiers").delete().gte("min_qty", 0);
+  const { error: delErr } = await supabase
+    .from("volume_tiers")
+    .delete()
+    .gte("min_qty", 0);
   if (delErr) return { ok: false, error: delErr.message };
   const { error } = await supabase.from("volume_tiers").insert(rows);
   if (error) return { ok: false, error: error.message };
@@ -360,7 +421,11 @@ export async function updateDeliveryFeesAction(input: {
     .from("settings")
     .update({ delivery_notice_active: parsed.data.deliveryNoticeActive })
     .eq("id", true);
-  if (noticeErr && noticeErr.code !== "42703" && !/delivery_notice_active/.test(noticeErr.message)) {
+  if (
+    noticeErr &&
+    noticeErr.code !== "42703" &&
+    !/delivery_notice_active/.test(noticeErr.message)
+  ) {
     return { ok: false, error: noticeErr.message };
   }
 
@@ -405,7 +470,10 @@ export async function updateWaterproofSettingsAction(input: {
     })
     .eq("id", true);
   if (error) {
-    if (error.code === "42703" || /waterproof_(products|custom)_active/.test(error.message)) {
+    if (
+      error.code === "42703" ||
+      /waterproof_(products|custom)_active/.test(error.message)
+    ) {
       return { ok: false, error: "migration_missing" };
     }
     return { ok: false, error: error.message };

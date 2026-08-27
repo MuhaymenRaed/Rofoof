@@ -29,6 +29,7 @@ import { QuickViewModal } from "@/components/layout/quick-view-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { InstallPrompt } from "@/components/layout/install-prompt";
 import { OfflineBanner } from "@/components/layout/offline-banner";
+import { DeviceIdKeeper } from "@/components/layout/device-id-keeper";
 import { TourProvider } from "@/components/tour/tour-provider";
 
 const cairo = Cairo({
@@ -192,6 +193,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 </div>
                 <MobileTabBar />
                 <OfflineBanner />
+                {/* Renders nothing — keeps the coupon device marker alive */}
+                <DeviceIdKeeper />
                 <CartDrawer />
                 <QuickViewModal />
                 <CustomRequestModal />

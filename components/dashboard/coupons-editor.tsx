@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { Plus, Trash, Percent } from "@/components/icons";
+import { Plus, Trash, Percent, Check } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
 import {
   createCouponAction,
@@ -18,15 +18,23 @@ import {
  * and which products it applies to. place_order() enforces every one of these
  * server-side and records a redemption row.
  */
-export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[] }) {
+export function CouponsEditor({
+  initialCoupons,
+}: {
+  initialCoupons: AdminCoupon[];
+}) {
   const { t, lang, products } = useStore();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [coupons, setCoupons] = useState(initialCoupons);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [code, setCode] = useState("");
-  const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
+  const [discountType, setDiscountType] = useState<"percent" | "fixed">(
+    "percent",
+  );
   const [value, setValue] = useState("10");
   const [minSubtotal, setMinSubtotal] = useState("0");
   const [usageLimit, setUsageLimit] = useState("");
@@ -55,8 +63,14 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
         discountType,
         value: Math.max(1, Number(value) || 0),
         minSubtotal: Math.max(0, Number(minSubtotal) || 0),
-        usageLimit: usageLimit.trim() === "" ? null : Math.max(1, Number(usageLimit) || 1),
-        perUserLimit: perUserLimit.trim() === "" ? null : Math.max(1, Number(perUserLimit) || 1),
+        usageLimit:
+          usageLimit.trim() === ""
+            ? null
+            : Math.max(1, Number(usageLimit) || 1),
+        perUserLimit:
+          perUserLimit.trim() === ""
+            ? null
+            : Math.max(1, Number(perUserLimit) || 1),
         productIds,
         targetEmails: emails
           .split(/[,\s]+/)
@@ -66,18 +80,46 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
       });
       if (!res.ok) {
         setError(
-          res.error === "no_matching_users" ? t("dash.couponNoUsers") : res.error ?? t("checkout.error"),
+          res.error === "no_matching_users"
+            ? t("dash.couponNoUsers")
+            : (res.error ?? t("checkout.error")),
         );
         return;
       }
       reset();
       setOpen(false);
+      setCoupons((prev) => [
+        {
+          code: code.trim().toUpperCase(),
+          discountType,
+          value: Math.max(1, Number(value) || 0),
+          minSubtotal: Math.max(0, Number(minSubtotal) || 0),
+          active: true,
+          usageLimit:
+            usageLimit.trim() === ""
+              ? null
+              : Math.max(1, Number(usageLimit) || 1),
+          usedCount: 0,
+          perUserLimit:
+            perUserLimit.trim() === ""
+              ? null
+              : Math.max(1, Number(perUserLimit) || 1),
+          targetUserIds: null,
+          productIds: productIds.length > 0 ? productIds : null,
+          title: null,
+          startsAt: null,
+          endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+        },
+        ...prev.filter((coupon) => coupon.code !== code.trim().toUpperCase()),
+      ]);
       router.refresh();
     });
   }
 
   function toggleProduct(id: string) {
-    setProductIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+    setProductIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
   }
 
   return (
@@ -101,7 +143,9 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
         <div className="space-y-3 border-b border-line-2 bg-surface-2/40 p-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-bold text-ink-2">{t("cart.coupon")}</span>
+              <span className="mb-1.5 block text-xs font-bold text-ink-2">
+                {t("cart.coupon")}
+              </span>
               <input
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -197,7 +241,9 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-ink-2">
               {t("dash.couponTargets")}
-              <span className="ms-2 font-semibold text-ink-3">{t("dash.couponTargetsHint")}</span>
+              <span className="ms-2 font-semibold text-ink-3">
+                {t("dash.couponTargetsHint")}
+              </span>
             </span>
             <input
               value={emails}
@@ -211,7 +257,9 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
           <div>
             <span className="mb-1.5 block text-xs font-bold text-ink-2">
               {t("dash.couponProducts")}
-              <span className="ms-2 font-semibold text-ink-3">{t("dash.couponProductsHint")}</span>
+              <span className="ms-2 font-semibold text-ink-3">
+                {t("dash.couponProductsHint")}
+              </span>
             </span>
             <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
               {products.map((p) => {
@@ -261,12 +309,17 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
         </div>
       )}
 
-      {initialCoupons.length === 0 ? (
-        <p className="py-10 text-center text-sm text-ink-3">{t("dash.empty")}</p>
+      {coupons.length === 0 ? (
+        <p className="py-10 text-center text-sm text-ink-3">
+          {t("dash.empty")}
+        </p>
       ) : (
         <ul className="divide-y divide-line-2">
-          {initialCoupons.map((c) => (
-            <li key={c.code} className="flex flex-wrap items-center gap-3 p-4 sm:px-5">
+          {coupons.map((c) => (
+            <li
+              key={c.code}
+              className="flex flex-wrap items-center gap-3 p-4 sm:px-5"
+            >
               <span
                 dir="ltr"
                 className="rounded-lg bg-surface-2 px-2.5 py-1 text-xs font-black text-ink"
@@ -279,17 +332,28 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
                   : `-${formatPrice(c.value, lang)}`}
               </span>
               <span className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-ink-3">
-                {c.minSubtotal > 0 && <span>≥ {formatPrice(c.minSubtotal, lang)}</span>}
+                {c.minSubtotal > 0 && (
+                  <span>≥ {formatPrice(c.minSubtotal, lang)}</span>
+                )}
                 <span>
                   {c.usedCount}
-                  {c.usageLimit ? `/${c.usageLimit}` : ""} {t("dash.couponUsed")}
+                  {c.usageLimit ? `/${c.usageLimit}` : ""}{" "}
+                  {t("dash.couponUsed")}
                 </span>
-                {c.perUserLimit && <span>· {c.perUserLimit}/{t("dash.couponPerUserShort")}</span>}
+                {c.perUserLimit && (
+                  <span>
+                    · {c.perUserLimit}/{t("dash.couponPerUserShort")}
+                  </span>
+                )}
                 {c.targetUserIds && c.targetUserIds.length > 0 && (
-                  <span>· {c.targetUserIds.length} {t("dash.couponTargetsShort")}</span>
+                  <span>
+                    · {c.targetUserIds.length} {t("dash.couponTargetsShort")}
+                  </span>
                 )}
                 {c.productIds && c.productIds.length > 0 && (
-                  <span>· {c.productIds.length} {t("dash.couponProductsShort")}</span>
+                  <span>
+                    · {c.productIds.length} {t("dash.couponProductsShort")}
+                  </span>
                 )}
                 {c.endsAt && <span dir="ltr">· {c.endsAt.slice(0, 10)}</span>}
               </span>
@@ -301,7 +365,28 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
                   aria-checked={c.active}
                   onClick={() =>
                     startTransition(async () => {
-                      await setCouponActiveAction(c.code, !c.active);
+                      const nextActive = !c.active;
+                      setCoupons((prev) =>
+                        prev.map((coupon) =>
+                          coupon.code === c.code
+                            ? { ...coupon, active: nextActive }
+                            : coupon,
+                        ),
+                      );
+                      const res = await setCouponActiveAction(
+                        c.code,
+                        nextActive,
+                      );
+                      if (!res.ok) {
+                        setCoupons((prev) =>
+                          prev.map((coupon) =>
+                            coupon.code === c.code
+                              ? { ...coupon, active: c.active }
+                              : coupon,
+                          ),
+                        );
+                        setError(res.error ?? t("checkout.error"));
+                      }
                       router.refresh();
                     })
                   }
@@ -318,16 +403,44 @@ export function CouponsEditor({ initialCoupons }: { initialCoupons: AdminCoupon[
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    if (confirmingDelete !== c.code) {
+                      setConfirmingDelete(c.code);
+                      return;
+                    }
+                    setConfirmingDelete(null);
+                    const previous = coupons;
+                    setCoupons((prev) =>
+                      prev.filter((coupon) => coupon.code !== c.code),
+                    );
                     startTransition(async () => {
-                      await deleteCouponAction(c.code);
+                      const res = await deleteCouponAction(c.code);
+                      if (!res.ok) {
+                        setCoupons(previous);
+                        setError(res.error ?? t("checkout.error"));
+                      }
                       router.refresh();
-                    })
+                    });
+                  }}
+                  onBlur={() =>
+                    confirmingDelete === c.code && setConfirmingDelete(null)
                   }
-                  aria-label={t("offer.delete")}
-                  className="tap grid h-8 w-8 place-items-center rounded-lg text-ink-3 transition hover:bg-red-500/10 hover:text-red-500"
+                  aria-label={
+                    confirmingDelete === c.code
+                      ? t("dash.confirmDelete")
+                      : t("offer.delete")
+                  }
+                  className={`tap grid h-8 w-8 place-items-center rounded-lg transition hover:bg-red-500/10 hover:text-red-500 ${
+                    confirmingDelete === c.code
+                      ? "bg-red-500 text-white"
+                      : "text-ink-3"
+                  }`}
                 >
-                  <Trash size={15} />
+                  {confirmingDelete === c.code ? (
+                    <Check size={15} />
+                  ) : (
+                    <Trash size={15} />
+                  )}
                 </button>
               </div>
             </li>
