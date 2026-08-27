@@ -110,7 +110,11 @@ export interface Database {
           ends_at?: string | null;
           is_deleted?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["coupons"]["Insert"]>;
+        // `used_count` is written by the redemption ledger (lib/coupon-guard),
+        // never by an admin form — hence Update-only, not part of Insert.
+        Update: Partial<Database["public"]["Tables"]["coupons"]["Insert"]> & {
+          used_count?: number;
+        };
         Relationships: [];
       };
       coupon_redemptions: {
@@ -120,8 +124,17 @@ export interface Database {
           user_id: string | null;
           order_code: string | null;
           created_at: string;
+          /** Added by docs/coupon-device-limits.sql — see lib/coupon-guard.ts. */
+          device_id?: string | null;
+          customer_phone?: string | null;
         };
-        Insert: { coupon_code: string; user_id?: string | null; order_code?: string | null };
+        Insert: {
+          coupon_code: string;
+          user_id?: string | null;
+          order_code?: string | null;
+          device_id?: string | null;
+          customer_phone?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["coupon_redemptions"]["Insert"]>;
         Relationships: [];
       };

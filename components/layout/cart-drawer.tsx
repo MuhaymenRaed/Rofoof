@@ -53,7 +53,7 @@ const MIN_STICKER_IMAGES = 10;
 // remount after checkout. Cleared when the buyer dismisses the drawer.
 const DONE_KEY = "rofoof.checkout.done";
 
-/** Map a preview_coupon rejection reason to a friendly message. */
+/** Map a coupon rejection reason to a friendly message. */
 function couponMessage(p: CouponPreview): DictKey {
   switch (p.reason) {
     case "expired":
@@ -61,9 +61,14 @@ function couponMessage(p: CouponPreview): DictKey {
       return "cart.couponExpired";
     case "min_subtotal":
       return "cart.couponMin";
+    // The code itself is finished — nobody can use it again.
     case "usage_limit":
-    case "per_user_limit":
       return "cart.couponUsed";
+    // THIS customer is finished with it. Named separately because the remedy is
+    // different: there is nothing to wait for and no bigger cart that fixes it.
+    case "device_used":
+    case "per_user_limit":
+      return "cart.couponDeviceUsed";
     case "login_required":
       return "cart.couponLogin";
     default:
@@ -120,6 +125,8 @@ export function CartDrawer() {
   const [coupon, setCoupon] = useState<CouponPreview | null>(null);
   const [couponPending, setCouponPending] = useState(false);
   const [couponMsg, setCouponMsg] = useState<DictKey | null>(null);
+  /** the code was refused AT CHECKOUT — shown next to the order button */
+  const [couponError, setCouponError] = useState<DictKey | null>(null);
 
   // Close the drawer AND clear the just-placed order — the only place the
   // success screen is dismissed (an explicit user action), so a stray refresh
@@ -298,6 +305,7 @@ export function CartDrawer() {
     setStockError(false);
     setManualError(null);
     setManualIgnored(false);
+    setCouponError(null);
 
     const contact = {
       customerName: name,
@@ -355,7 +363,16 @@ export function CartDrawer() {
       // specific remedy, so neither is worth flattening into "try again".
       else if (res.error === "manual_forbidden") setManualError("manual.forbidden");
       else if (res.error === "manual_unsupported") setManualError("manual.unsupported");
-      else setError(true);
+      // The code is spent — by this customer, or by everyone. The cart couldn't
+      // know: only checkout has the phone number the ledger also matches on.
+      // Drop it from the totals and name it, so pressing Order again goes
+      // through at the honest price instead of failing the same way twice.
+      else if (res.error === "coupon_used" || res.error === "coupon_exhausted") {
+        removeCoupon();
+        setCouponError(
+          res.error === "coupon_used" ? "cart.couponDeviceUsed" : "cart.couponUsed",
+        );
+      } else setError(true);
       return;
     }
 
@@ -617,6 +634,12 @@ export function CartDrawer() {
               {stockError && (
                 <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700">
                   {t("cart.outOfStock")}
+                </p>
+              )}
+
+              {couponError && (
+                <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700">
+                  {t(couponError)}
                 </p>
               )}
 

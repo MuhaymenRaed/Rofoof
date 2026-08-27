@@ -835,6 +835,12 @@ export const dict = {
     ar: "سجّل الدخول لاستخدام هذا الكود",
     en: "Sign in to use this code",
   },
+  // The per-customer cap, which now binds to the device (and, at checkout, to
+  // the phone number) rather than only to an account — see lib/coupon-guard.ts.
+  "cart.couponDeviceUsed": {
+    ar: "سبق أن استُخدم هذا الكود على هذا الجهاز — لا يمكن استخدامه مرة أخرى",
+    en: "This code has already been used on this device — it can't be used again",
+  },
   "cart.couponScoped": {
     ar: "يطبَّق على منتجات محددة — يُحتسب النهائي عند الإتمام",
     en: "Applies to selected products — final amount is set at checkout",

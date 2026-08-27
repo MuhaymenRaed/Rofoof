@@ -4,7 +4,13 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/auth/dal";
+import { requireAdmin, getCurrentUser } from "@/lib/auth/dal";
+import { ensureDeviceId } from "@/lib/device-id";
+import {
+  couponLimitBlock,
+  recordCouponRedemption,
+  releaseCouponRedemption,
+} from "@/lib/coupon-guard";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { mapOrder, type OrderRowWithItems } from "@/lib/data/mappers";
 import { TAGS } from "@/lib/data/tags";
@@ -35,12 +41,14 @@ async function getOrderMoney(
   subtotal: number;
   discountTotal: number;
   deliveryFee: number;
+  /** The code the DATABASE recorded against the order — see placeOrderAction. */
+  couponCode: string | null;
 } | null> {
   try {
     const admin = createAdminClient();
     const { data } = await admin
       .from("orders")
-      .select("subtotal, discount_total, delivery_fee")
+      .select("subtotal, discount_total, delivery_fee, coupon_code")
       .eq("code", code)
       .maybeSingle();
     if (!data) return null;
@@ -48,6 +56,7 @@ async function getOrderMoney(
       subtotal: data.subtotal ?? 0,
       discountTotal: data.discount_total ?? 0,
       deliveryFee: data.delivery_fee ?? 0,
+      couponCode: data.coupon_code ?? null,
     };
   } catch {
     return null;
@@ -247,6 +256,25 @@ export async function placeOrderAction(
   const wantsManualPrice =
     v.manuals.length > 0 || v.customs.some((c) => c.manualTotal != null);
 
+  // Who this checkout counts as, for the coupon ledger: the account if there is
+  // one, this browser either way, and the number being ordered under — the last
+  // is the only key a customer can't shed by clearing their browser.
+  const [deviceId, currentUser] = await Promise.all([ensureDeviceId(), getCurrentUser()]);
+  const couponIdentity = {
+    deviceId,
+    userId: currentUser?.id ?? null,
+    phone: v.customerPhone,
+  };
+
+  // The cart already checked this, but only against the device — the phone
+  // arrives here. Refuse rather than quietly charging full price: the customer
+  // is expecting the discount they can see on the screen in front of them.
+  if (v.couponCode) {
+    const block = await couponLimitBlock(v.couponCode, couponIdentity);
+    if (block === "per_user_limit") return { ok: false, error: "coupon_used" };
+    if (block) return { ok: false, error: "coupon_exhausted" };
+  }
+
   // Cookie client → the RPC (SECURITY DEFINER) sees auth.uid() and attaches the
   // order to the signed-in user; guests get a null user_id.
   const supabase = await createSupabaseServerClient();
@@ -312,6 +340,18 @@ export async function placeOrderAction(
         money.deliveryFee,
       )
     : result.total;
+
+  // Spend the code — but only on the database's own word that this order took
+  // it. place_order() applies the BEST single money discount, so a cart offer
+  // can beat the coupon and leave it unused; burning a customer's one-time code
+  // for a discount they never got would be worse than not counting it at all.
+  if (
+    v.couponCode &&
+    money?.couponCode?.toUpperCase() === v.couponCode.trim().toUpperCase() &&
+    money.discountTotal > 0
+  ) {
+    await recordCouponRedemption(v.couponCode, couponIdentity, result.code);
+  }
 
   // Alert the store's Telegram bot. Fully non-fatal: sendOrderTelegramNotification
   // never throws, so a Telegram outage can never fail an already-successful
@@ -601,6 +641,11 @@ export async function cancelOrderAction(
   }
   if (data !== true) return { ok: false, error: "cannot_cancel" };
 
+  // The order is gone, so the use it spent on a discount code goes back with
+  // it — a one-per-customer code must not be left burnt on an order that no
+  // longer exists.
+  await releaseCouponRedemption(trimmed);
+
   // Alert the store's bot that a customer cancelled (non-fatal — see place_order).
   if (snap) {
     const itemCount = snap.is_custom
@@ -685,6 +730,12 @@ export async function cancelGuestOrderAction(input: {
   }
 
   const o = res.order;
+
+  // Same as the signed-in path: the cancelled order releases its coupon use.
+  // Prefer the code the RPC echoed back — the customer typed theirs, and it is
+  // the stored spelling that the ledger is keyed on.
+  await releaseCouponRedemption(o?.code ?? parsed.data.code);
+
   if (o) {
     const itemCount = o.is_custom
       ? (o.custom_images?.length ?? 0)
@@ -782,6 +833,10 @@ export async function cancelOrderAdminAction(code: string): Promise<{
     await moveOrderStock(trimmed, true);
     return { ok: false, error: error.message };
   }
+
+  // The store cancelled it, not the customer — all the more reason to hand the
+  // discount code back rather than leave them holding a spent one.
+  await releaseCouponRedemption(trimmed);
 
   if (snap) {
     const itemCount = snap.is_custom
