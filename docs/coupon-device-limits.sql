@@ -89,6 +89,111 @@ CREATE INDEX IF NOT EXISTS coupon_redemptions_code_user_idx
 CREATE INDEX IF NOT EXISTS coupon_redemptions_order_idx
   ON public.coupon_redemptions (order_code);
 
+-- One redemption per order. The application also records the redemption after
+-- checkout so it can support older databases; this constraint makes that
+-- second write harmless once the trigger below has already claimed the use.
+CREATE UNIQUE INDEX IF NOT EXISTS coupon_redemptions_code_order_uidx
+  ON public.coupon_redemptions (coupon_code, order_code)
+  WHERE order_code IS NOT NULL;
+
+
+-- ============================================================================
+--  STEP 2b — Claim the use inside the order transaction
+-- ============================================================================
+--
+-- The old flow checked the limit, inserted the order, and wrote the ledger in
+-- three separate steps. Two requests could therefore both pass the check, and
+-- a dropped function after the order was inserted could leave no ledger row.
+-- This trigger is the database authority: it serializes attempts for a code,
+-- checks the customer identity, and records the use before the transaction can
+-- commit. A raised exception rolls the order back.
+--
+-- For guests the phone is the durable identity. Signed-in users are matched by
+-- account id as well as phone, so changing browsers cannot create another use.
+
+CREATE OR REPLACE FUNCTION public.claim_coupon_redemption_on_order()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  coupon_row public.coupons%ROWTYPE;
+  normalized_phone text := nullif(regexp_replace(COALESCE(NEW.customer_phone, ''), '\D', '', 'g'), '');
+  customer_uses integer;
+  total_uses integer;
+BEGIN
+  IF NEW.coupon_code IS NULL OR COALESCE(NEW.discount_total, 0) <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  -- Some versions of place_order finalize the money columns with an UPDATE
+  -- after inserting the order. The first trigger invocation already claimed
+  -- the use, so that follow-up must be a no-op.
+  IF EXISTS (
+    SELECT 1 FROM public.coupon_redemptions r
+     WHERE r.coupon_code = upper(NEW.coupon_code)
+       AND r.order_code = NEW.code
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(upper(NEW.coupon_code), 0));
+
+  SELECT * INTO coupon_row
+    FROM public.coupons
+   WHERE code = upper(NEW.coupon_code)
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+
+  IF coupon_row.per_user_limit IS NOT NULL THEN
+    SELECT count(*) INTO customer_uses
+      FROM public.coupon_redemptions r
+     WHERE r.coupon_code = upper(NEW.coupon_code)
+       AND (
+         (NEW.user_id IS NOT NULL AND r.user_id = NEW.user_id)
+         OR (normalized_phone IS NOT NULL AND r.customer_phone = normalized_phone)
+       );
+    IF customer_uses >= coupon_row.per_user_limit THEN
+      RAISE EXCEPTION 'coupon_per_user_limit';
+    END IF;
+  END IF;
+
+  IF coupon_row.usage_limit IS NOT NULL THEN
+    SELECT count(*) INTO total_uses
+      FROM public.coupon_redemptions r
+     WHERE r.coupon_code = upper(NEW.coupon_code);
+    IF total_uses >= coupon_row.usage_limit THEN
+      RAISE EXCEPTION 'coupon_usage_limit';
+    END IF;
+  END IF;
+
+  INSERT INTO public.coupon_redemptions
+    (coupon_code, user_id, order_code, customer_phone)
+  VALUES
+    (upper(NEW.coupon_code), NEW.user_id, NEW.code, normalized_phone)
+  ON CONFLICT (coupon_code, order_code) DO NOTHING;
+
+  UPDATE public.coupons
+     SET used_count = (
+       SELECT count(*) FROM public.coupon_redemptions r
+        WHERE r.coupon_code = public.coupons.code
+     )
+   WHERE code = upper(NEW.coupon_code);
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_claim_coupon_redemption_on_order ON public.orders;
+CREATE TRIGGER trg_claim_coupon_redemption_on_order
+  AFTER INSERT OR UPDATE OF coupon_code, discount_total ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.claim_coupon_redemption_on_order();
+
 
 
 -- ============================================================================

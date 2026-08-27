@@ -51,9 +51,14 @@ function normalizeCode(code: string): string {
 }
 
 /** PostgREST's "column does not exist" — i.e. the migration hasn't run yet. */
-function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+function isMissingColumn(
+  error: { code?: string; message?: string } | null,
+): boolean {
   if (!error) return false;
-  return error.code === "42703" || /device_id|customer_phone/i.test(error.message ?? "");
+  return (
+    error.code === "42703" ||
+    /device_id|customer_phone/i.test(error.message ?? "")
+  );
 }
 
 /**
@@ -61,7 +66,10 @@ function isMissingColumn(error: { code?: string; message?: string } | null): boo
  * filter grammar, so each is shape-checked first: a uuid, a validated device id
  * and a digits-only Iraqi number can none of them carry a comma or a paren.
  */
-function identityFilters(identity: CouponIdentity, withNewColumns: boolean): string[] {
+function identityFilters(
+  identity: CouponIdentity,
+  withNewColumns: boolean,
+): string[] {
   const filters: string[] = [];
   if (identity.userId && /^[0-9a-fA-F-]{36}$/.test(identity.userId)) {
     filters.push(`user_id.eq.${identity.userId}`);
@@ -132,11 +140,15 @@ export async function couponLimitBlock(
       .from("coupons")
       .select("code, usage_limit, per_user_limit")
       .eq("code", normalized)
-      .maybeSingle<{ usage_limit: number | null; per_user_limit: number | null }>();
+      .maybeSingle<{
+        usage_limit: number | null;
+        per_user_limit: number | null;
+      }>();
 
     // Unknown code, or an uncapped one: nothing here to enforce.
     if (error || !coupon) return null;
-    if (coupon.usage_limit == null && coupon.per_user_limit == null) return null;
+    if (coupon.usage_limit == null && coupon.per_user_limit == null)
+      return null;
 
     if (coupon.per_user_limit != null) {
       const mine = await countRedemptions(admin, normalized, identity);
@@ -197,12 +209,14 @@ export async function recordCouponRedemption(
     // entirely. The account-level cap still holds; the device one starts
     // holding the moment the columns exist.
     if (error && isMissingColumn(error)) {
-      const { error: fallbackError } = await admin.from("coupon_redemptions").insert(base);
+      const { error: fallbackError } = await admin
+        .from("coupon_redemptions")
+        .insert(base);
       if (fallbackError) {
         console.error("[couponGuard] record", fallbackError);
         return;
       }
-    } else if (error) {
+    } else if (error && error.code !== "23505") {
       console.error("[couponGuard] record", error);
       return;
     }
@@ -222,7 +236,9 @@ export async function recordCouponRedemption(
  * Keyed on the order code, so it is idempotent and safe to call for an order
  * that never had a coupon on it.
  */
-export async function releaseCouponRedemption(orderCode: string): Promise<void> {
+export async function releaseCouponRedemption(
+  orderCode: string,
+): Promise<void> {
   const trimmed = orderCode.trim();
   if (!trimmed) return;
 

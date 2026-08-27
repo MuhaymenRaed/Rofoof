@@ -35,9 +35,7 @@ function calculateGrandTotal(
   return Math.max(subtotal - discountTotal, 0) + deliveryFee;
 }
 
-async function getOrderMoney(
-  code: string,
-): Promise<{
+async function getOrderMoney(code: string): Promise<{
   subtotal: number;
   discountTotal: number;
   deliveryFee: number;
@@ -95,7 +93,10 @@ const placeOrderSchema = z
       .max(25)
       .nullable()
       .optional()
-      .refine((v) => !v || IRAQ_PHONE_RE.test(v.replace(/\D/g, "")), "invalid_phone2"),
+      .refine(
+        (v) => !v || IRAQ_PHONE_RE.test(v.replace(/\D/g, "")),
+        "invalid_phone2",
+      ),
     // Province and a full address are required at checkout; the note is not.
     provinceCode: z.string().trim().min(1),
     addressLine: z.string().trim().min(3).max(200),
@@ -140,10 +141,14 @@ const placeOrderSchema = z
           // Sticker runs are cut by the sheet, so they start at 10 designs.
           // Enforced here too — the modal blocks it, but a crafted request
           // must not be able to slip a 1-sticker order through.
-          .refine((c) => c.type !== "sticker" || c.images.length >= MIN_STICKER_IMAGES, {
-            message: "sticker_minimum",
-            path: ["images"],
-          }),
+          .refine(
+            (c) =>
+              c.type !== "sticker" || c.images.length >= MIN_STICKER_IMAGES,
+            {
+              message: "sticker_minimum",
+              path: ["images"],
+            },
+          ),
       )
       .max(50)
       .optional()
@@ -164,10 +169,13 @@ const placeOrderSchema = z
       .default([]),
   })
   // A basket must contain at least one product, custom request or manual line.
-  .refine((v) => v.items.length > 0 || v.customs.length > 0 || v.manuals.length > 0, {
-    message: "no_items",
-    path: ["items"],
-  });
+  .refine(
+    (v) => v.items.length > 0 || v.customs.length > 0 || v.manuals.length > 0,
+    {
+      message: "no_items",
+      path: ["items"],
+    },
+  );
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
 export type PlaceOrderResult =
@@ -214,7 +222,10 @@ async function manualPricesLanded(code: string): Promise<boolean> {
   }
 }
 
-function isMissingColumnError(error: { code?: string; message?: string }): boolean {
+function isMissingColumnError(error: {
+  code?: string;
+  message?: string;
+}): boolean {
   return error.code === "42703" || /manual_total/i.test(error.message ?? "");
 }
 
@@ -259,7 +270,10 @@ export async function placeOrderAction(
   // Who this checkout counts as, for the coupon ledger: the account if there is
   // one, this browser either way, and the number being ordered under — the last
   // is the only key a customer can't shed by clearing their browser.
-  const [deviceId, currentUser] = await Promise.all([ensureDeviceId(), getCurrentUser()]);
+  const [deviceId, currentUser] = await Promise.all([
+    ensureDeviceId(),
+    getCurrentUser(),
+  ]);
   const couponIdentity = {
     deviceId,
     userId: currentUser?.id ?? null,
@@ -309,11 +323,20 @@ export async function placeOrderAction(
     // the cart being filled and the order landing. That's an ordinary race, not
     // a fault, so it gets its own code for the checkout to explain — the raw
     // Postgres string would be shown to the shopper otherwise.
-    if (/out_of_stock/.test(error.message)) return { ok: false, error: "out_of_stock" };
+    if (/coupon_per_user_limit/.test(error.message))
+      return { ok: false, error: "coupon_used" };
+    if (/coupon_usage_limit/.test(error.message))
+      return { ok: false, error: "coupon_exhausted" };
+    if (/out_of_stock/.test(error.message))
+      return { ok: false, error: "out_of_stock" };
     // A non-admin session reached the admin-only pricing path. Distinct from a
     // generic failure because the fix is specific: sign in as an admin, or drop
     // the hand-priced line.
-    if (/forbidden_manual|manual_price_required|invalid_manual_total/.test(error.message)) {
+    if (
+      /forbidden_manual|manual_price_required|invalid_manual_total/.test(
+        error.message,
+      )
+    ) {
       return { ok: false, error: "manual_forbidden" };
     }
     // Only a MANUAL LINE can draw `invalid_type` — it is the one entry whose
@@ -379,13 +402,20 @@ export async function placeOrderAction(
 
   // Only on the admin path, and only after the order is safely placed: confirm
   // the hand-set prices were actually stored (see manualPricesLanded).
-  const manualPriceIgnored = wantsManualPrice ? !(await manualPricesLanded(result.code)) : false;
+  const manualPriceIgnored = wantsManualPrice
+    ? !(await manualPricesLanded(result.code))
+    : false;
 
   revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");
-  return { ok: true, code: result.code, total: result.total, manualPriceIgnored };
+  return {
+    ok: true,
+    code: result.code,
+    total: result.total,
+    manualPriceIgnored,
+  };
 }
 
 /* --------------------------- Custom requests ---------------------------- */
@@ -440,8 +470,11 @@ export async function placeCustomRequestAction(
   const money = await getOrderMoney(result.code);
   const itemised =
     money != null &&
-    calculateGrandTotal(money.subtotal, money.discountTotal, money.deliveryFee) ===
-      result.total
+    calculateGrandTotal(
+      money.subtotal,
+      money.discountTotal,
+      money.deliveryFee,
+    ) === result.total
       ? money
       : null;
 
@@ -531,7 +564,10 @@ function consumesStock(status: OrderStatusDb): boolean {
  * the migration yet reports the function as missing, which is not a failure:
  * statuses keep moving exactly as they did before, stock just isn't tracked.
  */
-async function moveOrderStock(code: string, apply: boolean): Promise<string | null> {
+async function moveOrderStock(
+  code: string,
+  apply: boolean,
+): Promise<string | null> {
   const admin = createAdminClient();
   const { error } = await admin.rpc("admin_set_order_stock", {
     p_code: code,
@@ -541,8 +577,13 @@ async function moveOrderStock(code: string, apply: boolean): Promise<string | nu
 
   // Migration not applied yet — degrade to the old behaviour rather than
   // blocking the admin from working their orders board.
-  if (error.code === "42883" || /admin_set_order_stock|stock_applied/i.test(error.message)) {
-    console.warn("[moveOrderStock] stock RPC missing — run docs/per-item-stock.sql");
+  if (
+    error.code === "42883" ||
+    /admin_set_order_stock|stock_applied/i.test(error.message)
+  ) {
+    console.warn(
+      "[moveOrderStock] stock RPC missing — run docs/per-item-stock.sql",
+    );
     return null;
   }
   if (/out_of_stock/i.test(error.message)) return "out_of_stock";
@@ -774,9 +815,8 @@ export async function cancelGuestOrderAction(input: {
 /**
  * Admin cancellation — the same procedure the buyer gets, but allowed at ANY
  * status (a customer can only cancel while the order is still in review).
- * Removes the order from `orders` exactly like cancel_order() does, so items
- * cascade and every list/stat stops counting it, and fires the same Telegram
- * cancellation alert.
+ * Soft-deletes the order from `orders`, so items and the full row remain
+ * recoverable while every normal list stops showing it.
  *
  * The row is NOT destroyed: an AFTER DELETE trigger copies it (and its items)
  * into cancelled_orders / cancelled_order_items, so the record survives in the
@@ -825,7 +865,11 @@ export async function cancelOrderAdminAction(code: string): Promise<{
   // A no-op when the order never got past review, thanks to `stock_applied`.
   await moveOrderStock(trimmed, false);
 
-  const { error } = await admin.from("orders").delete().eq("code", trimmed);
+  const { error } = await admin
+    .from("orders")
+    .update({ is_deleted: true })
+    .eq("code", trimmed)
+    .eq("is_deleted", false);
   if (error) {
     console.error("[cancelOrderAdmin]", error);
     // The order is still live and its stock has just been handed back — take
@@ -840,7 +884,7 @@ export async function cancelOrderAdminAction(code: string): Promise<{
 
   if (snap) {
     const itemCount = snap.is_custom
-      ? snap.custom_images?.length ?? 0
+      ? (snap.custom_images?.length ?? 0)
       : (snap.order_items ?? []).reduce((sum, i) => sum + (i.qty ?? 0), 0);
     const deliveryFee = snap.delivery_fee ?? 0;
     await sendOrderCancelledTelegramNotification({
@@ -851,7 +895,11 @@ export async function cancelOrderAdminAction(code: string): Promise<{
       provinceCode: snap.province_code ?? null,
       addressLine: snap.address_line ?? null,
       notes: snap.notes ?? null,
-      total: calculateGrandTotal(snap.subtotal ?? 0, snap.discount_total ?? 0, deliveryFee),
+      total: calculateGrandTotal(
+        snap.subtotal ?? 0,
+        snap.discount_total ?? 0,
+        deliveryFee,
+      ),
       subtotal: snap.subtotal ?? 0,
       discountTotal: snap.discount_total ?? 0,
       deliveryFee,

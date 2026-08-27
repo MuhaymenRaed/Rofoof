@@ -22,7 +22,11 @@ import { GuestBenefitsCard } from "@/components/checkout/guest-benefits-card";
 import { QtyStepper } from "@/components/ui/qty-stepper";
 import { ExpandableNote } from "@/components/ui/expandable-note";
 import { formatPrice } from "@/lib/format";
-import { cartDiscountFor, customRequestTotal, deliveryOfferFor } from "@/lib/pricing";
+import {
+  cartDiscountFor,
+  customRequestTotal,
+  deliveryOfferFor,
+} from "@/lib/pricing";
 import {
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
@@ -180,7 +184,12 @@ export function CartDrawer() {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!orderCode) return;
-    if (cart.length === 0 && customRequests.length === 0 && manualOrders.length === 0) return;
+    if (
+      cart.length === 0 &&
+      customRequests.length === 0 &&
+      manualOrders.length === 0
+    )
+      return;
     setOrderCode("");
     setStep("cart");
     try {
@@ -208,7 +217,9 @@ export function CartDrawer() {
   // prefill above and overwrites those two fields deliberately; phone and
   // province are not in the manual form and stay for the admin to fill in.
   /* eslint-disable react-hooks/set-state-in-effect */
-  const manualContact = manualOrders.find((m) => m.customerName || m.addressLine);
+  const manualContact = manualOrders.find(
+    (m) => m.customerName || m.addressLine,
+  );
   useEffect(() => {
     if (step !== "form" || !manualContact) return;
     if (manualContact.customerName) setName(manualContact.customerName);
@@ -229,7 +240,7 @@ export function CartDrawer() {
   // likewise applies only the BEST single money discount (offer vs coupon).
   const cartDiscount = cartDiscountFor(cartSubtotal, offers);
   const deliveryOffer = deliveryOfferFor(cartSubtotal, offers);
-  const couponDiscount = coupon?.valid ? coupon.discount ?? 0 : 0;
+  const couponDiscount = coupon?.valid ? (coupon.discount ?? 0) : 0;
   const moneyDiscount = Math.max(cartDiscount?.amount ?? 0, couponDiscount);
   const couponWins = couponDiscount > (cartDiscount?.amount ?? 0);
 
@@ -288,12 +299,17 @@ export function CartDrawer() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !isValidPhone(phone) || !province || !address.trim()) return;
+    if (!name.trim() || !isValidPhone(phone) || !province || !address.trim())
+      return;
     if (!isValidOptionalPhone(phone2)) return;
 
     // A sticker request saved before the 10-design minimum existed would be
     // rejected server-side with a generic error — name the real reason instead.
-    if (customRequests.some((r) => r.type === "sticker" && r.images.length < MIN_STICKER_IMAGES)) {
+    if (
+      customRequests.some(
+        (r) => r.type === "sticker" && r.images.length < MIN_STICKER_IMAGES,
+      )
+    ) {
       setStickerMinError(true);
       return;
     }
@@ -325,7 +341,7 @@ export function CartDrawer() {
       res = await placeOrderAction({
         ...contact,
         notes: note.trim() || null,
-        couponCode: coupon?.valid ? coupon.code ?? null : null,
+        couponCode: coupon?.valid ? (coupon.code ?? null) : null,
         items: cart.map((l) => ({
           productId: l.id,
           itemId: l.itemId ?? null,
@@ -361,16 +377,23 @@ export function CartDrawer() {
       if (res.error === "out_of_stock") setStockError(true);
       // Admin-only paths: the hand-priced line was refused. Each of these has a
       // specific remedy, so neither is worth flattening into "try again".
-      else if (res.error === "manual_forbidden") setManualError("manual.forbidden");
-      else if (res.error === "manual_unsupported") setManualError("manual.unsupported");
+      else if (res.error === "manual_forbidden")
+        setManualError("manual.forbidden");
+      else if (res.error === "manual_unsupported")
+        setManualError("manual.unsupported");
       // The code is spent — by this customer, or by everyone. The cart couldn't
       // know: only checkout has the phone number the ledger also matches on.
       // Drop it from the totals and name it, so pressing Order again goes
       // through at the honest price instead of failing the same way twice.
-      else if (res.error === "coupon_used" || res.error === "coupon_exhausted") {
+      else if (
+        res.error === "coupon_used" ||
+        res.error === "coupon_exhausted"
+      ) {
         removeCoupon();
         setCouponError(
-          res.error === "coupon_used" ? "cart.couponDeviceUsed" : "cart.couponUsed",
+          res.error === "coupon_used"
+            ? "cart.couponDeviceUsed"
+            : "cart.couponUsed",
         );
       } else setError(true);
       return;
@@ -389,6 +412,10 @@ export function CartDrawer() {
       /* ignore */
     }
     clearCart();
+    // A completed redemption must never be carried into the next basket.
+    // The next basket can apply a fresh code, and the server remains the
+    // authority if this client is remounted before the state update lands.
+    removeCoupon();
     setStep("done");
 
     // Signed-in user typed details their profile was missing (or changed
@@ -440,7 +467,9 @@ export function CartDrawer() {
         aria-modal="true"
         aria-label={t("cart.title")}
         className={`absolute inset-y-0 end-0 flex w-[88%] max-w-[380px] flex-col bg-surface shadow-2xl transition-transform duration-300 ease-out ${
-          cartOpen ? "translate-x-0" : "ltr:translate-x-full rtl:-translate-x-full"
+          cartOpen
+            ? "translate-x-0"
+            : "ltr:translate-x-full rtl:-translate-x-full"
         }`}
       >
         {/* Header */}
@@ -471,7 +500,9 @@ export function CartDrawer() {
             <div className="grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-emerald-500">
               <Check size={30} />
             </div>
-            <p className="text-lg font-black text-ink">{t("checkout.successTitle")}</p>
+            <p className="text-lg font-black text-ink">
+              {t("checkout.successTitle")}
+            </p>
             <p className="text-sm text-ink-3">{t("checkout.successHint")}</p>
             {/* Admin-only: the order exists but was priced automatically. Shown
                 on the success screen, not as a failure, because that is exactly
@@ -520,7 +551,9 @@ export function CartDrawer() {
               {t("checkout.done")}
             </button>
           </div>
-        ) : cart.length === 0 && customRequests.length === 0 && manualOrders.length === 0 ? (
+        ) : cart.length === 0 &&
+          customRequests.length === 0 &&
+          manualOrders.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-surface-2 text-ink-3">
               <Bag size={28} />
@@ -537,7 +570,10 @@ export function CartDrawer() {
           </div>
         ) : step === "form" ? (
           /* Checkout form */
-          <form onSubmit={submit} className="flex flex-1 flex-col overflow-y-auto">
+          <form
+            onSubmit={submit}
+            className="flex flex-1 flex-col overflow-y-auto"
+          >
             <div className="flex-1 space-y-3 px-5 py-4">
               {/* Guests: explain the perks of an account without blocking the
                   sale. Dismissed by "Continue as guest" — never forced. */}
@@ -571,7 +607,9 @@ export function CartDrawer() {
               <Field label={t("checkout.phone2")}>
                 <input
                   value={phone2}
-                  onChange={(e) => setPhone2(sanitizePhoneInput(e.target.value))}
+                  onChange={(e) =>
+                    setPhone2(sanitizePhoneInput(e.target.value))
+                  }
                   inputMode="numeric"
                   dir="ltr"
                   placeholder="07XXXXXXXXX"
@@ -680,7 +718,9 @@ export function CartDrawer() {
               <div className="mb-2 flex items-center justify-between text-xs text-ink-2">
                 <span>{t("cart.delivery")}</span>
                 <span className="font-bold">
-                  {deliveryFee === 0 ? t("cart.freeDelivery") : formatPrice(deliveryFee, lang)}
+                  {deliveryFee === 0
+                    ? t("cart.freeDelivery")
+                    : formatPrice(deliveryFee, lang)}
                 </span>
               </div>
               <div className="mb-3 flex items-center justify-between">
@@ -722,8 +762,13 @@ export function CartDrawer() {
                   ? product.items.find((i) => i.id === line.itemId)
                   : undefined;
                 const name = lang === "ar" ? product.nameAr : product.nameEn;
-                const itemName = item ? (lang === "ar" ? item.nameAr : item.nameEn) : "";
-                const thumb = line.customImageUrl ?? item?.imageUrl ?? product.image;
+                const itemName = item
+                  ? lang === "ar"
+                    ? item.nameAr
+                    : item.nameEn
+                  : "";
+                const thumb =
+                  line.customImageUrl ?? item?.imageUrl ?? product.image;
                 const pricing = pricingFor(line);
                 const style: CSSVars = { "--c": product.color };
                 return (
@@ -734,10 +779,19 @@ export function CartDrawer() {
                   >
                     <div
                       className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl text-3xl"
-                      style={{ background: "color-mix(in srgb, var(--c) 14%, var(--surface))" }}
+                      style={{
+                        background:
+                          "color-mix(in srgb, var(--c) 14%, var(--surface))",
+                      }}
                     >
                       {thumb ? (
-                        <RetryImage src={thumb} alt={name} fill sizes="64px" className="object-cover" />
+                        <RetryImage
+                          src={thumb}
+                          alt={name}
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                        />
                       ) : (
                         product.emoji
                       )}
@@ -750,7 +804,9 @@ export function CartDrawer() {
                           </h3>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                             {itemName && (
-                              <span className="text-[10px] font-semibold text-ink-3">{itemName}</span>
+                              <span className="text-[10px] font-semibold text-ink-3">
+                                {itemName}
+                              </span>
                             )}
                             {line.waterproof && (
                               <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-500/12 px-1.5 py-0.5 text-[9px] font-bold text-sky-600">
@@ -780,7 +836,10 @@ export function CartDrawer() {
                           note is attached to every design picked, that meant
                           several lines carrying instructions nobody could see. */}
                       {line.note && (
-                        <ExpandableNote text={line.note} className="mt-1.5 text-[10px] text-ink-3" />
+                        <ExpandableNote
+                          text={line.note}
+                          className="mt-1.5 text-[10px] text-ink-3"
+                        />
                       )}
                       <div className="mt-auto flex items-center justify-between pt-2">
                         {/* Quantities are chosen here, not on the package
@@ -790,11 +849,17 @@ export function CartDrawer() {
                           value={line.qty}
                           onChange={(q) => setQty(key, q)}
                           min={1}
-                          max={stockCeilingFor(getProduct(line.id), line.itemId) ?? undefined}
+                          max={
+                            stockCeilingFor(getProduct(line.id), line.itemId) ??
+                            undefined
+                          }
                           size="sm"
                         />
                         <span className="flex flex-col items-end leading-tight">
-                          <span className="text-sm font-extrabold" style={{ color: "var(--c)" }}>
+                          <span
+                            className="text-sm font-extrabold"
+                            style={{ color: "var(--c)" }}
+                          >
                             {formatPrice(pricing.total, lang)}
                           </span>
                           {/* By-count lines show the unit they landed on. The
@@ -803,7 +868,8 @@ export function CartDrawer() {
                               piece over there made this line cheaper. */}
                           {product.volumePriced && (
                             <span className="text-[9px] font-bold text-ink-3">
-                              {formatPrice(pricing.unit, lang)} {t("product.perUnit")}
+                              {formatPrice(pricing.unit, lang)}{" "}
+                              {t("product.perUnit")}
                             </span>
                           )}
                         </span>
@@ -845,7 +911,10 @@ export function CartDrawer() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <h3 className="flex items-center gap-1.5 text-[13px] font-bold text-ink">
-                            <Sparkles size={12} style={{ color: CUSTOM_ORDER_COLOR }} />
+                            <Sparkles
+                              size={12}
+                              style={{ color: CUSTOM_ORDER_COLOR }}
+                            />
                             {t("custom.badge")}
                           </h3>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
@@ -868,7 +937,8 @@ export function CartDrawer() {
                                 className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white"
                                 style={{ background: MANUAL_ORDER_COLOR }}
                               >
-                                <Tag size={9} /> {t("custom.manualPriceApplied")}
+                                <Tag size={9} />{" "}
+                                {t("custom.manualPriceApplied")}
                               </span>
                             )}
                           </div>
@@ -887,7 +957,9 @@ export function CartDrawer() {
                           className="text-sm font-extrabold"
                           style={{
                             color:
-                              req.manualTotal != null ? MANUAL_ORDER_COLOR : CUSTOM_ORDER_COLOR,
+                              req.manualTotal != null
+                                ? MANUAL_ORDER_COLOR
+                                : CUSTOM_ORDER_COLOR,
                           }}
                         >
                           {formatPrice(customRequestTotal(req), lang)}
@@ -920,7 +992,9 @@ export function CartDrawer() {
                   <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h3 className="line-clamp-1 text-[13px] font-bold text-ink">{m.title}</h3>
+                        <h3 className="line-clamp-1 text-[13px] font-bold text-ink">
+                          {m.title}
+                        </h3>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <span
                             className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-black text-white"
@@ -968,7 +1042,10 @@ export function CartDrawer() {
                 {coupon?.valid ? (
                   <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
                     <Percent size={13} className="shrink-0 text-emerald-600" />
-                    <span dir="ltr" className="flex-1 truncate text-xs font-black text-emerald-600">
+                    <span
+                      dir="ltr"
+                      className="flex-1 truncate text-xs font-black text-emerald-600"
+                    >
                       {coupon.code}
                     </span>
                     <button
@@ -983,7 +1060,9 @@ export function CartDrawer() {
                   <div className="flex gap-2">
                     <input
                       value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      onChange={(e) =>
+                        setCouponInput(e.target.value.toUpperCase())
+                      }
                       placeholder={t("cart.coupon")}
                       aria-label={t("cart.coupon")}
                       dir="ltr"
@@ -1000,7 +1079,9 @@ export function CartDrawer() {
                   </div>
                 )}
                 {couponMsg && (
-                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">{t(couponMsg)}</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">
+                    {t(couponMsg)}
+                  </p>
                 )}
                 {coupon?.valid && coupon.scoped && (
                   <p className="mt-1.5 text-[11px] font-semibold text-ink-3">
@@ -1012,7 +1093,9 @@ export function CartDrawer() {
               <div className="space-y-1.5 text-sm">
                 <div className="flex items-center justify-between text-ink-2">
                   <span>{t("cart.subtotal")}</span>
-                  <span className="font-bold text-ink">{formatPrice(cartSubtotal, lang)}</span>
+                  <span className="font-bold text-ink">
+                    {formatPrice(cartSubtotal, lang)}
+                  </span>
                 </div>
                 {moneyDiscount > 0 && (
                   <div className="flex items-center justify-between text-emerald-600">
@@ -1024,7 +1107,9 @@ export function CartDrawer() {
                           ? cartDiscount?.offer.titleAr
                           : cartDiscount?.offer.titleEn}
                     </span>
-                    <span className="font-bold">-{formatPrice(moneyDiscount, lang)}</span>
+                    <span className="font-bold">
+                      -{formatPrice(moneyDiscount, lang)}
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between text-ink-2">
@@ -1065,7 +1150,13 @@ export function CartDrawer() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-bold text-ink-2">{label}</span>
