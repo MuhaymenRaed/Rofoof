@@ -327,6 +327,11 @@ export async function placeOrderAction(
       return { ok: false, error: "coupon_used" };
     if (/coupon_usage_limit/.test(error.message))
       return { ok: false, error: "coupon_exhausted" };
+    if (
+      /coupon/i.test(error.message) &&
+      /(limit|used|exhaust|redeem)/i.test(error.message)
+    )
+      return { ok: false, error: "coupon_used" };
     if (/out_of_stock/.test(error.message))
       return { ok: false, error: "out_of_stock" };
     // A non-admin session reached the admin-only pricing path. Distinct from a

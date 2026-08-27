@@ -269,6 +269,15 @@ export async function createCouponAction(
     .eq("is_deleted", true)
     .maybeSingle();
   if (deletedCoupon) {
+    // A deleted coupon represents a retired campaign. Its replacement should
+    // start with a clean allowance even though the code keeps the same name.
+    // Remove only this code's ledger rows before reactivating it.
+    const { error: redemptionError } = await supabase
+      .from("coupon_redemptions")
+      .delete()
+      .eq("coupon_code", c.code.toUpperCase());
+    if (redemptionError) return { ok: false, error: redemptionError.message };
+
     const { error } = await supabase
       .from("coupons")
       .update({
@@ -284,6 +293,7 @@ export async function createCouponAction(
         ends_at: c.endsAt ?? null,
         active: true,
         is_deleted: false,
+        used_count: 0,
       })
       .eq("code", c.code.toUpperCase())
       .eq("is_deleted", true);
