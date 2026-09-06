@@ -26,8 +26,8 @@ import {
 } from "@/lib/actions/products";
 import { setProductGroupsAction } from "@/lib/actions/featured";
 import { updateVolumeTiersAction } from "@/lib/actions/offers";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp, DISPLAY_MAX_DIMENSION, IMAGE_CACHE_CONTROL } from "@/lib/webp";
+import { toWebpVariants, DISPLAY_MAX_DIMENSION } from "@/lib/webp";
+import { uploadImagePair } from "@/lib/upload-image";
 import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
@@ -111,7 +111,6 @@ export function ProductEditorModal({
     volumeTiers: storeVolumeTiers,
     featuredGroups: storeFeaturedGroups,
   } = useStore();
-  const supabase = createSupabaseBrowserClient();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -470,25 +469,24 @@ export function ProductEditorModal({
         // HEIC/HEIF) so the bucket only ever stores compact files.
         // Catalogue photos are display-only, so cap them at display size —
         // they're served straight from storage with no resizing step.
-        const webp = await toWebp(r.file, DISPLAY_MAX_DIMENSION);
-        const path = `${id}/${Date.now()}-${i}.${webp.ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("product-images")
-          .upload(path, webp.blob, {
-            upsert: true,
-            contentType: webp.contentType,
-            cacheControl: IMAGE_CACHE_CONTROL,
-          });
-        if (upErr) {
+        //
+        // Two sizes go up, not one. Every small slot in the app (cards, cart
+        // lines, restock rows, lightbox strip) renders the thumb; only the
+        // lightbox pulls this full-size file.
+        const image = await toWebpVariants(r.file, DISPLAY_MAX_DIMENSION);
+        const uploaded = await uploadImagePair({
+          bucket: "product-images",
+          base: `${id}/${Date.now()}-${i}`,
+          image,
+          maxDimension: DISPLAY_MAX_DIMENSION,
+          upsert: true,
+        });
+        if (!uploaded.ok) {
           setUploading(false);
-          setError(upErr.message);
+          setError(uploaded.error);
           return;
         }
-        finalRows.push({
-          url: supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl,
-          price: r.price,
-          stock: r.stock,
-        });
+        finalRows.push({ url: uploaded.url, price: r.price, stock: r.stock });
       }
       setUploading(false);
 

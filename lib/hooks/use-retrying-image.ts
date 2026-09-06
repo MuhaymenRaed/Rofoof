@@ -19,9 +19,13 @@ const MAX_RETRIES = RETRY_DELAYS_MS.length;
  * next/image never retries a request it lost. Without this, one transient blip
  * leaves a permanent broken-image icon until the shopper reloads the page.
  *
- * Retries a few times with a widening delay, cache-busting each attempt so a
- * negatively-cached response can't pin the failure in place, and only reports
+ * Retries a few times with a widening delay, cache-busting where a negatively
+ * cached response could otherwise pin the failure in place, and only reports
  * `failed` once the retries are genuinely spent.
+ *
+ * Which *size* gets requested is not this hook's business — the custom image
+ * loader and the `sizes` prop settle that before the browser asks for
+ * anything. This only decides whether to ask again.
  */
 export function useRetryingImage(src: string | undefined) {
   const [state, setState] = useState({ src, attempt: 0, failed: false });
@@ -45,7 +49,7 @@ export function useRetryingImage(src: string | undefined) {
    * into the failed state after a single try rather than looping forever.
    */
   const retry = useCallback(() => {
-    setState((s) => (s.failed ? { src: s.src, attempt: s.attempt + 1, failed: false } : s));
+    setState((s) => (s.failed ? { ...s, attempt: s.attempt + 1, failed: false } : s));
   }, []);
 
   // The connection coming back is the signal we were waiting for — reload the
@@ -69,10 +73,12 @@ export function useRetryingImage(src: string | undefined) {
    */
   const onError = useCallback(() => {
     if (state.failed || state.src !== src) return;
+
     if (state.attempt >= MAX_RETRIES) {
       setState((s) => ({ ...s, failed: true }));
       return;
     }
+
     const next = state.attempt + 1;
     const delay = RETRY_DELAYS_MS[state.attempt] ?? RETRY_DELAYS_MS[MAX_RETRIES - 1];
     timerRef.current = setTimeout(() => {
@@ -82,8 +88,23 @@ export function useRetryingImage(src: string | undefined) {
   }, [state, src]);
 
   const current = state.src === src ? state : { src, attempt: 0, failed: false };
+
+  /**
+   * The cache-buster starts at the SECOND retry, not the first.
+   *
+   * Every busted URL is a distinct object to the CDN: a guaranteed miss, a
+   * fresh pull from storage, and a fresh charge — so the old behaviour billed
+   * up to five full downloads for one photo on exactly the unstable mobile
+   * connections this shop runs on. A dropped connection doesn't need a buster
+   * to recover; only a negatively cached response does. Retrying the plain URL
+   * once handles the common case for free and still reaches the buster if that
+   * first retry fails too.
+   *
+   * The buster is appended to the query, which the loader carries across when
+   * it swaps the width — so a retry still resolves to the right variant.
+   */
   const resolvedSrc =
-    src && current.attempt > 0
+    src && current.attempt > 1
       ? `${src}${src.includes("?") ? "&" : "?"}retry=${current.attempt}`
       : src;
 

@@ -40,8 +40,8 @@ import {
   unitPriceFor,
   volumeUnitPrice,
 } from "@/lib/pricing";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp, MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/webp";
+import { toWebpVariants, MAX_UPLOAD_BYTES, MAX_DIMENSION } from "@/lib/webp";
+import { uploadImagePair } from "@/lib/upload-image";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -86,7 +86,6 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   } = useStore();
   // Stock counts are shown to the shop, not to the shopper — see the picker grid.
   const { isAdmin, ready } = useAuth();
-  const supabase = createSupabaseBrowserClient();
   const customFileRef = useRef<HTMLInputElement>(null);
 
   const isPackage = product.kind === "package" && product.items.length > 0;
@@ -264,19 +263,19 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     if (!f) return;
     if (f.size > MAX_UPLOAD_BYTES) return; // 20MB cap per image
     setUploadingCustom(true);
-    // Re-encode to WebP in the browser so the bucket only stores compact files.
-    const webp = await toWebp(f);
-    const path = `${crypto.randomUUID()}.${webp.ext}`;
-    const { error } = await supabase.storage
-      .from("custom-artwork")
-      .upload(path, webp.blob, {
-        contentType: webp.contentType,
-        cacheControl: IMAGE_CACHE_CONTROL,
-      });
+    // Re-encode to WebP in the browser so the bucket only stores compact files,
+    // and write a thumb beside it — this artwork is echoed back at 48px here,
+    // 64px in the cart and 40px in the orders board, none of which should be
+    // pulling a print-resolution file.
+    const image = await toWebpVariants(f);
+    const uploaded = await uploadImagePair({
+      bucket: "custom-artwork",
+      base: crypto.randomUUID(),
+      image,
+      maxDimension: MAX_DIMENSION,
+    });
     setUploadingCustom(false);
-    if (!error) {
-      setCustomUrl(supabase.storage.from("custom-artwork").getPublicUrl(path).data.publicUrl);
-    }
+    if (uploaded.ok) setCustomUrl(uploaded.url);
   }
 
   function handleAdd() {

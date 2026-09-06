@@ -171,11 +171,19 @@ BEGIN
     END IF;
   END IF;
 
-  INSERT INTO public.coupon_redemptions
-    (coupon_code, user_id, order_code, customer_phone)
-  VALUES
-    (upper(NEW.coupon_code), NEW.user_id, NEW.code, normalized_phone)
-  ON CONFLICT (coupon_code, order_code) DO NOTHING;
+  -- The advisory lock serializes claims for this code. Use an explicit guard
+  -- instead of ON CONFLICT: coupon_redemptions_code_order_uidx is partial, so
+  -- PostgreSQL cannot infer it from an unqualified conflict target.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.coupon_redemptions r
+     WHERE r.coupon_code = upper(NEW.coupon_code)
+       AND r.order_code = NEW.code
+  ) THEN
+    INSERT INTO public.coupon_redemptions
+      (coupon_code, user_id, order_code, customer_phone)
+    VALUES
+      (upper(NEW.coupon_code), NEW.user_id, NEW.code, normalized_phone);
+  END IF;
 
   UPDATE public.coupons
      SET used_count = (

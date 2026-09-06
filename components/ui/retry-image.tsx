@@ -11,6 +11,12 @@ import { useRetryingImage } from "@/lib/hooks/use-retrying-image";
  *
  * The default fallback names the likely cause (the connection) and offers a
  * retry, because the browser's broken-image glyph tells a shopper nothing.
+ *
+ * **Always give it a `sizes`.** The custom loader (`lib/image-loader.ts`) turns
+ * `sizes` into a real `srcset` over the stored width variants, so it is what
+ * decides whether a 56px slot costs 56px worth of bytes or pulls a full
+ * catalogue photo. Without one the browser assumes `100vw` and fetches the
+ * largest file on the ladder.
  */
 export function RetryImage({
   src,
