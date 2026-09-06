@@ -13,8 +13,14 @@ import {
   MANUAL_ORDER_COLOR,
   type CustomType,
 } from "@/lib/products";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { toWebp, MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/webp";
+import {
+  toWebpVariants,
+  MAX_UPLOAD_BYTES,
+  MAX_DIMENSION,
+  type SizedResult,
+  type WebpResult,
+} from "@/lib/webp";
+import { uploadImagePair } from "@/lib/upload-image";
 
 const MAX_IMAGES = 100;
 /**
@@ -46,9 +52,9 @@ const SHAPE: Record<CustomType, { frame: string; remove: string }> = {
 };
 
 interface Artwork {
-  blob: Blob;
-  ext: string;
-  contentType: string;
+  full: WebpResult;
+  /** empty when this browser couldn't re-encode; the full is stored untagged */
+  variants: SizedResult[];
   preview: string;
 }
 
@@ -91,7 +97,6 @@ export function CustomRequestModal() {
 function RequestForm({ onClose }: { onClose: () => void }) {
   const { t, lang, customPricing, addCustomRequest, openCart, siteSettings } = useStore();
   const { isAdmin, ready } = useAuth();
-  const supabase = createSupabaseBrowserClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [type, setType] = useState<CustomType>("sticker");
@@ -160,9 +165,14 @@ function RequestForm({ onClose }: { onClose: () => void }) {
         setSkippedBig(true);
         continue;
       }
-      // Re-encode to WebP in the browser — the bucket only stores compact files.
-      const webp = await toWebp(f);
-      accepted.push({ ...webp, preview: URL.createObjectURL(webp.blob) });
+      // Re-encode to WebP in the browser — the bucket only stores compact
+      // files. The full stays at print resolution (the admin prints from this
+      // exact file); the small variants beside it are what screens render.
+      const { full, variants } = await toWebpVariants(f);
+      // Preview off the smallest variant: this grid can hold a hundred of
+      // these, and keeping a hundred 4096px blobs alive to draw them at 80px
+      // is what makes a cheap phone drop the tab.
+      accepted.push({ full, variants, preview: URL.createObjectURL((variants[0] ?? full).blob) });
     }
     setArtworks((prev) => [...prev, ...accepted]);
     setConverting(false);
@@ -187,15 +197,14 @@ function RequestForm({ onClose }: { onClose: () => void }) {
       // (and the images survive a page reload while the request sits there).
       const images = await Promise.all(
         artworks.map(async (a, i) => {
-          const path = `${crypto.randomUUID()}-${i}.${a.ext}`;
-          const { error: upErr } = await supabase.storage
-            .from("custom-artwork")
-            .upload(path, a.blob, {
-              contentType: a.contentType,
-              cacheControl: IMAGE_CACHE_CONTROL,
-            });
-          if (upErr) throw new Error(upErr.message);
-          return supabase.storage.from("custom-artwork").getPublicUrl(path).data.publicUrl;
+          const uploaded = await uploadImagePair({
+            bucket: "custom-artwork",
+            base: `${crypto.randomUUID()}-${i}`,
+            image: a,
+            maxDimension: MAX_DIMENSION,
+          });
+          if (!uploaded.ok) throw new Error(uploaded.error);
+          return uploaded.url;
         }),
       );
 
