@@ -421,6 +421,15 @@ export function canBeWaterproof(categoryCodes: string[]): boolean {
   return categoryCodes.some((c) => WATERPROOF_CATEGORIES.includes(c));
 }
 
+/**
+ * Custom kinds that offer the waterproof finish. Mirrors place_order(), which
+ * forces a brooch's flag to false whatever the request said.
+ */
+export const WATERPROOF_CUSTOM_KINDS: readonly string[] = ["sticker", "poster"];
+
+/** How a line is printed, where that is a choice at all. */
+export type Finish = "waterproof" | "regular";
+
 /* --------------------------- Custom requests ---------------------------- */
 export type CustomType = "brooch" | "sticker" | "poster";
 
@@ -572,6 +581,34 @@ export function orderItemImage(
   if (!product) return undefined;
   const design = item.itemId ? product.items.find((i) => i.id === item.itemId) : undefined;
   return design?.imageUrl || product.image;
+}
+
+/**
+ * Whether one order line is printed waterproof, printed regular, or is
+ * something the question doesn't arise for (a brooch, a medal, a manual job).
+ *
+ * The distinction matters because "regular" is a real instruction for a
+ * sticker — cut it from the plain vinyl, not the laminated one — and a
+ * meaningless one for a medal. The admin view says it out loud only where it
+ * means something, so an order mixing waterproof and regular stickers reads as
+ * two jobs rather than one blur, while a brooch line stays uncluttered.
+ *
+ * Decided per line, never from `Order.customWaterproof`: that flag is "any
+ * custom line was waterproof", which is exactly the fact that can't tell two
+ * sticker requests apart. `product` is the live catalogue entry, used only to
+ * learn the category of a store line.
+ */
+export function orderItemFinish(
+  item: Pick<OrderItem, "waterproof" | "customKind">,
+  product: Pick<Product, "categories"> | undefined,
+): Finish | null {
+  if (item.waterproof) return "waterproof";
+  const applies = item.customKind
+    ? WATERPROOF_CUSTOM_KINDS.includes(item.customKind)
+    : product
+      ? canBeWaterproof(product.categories)
+      : false;
+  return applies ? "regular" : null;
 }
 
 /** Map an order status to the active tracker step index (0..3). */

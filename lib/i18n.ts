@@ -928,9 +928,16 @@ export const dict = {
      is three labelled sets to print rather than one merged grid. */
   "dash.artworkTitle": { ar: "ملفات التنفيذ", en: "Files to print" },
   "dash.artworkHint": {
-    ar: "كل طلب في مجموعة منفصلة — نزّل ما تحتاجه الآن فقط.",
-    en: "Each request is its own set — download only what you need right now.",
+    ar: "كل طلب في مجموعة منفصلة، والمقاوم للماء مفصول عن العادي — نزّل ما تحتاجه الآن فقط.",
+    en: "Each request is its own set, waterproof apart from regular — download only what you need right now.",
   },
+  /* The finish, said only where it is a choice (stickers, posters). "Regular"
+     is the shop's own word for the plain vinyl, so it reads as an instruction
+     rather than as the absence of one. */
+  "dash.finishRegular": { ar: "عادي", en: "Regular" },
+  "dash.finishRegularLong": { ar: "عادي — غير مقاوم للماء", en: "Regular — not waterproof" },
+  "dash.finishWaterproofCount": { ar: "{n} مقاوم للماء", en: "{n} waterproof" },
+  "dash.finishRegularCount": { ar: "{n} عادي", en: "{n} regular" },
   "dash.downloadGroup": { ar: "تحميل هذه المجموعة", en: "Download this set" },
   "dash.downloadEverything": { ar: "تحميل الكل", en: "Download everything" },
   "dash.productDesigns": { ar: "تصاميم من المتجر", en: "Store designs" },
@@ -939,6 +946,12 @@ export const dict = {
   "dash.artworkUngrouped": {
     ar: "طلب قديم: الصور محفوظة مجمّعة دون تقسيم لكل نوع.",
     en: "Older order: its images were saved pooled together, without per-kind grouping.",
+  },
+  /* Appended to the above when that pooled set mixes both finishes — the item
+     list still knows each line's, so point there. */
+  "dash.artworkMixedFinish": {
+    ar: "تضم قطعاً مقاومة للماء وأخرى عادية — راجع قائمة القطع أدناه لمعرفة أيّها.",
+    en: "It mixes waterproof and regular pieces — see the item list below for which is which.",
   },
   "dash.manualOrders": { ar: "الطلبات اليدوية", en: "Manual orders" },
   "dash.manualRevenue": {
