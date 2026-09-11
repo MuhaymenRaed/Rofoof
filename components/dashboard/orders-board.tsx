@@ -31,7 +31,10 @@ import {
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
   MANUAL_ORDER_COLOR,
+  WATERPROOF_CUSTOM_KINDS,
   orderItemImage,
+  orderItemFinish,
+  type Finish,
   type Order,
   type OrderStatus,
 } from "@/lib/products";
@@ -52,6 +55,33 @@ function shifted(status: OrderStatus, dir: 1 | -1): OrderStatus | null {
 }
 
 /**
+ * The finish as a pill. Waterproof is filled sky so it is the first thing the
+ * eye lands on; regular is outlined so it reads as "checked: the plain one"
+ * rather than as a warning. Renders nothing where the choice doesn't exist —
+ * a brooch, a medal — so those lines stay uncluttered.
+ *
+ * `long` spells regular out as "not waterproof" for the set headings, where
+ * there is room and where the admin picks which stack of vinyl to load.
+ */
+function FinishChip({ finish, long }: { finish: Finish | null; long?: boolean }) {
+  const { t } = useStore();
+  if (!finish) return null;
+  if (finish === "waterproof") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-black text-white">
+        <Droplet size={10} />
+        {t("badge.waterproof")}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full border border-line px-2 py-0.5 text-[10px] font-bold text-ink-2">
+      {long ? t("dash.finishRegularLong") : t("dash.finishRegular")}
+    </span>
+  );
+}
+
+/**
  * Admin orders — one full-width row card per order. Clicking a row opens a
  * detail modal with the complete order + direct status control. A top bar
  * bulk-moves the checked orders one step forward/back.
@@ -63,7 +93,7 @@ export function OrdersBoard({
   initialOrders: Order[];
   initialHasMore: boolean;
 }) {
-  const { t, lang } = useStore();
+  const { t, lang, getProduct } = useStore();
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailCode, setDetailCode] = useState<string | null>(null);
@@ -234,6 +264,18 @@ export function OrdersBoard({
             const firstName = first ? (lang === "ar" ? first.nameAr : first.nameEn) : "";
             const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
             const typeMeta = o.customType ? CUSTOM_TYPE_LABEL[o.customType] : null;
+            // Pieces by finish, so a basket that mixes waterproof stickers with
+            // plain ones announces itself here rather than only once opened.
+            // Regular is counted only where it is a choice (see
+            // orderItemFinish) and shown only next to a waterproof count — an
+            // all-regular order is the ordinary case and needs no label.
+            let waterproofPieces = 0;
+            let regularPieces = 0;
+            for (const i of o.items) {
+              const finish = orderItemFinish(i, getProduct(i.productId));
+              if (finish === "waterproof") waterproofPieces += i.qty;
+              else if (finish === "regular") regularPieces += i.qty;
+            }
             return (
               <article
                 key={o.code}
@@ -283,6 +325,19 @@ export function OrdersBoard({
                         <Tag size={9} />
                         {t("dash.manualBadge")}
                       </span>
+                    )}
+                    {waterproofPieces > 0 && (
+                      <>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2 py-0.5 text-[9px] font-black text-white">
+                          <Droplet size={9} />
+                          {t("dash.finishWaterproofCount").replace("{n}", String(waterproofPieces))}
+                        </span>
+                        {regularPieces > 0 && (
+                          <span className="inline-flex items-center rounded-full border border-line px-2 py-0.5 text-[9px] font-bold text-ink-2">
+                            {t("dash.finishRegularCount").replace("{n}", String(regularPieces))}
+                          </span>
+                        )}
+                      </>
                     )}
                     <span className="text-[11px] text-ink-3" dir="ltr">
                       {o.date}
@@ -361,6 +416,20 @@ interface ArtworkGroup {
   accent: string;
   /** the grouping is unknown for this order — see the legacy branch below */
   ungrouped: boolean;
+  /**
+   * What the set is printed on. A set is one kind AND one finish: waterproof
+   * stickers and plain ones are cut from different vinyl, so pooling them
+   * would hand the admin a grid with no way to tell which is which — the very
+   * thing the kind split was meant to end. Null where there is no choice.
+   */
+  finish: Finish | null;
+  /** the kind/category alone, so the two finishes of one kind sort together */
+  base: string;
+  /**
+   * A pooled legacy set whose lines don't all share one finish. The finish is
+   * then unknowable per image, and the set says so instead of guessing.
+   */
+  mixedFinish: boolean;
 }
 
 function OrderDetailsModal({
@@ -423,6 +492,11 @@ function OrderDetailsModal({
    * design from a brooch one, or to fetch just the stickers to cut first. Each
    * kind is its own set now, alongside a set per store category for the
    * catalogue designs in the same order.
+   *
+   * Each set is further one FINISH: two sticker requests, one waterproof and
+   * one not, are two sets with two download buttons and two ZIP folders. They
+   * were one set before, and the admin was left to work out from the item list
+   * which of the pooled thumbnails wanted the laminated vinyl.
    */
   const groups = useMemo<ArtworkGroup[]>(() => {
     // Kept as three parallel maps, and every array rebuilt rather than pushed
@@ -449,18 +523,28 @@ function OrderDetailsModal({
       countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
     };
 
-    // --- custom requests, one set per kind (two sticker requests merge, so
-    // "download the stickers" means all of them)
+    // Folder slugs stay ASCII (see ImageGroup), and carry the finish so the
+    // whole-order ZIP unpacks as `sticker-waterproof/` beside
+    // `sticker-regular/` — unambiguous even after the browser tab is gone.
+    const slug = (base: string, finish: Finish | null) => (finish ? `${base}-${finish}` : base);
+
+    // --- custom requests, one set per kind and finish (two waterproof sticker
+    // requests merge, so "download the waterproof stickers" means all of them)
     for (const it of order.items) {
       if (!it.customKind || it.customKind === "manual") continue;
       const kind = it.customKind;
+      // A custom line's kind alone decides; there is no product to look up.
+      const finish = orderItemFinish(it, undefined);
       push(
-        `custom:${kind}`,
+        `custom:${kind}:${finish ?? ""}`,
         () => ({
           label: `${t("custom.badge")} · ${lang === "ar" ? CUSTOM_TYPE_LABEL[kind].ar : CUSTOM_TYPE_LABEL[kind].en}`,
-          folder: kind,
+          folder: slug(kind, finish),
           accent: CUSTOM_ORDER_COLOR,
           ungrouped: false,
+          finish,
+          base: `custom:${kind}`,
+          mixedFinish: false,
         }),
         it.customImages,
       );
@@ -471,40 +555,81 @@ function OrderDetailsModal({
     // than split on a guess — the admin prints from these.
     if (meta.size === 0 && order.customImages.length > 0) {
       const kind = order.customType;
+      // The finish IS known per line even here — `order_items.waterproof`
+      // predates the grouping — just not per image. So the set can still say
+      // "all waterproof" or "all regular" when that is the truth, and only a
+      // pooled set whose lines disagree has to admit it can't tell.
+      const lines = order.items.filter((i) => i.productId === "" && i.customKind !== "manual");
+      const wetLines = lines.filter((i) => i.waterproof).length;
+      const anyWet = wetLines > 0 || order.customWaterproof;
+      const allWet = anyWet && wetLines === lines.length;
+      const finish: Finish | null = allWet
+        ? "waterproof"
+        : !anyWet && kind && WATERPROOF_CUSTOM_KINDS.includes(kind)
+          ? "regular"
+          : null;
       push(
         "custom:legacy",
         () => ({
           label: kind
             ? `${t("custom.badge")} · ${lang === "ar" ? CUSTOM_TYPE_LABEL[kind].ar : CUSTOM_TYPE_LABEL[kind].en}`
             : t("custom.imagesLabel"),
-          folder: kind ?? "custom",
+          folder: slug(kind ?? "custom", finish),
           accent: CUSTOM_ORDER_COLOR,
           ungrouped: true,
+          finish,
+          base: "custom:legacy",
+          mixedFinish: anyWet && !allWet,
         }),
         order.customImages,
       );
     }
 
-    // --- catalogue designs, one set per store category (medals, stickers…)
+    // --- catalogue designs, one set per store category and finish (medals,
+    // waterproof stickers, plain stickers…)
     for (const it of order.items) {
       const url = itemImage(it);
       if (!url) continue;
-      const code = getProduct(it.productId)?.categories[0] ?? "";
+      const product = getProduct(it.productId);
+      const code = product?.categories[0] ?? "";
+      const finish = orderItemFinish(it, product);
       push(
-        `product:${code}`,
+        `product:${code}:${finish ?? ""}`,
         () => ({
           label: code
             ? `${t("dash.productDesigns")} · ${categoryLabel(code)}`
             : t("dash.productDesigns"),
-          folder: code ? `store-${code}` : "store",
+          folder: slug(code ? `store-${code}` : "store", finish),
           accent: "var(--brand)",
           ungrouped: false,
+          finish,
+          base: `product:${code}`,
+          mixedFinish: false,
         }),
         [url],
       );
     }
 
-    return keys.map((key) => ({
+    // Both finishes of one kind sit side by side — "Sticker · regular" directly
+    // above "Sticker · waterproof" — in the order the kind first appeared, so
+    // the comparison the admin needs to make is between neighbours. Sorted on
+    // a copy: `keys` is insertion order and stays that way.
+    const baseRank = new Map<string, number>();
+    for (const key of keys) {
+      const base = meta.get(key)!.base;
+      if (!baseRank.has(base)) baseRank.set(base, baseRank.size);
+    }
+    const finishRank = (f: Finish | null) => (f === "waterproof" ? 1 : 0);
+    const ordered = [...keys].sort((a, b) => {
+      const ma = meta.get(a)!;
+      const mb = meta.get(b)!;
+      return (
+        baseRank.get(ma.base)! - baseRank.get(mb.base)! ||
+        finishRank(ma.finish) - finishRank(mb.finish)
+      );
+    });
+
+    return ordered.map((key) => ({
       ...meta.get(key)!,
       urls: urlsByKey.get(key) ?? [],
       requestCount: countByKey.get(key) ?? 1,
@@ -647,6 +772,9 @@ function OrderDetailsModal({
                     <span className="text-[12px] font-bold text-ink" style={{ color: g.accent }}>
                       {g.label}
                     </span>
+                    {/* The finish, right beside the kind: this is the line the
+                        admin reads before loading the vinyl. */}
+                    <FinishChip finish={g.finish} long />
                     <span className="text-[11px] font-semibold text-ink-3">
                       {g.urls.length} {t("dash.itemsLabel")}
                       {/* Two requests of the same kind merged into one set —
@@ -678,6 +806,10 @@ function OrderDetailsModal({
                   {g.ungrouped && (
                     <p className="mb-2 text-[11px] font-semibold text-amber-600">
                       {t("dash.artworkUngrouped")}
+                      {/* The item list below still knows each line's finish,
+                          so send the admin there rather than leave a pooled
+                          grid looking like it's all one thing. */}
+                      {g.mixedFinish && ` ${t("dash.artworkMixedFinish")}`}
                     </p>
                   )}
 
@@ -849,11 +981,10 @@ function OrderDetailsModal({
                           ({it.freeQty} {t("cart.free")})
                         </span>
                       )}
-                      {it.waterproof && (
-                        <span className="inline-flex items-center gap-0.5 font-bold text-sky-600">
-                          <Droplet size={10} /> {t("badge.waterproof")}
-                        </span>
-                      )}
+                      {/* Waterproof as a filled pill, regular as an outlined
+                          one, and nothing for a brooch: two sticker lines that
+                          differ only in finish must not look the same. */}
+                      <FinishChip finish={orderItemFinish(it, getProduct(it.productId))} />
                       {/* Why this line's total isn't unit × qty — without it the
                           arithmetic on screen looks wrong. */}
                       {it.manualTotal != null && (
