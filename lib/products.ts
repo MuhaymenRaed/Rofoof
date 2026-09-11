@@ -552,6 +552,28 @@ export interface Order {
   customWaterproof: boolean;
 }
 
+/**
+ * The picture of what one order line actually is: the buyer's own upload,
+ * else the package design they picked, else the product's cover.
+ *
+ * Shared by the admin board and the customer's order history so both show the
+ * same thing. A shopper who chose one design out of a twelve-design package
+ * needs to see *that* design in their history, not the package cover — the
+ * cover tells them nothing about which one is coming.
+ *
+ * `product` is the live catalogue entry, so a design the admin has since
+ * retired falls back to the cover rather than to nothing.
+ */
+export function orderItemImage(
+  item: Pick<OrderItem, "itemId" | "customImageUrl">,
+  product: Pick<Product, "items" | "image"> | undefined,
+): string | undefined {
+  if (item.customImageUrl) return item.customImageUrl;
+  if (!product) return undefined;
+  const design = item.itemId ? product.items.find((i) => i.id === item.itemId) : undefined;
+  return design?.imageUrl || product.image;
+}
+
 /** Map an order status to the active tracker step index (0..3). */
 export const statusStep: Record<OrderStatus, number> = {
   review: 0,

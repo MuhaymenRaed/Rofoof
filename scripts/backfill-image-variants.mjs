@@ -31,8 +31,9 @@
  *
  * Originals are never deleted. They cost storage (which is not the quota that
  * broke) and they are what old order records still reference, so removing them
- * would rewrite history to save pennies. Re-running the script is safe: images
- * that already carry a tag are skipped.
+ * would rewrite history to save pennies. Re-running is safe and cheap: an
+ * original whose full-size sibling already exists is skipped, so nothing is
+ * downloaded or re-encoded twice.
  */
 
 import { readFileSync } from "node:fs";
@@ -160,6 +161,20 @@ async function listAll(bucket, prefix = "") {
 const publicUrl = (bucket, path) =>
   supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 
+/** Which format a bucket's variants are written in — see {@link migrate}. */
+const formatFor = (path, { preserveOriginal }) =>
+  preserveOriginal ? FORMATS[(path.split(".").pop() || "").toLowerCase()] : FORMATS.webp;
+
+/**
+ * The full-size sibling an original would produce. Its presence is what marks
+ * that original as already migrated.
+ */
+function fullPathFor(path, config) {
+  const format = formatFor(path, config);
+  if (!format) return null;
+  return `${path.replace(/\.[^./]+$/, "")}-w${config.maxDimension}.${format.ext}`;
+}
+
 /**
  * Build and upload the ladder for one object.
  *
@@ -167,16 +182,16 @@ const publicUrl = (bucket, path) =>
  * browser uploader does it that way: the full URL is what the database will
  * point at, so its siblings must already exist when it becomes reachable.
  */
-async function migrate(bucket, path, { maxDimension, preserveOriginal }) {
+async function migrate(bucket, path, config) {
+  const { maxDimension, preserveOriginal } = config;
   const base = path.replace(/\.[^./]+$/, "");
-  const sourceExt = (path.split(".").pop() || "").toLowerCase();
 
   // Display-only buckets are normalised to WebP (the same thing the browser
   // uploader does). Print buckets keep whatever format the master is in, so
   // the copy below stays byte-identical and the variants still share its
   // extension — which is all the loader's width swap needs.
-  const format = preserveOriginal ? FORMATS[sourceExt] : FORMATS.webp;
-  if (!format) return { skipped: `unsupported format .${sourceExt}` };
+  const format = formatFor(path, config);
+  if (!format) return { skipped: `unsupported format .${path.split(".").pop()}` };
 
   const { data, error } = await supabase.storage.from(bucket).download(path);
   if (error) throw new Error(`download ${path}: ${error.message}`);
@@ -281,8 +296,21 @@ async function main() {
 
     console.log(`${bucket}:`);
     const paths = await listAll(bucket);
-    const todo = paths.filter((p) => IMAGE_RE.test(p) && !TAGGED_RE.test(p));
-    console.log(`  ${paths.length} objects, ${todo.length} still untagged`);
+    const present = new Set(paths);
+
+    // "Not tagged" is NOT the same as "not done". Originals are deliberately
+    // never deleted and never renamed, so they stay untagged forever — an
+    // earlier version of this filter therefore re-downloaded and re-encoded the
+    // entire bucket on every run. What actually marks an object as migrated is
+    // its full-size sibling already existing.
+    const todo = paths.filter((p) => {
+      if (!IMAGE_RE.test(p) || TAGGED_RE.test(p)) return false;
+      return !present.has(fullPathFor(p, config));
+    });
+    console.log(
+      `  ${paths.length} objects, ${todo.length} to migrate` +
+        (todo.length === 0 ? " (nothing to do)" : ""),
+    );
 
     if (todo.length === 0 || DRY) {
       for (const p of todo.slice(0, 10)) console.log(`    would migrate ${p}`);
@@ -318,7 +346,7 @@ async function main() {
   console.log(
     DRY
       ? "Dry run complete."
-      : "Done. Originals were left in place; re-running skips anything already tagged.",
+      : "Done. Originals were left in place; re-running skips anything whose full-size sibling already exists.",
   );
 }
 
