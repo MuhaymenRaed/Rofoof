@@ -1,12 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { RetryImage } from "@/components/ui/retry-image";
+import { Lightbox } from "@/components/ui/lightbox";
 import { useStore } from "@/components/providers/store-provider";
 import { StatusPill } from "@/components/ui/status-pill";
 import { OrderTracker } from "@/components/ui/order-tracker";
 import { Package, Droplet, Sparkles, X } from "@/components/icons";
 import { formatPrice } from "@/lib/format";
-import { statusStyle, CUSTOM_ORDER_COLOR, CUSTOM_TYPE_LABEL, type Order } from "@/lib/products";
+import {
+  statusStyle,
+  orderItemImage,
+  CUSTOM_ORDER_COLOR,
+  CUSTOM_TYPE_LABEL,
+  type Order,
+} from "@/lib/products";
 
 /**
  * A single order, shown identically in the signed-in order history and the
@@ -18,6 +26,22 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
   // Custom design requests wear their own signature color.
   const accent = order.isCustom ? CUSTOM_ORDER_COLOR : statusStyle[order.status].color;
   const typeMeta = order.customType ? CUSTOM_TYPE_LABEL[order.customType] : null;
+
+  // Every picture in the order, in the order they appear on the card, so a
+  // tap on any thumbnail opens the viewer there and a swipe walks the rest.
+  // It's the same full-screen viewer as the store's product gallery: in-app,
+  // with retries on a dropped request, rather than a raw Storage link that
+  // leaves the site and shows the browser's broken-image glyph when it fails.
+  // Deduped because the viewer keys its thumbnail strip by URL.
+  const lineImages = order.items.map((item) => orderItemImage(item, getProduct(item.productId)));
+  const viewerImages = Array.from(
+    new Set([...order.customImages, ...lineImages.filter((u): u is string => !!u)]),
+  );
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  function openViewer(src: string) {
+    const i = viewerImages.indexOf(src);
+    setLightboxIndex(i >= 0 ? i : 0);
+  }
 
   return (
     <article
@@ -72,52 +96,64 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
             </p>
             <div className="no-scrollbar flex gap-2 overflow-x-auto">
               {order.customImages.map((url) => (
-                <a
+                <button
                   key={url}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  type="button"
+                  onClick={() => openViewer(url)}
+                  aria-label={t("custom.imagesLabel")}
                   className="tap relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition hover:opacity-80"
                   style={{ borderColor: CUSTOM_ORDER_COLOR }}
                 >
                   <RetryImage src={url} alt="" fill sizes="56px" className="object-cover" />
-                </a>
+                </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Items */}
-        <ul className="mt-4 space-y-2 border-t border-line-2 pt-4">
+        {/* Items — each line shows the picture of what was actually ordered
+            (the buyer's upload, else the package design they picked), never
+            just the package cover: a shopper checking on a twelve-design
+            package wants to see which one is coming. Same rule as the admin
+            board. Tapping opens the full-size viewer, since 56px is for
+            recognising a design, not inspecting it. */}
+        <ul className="mt-4 space-y-2.5 border-t border-line-2 pt-4">
           {order.items.map((item, idx) => {
             const product = getProduct(item.productId);
+            const image = lineImages[idx];
             const name = lang === "ar" ? item.nameAr : item.nameEn;
             const variant = lang === "ar" ? item.itemNameAr : item.itemNameEn;
+            const tint = product
+              ? `color-mix(in srgb, ${product.color} 14%, var(--surface))`
+              : "var(--surface-2)";
             return (
               <li key={idx} className="flex items-center justify-between gap-3 text-sm">
-                <span className="flex min-w-0 items-center gap-2.5 text-ink-2">
-                  <span
-                    className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg text-base"
-                    style={{
-                      background: product
-                        ? `color-mix(in srgb, ${product.color} 14%, var(--surface))`
-                        : "var(--surface-2)",
-                    }}
-                  >
-                    {item.customImageUrl || product?.image ? (
-                      <RetryImage
-                        src={item.customImageUrl ?? product!.image!}
-                        alt=""
-                        fill
-                        sizes="32px"
-                        className="object-cover"
-                      />
-                    ) : product?.emoji ? (
-                      product.emoji
-                    ) : (
-                      <Package size={15} className="text-ink-3" />
-                    )}
-                  </span>
+                <span className="flex min-w-0 items-center gap-3 text-ink-2">
+                  {image ? (
+                    <button
+                      type="button"
+                      onClick={() => openViewer(image)}
+                      aria-label={variant ? `${name} — ${variant}` : name}
+                      className="tap relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 transition hover:opacity-80"
+                      style={{
+                        background: tint,
+                        // The same "this opens" edge the custom strip wears,
+                        // in the product's own colour instead of the custom one.
+                        borderColor: product
+                          ? `color-mix(in srgb, ${product.color} 40%, transparent)`
+                          : "var(--line-2)",
+                      }}
+                    >
+                      <RetryImage src={image} alt="" fill sizes="56px" className="object-cover" />
+                    </button>
+                  ) : (
+                    <span
+                      className="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-2xl"
+                      style={{ background: tint }}
+                    >
+                      {product?.emoji ? product.emoji : <Package size={18} className="text-ink-3" />}
+                    </span>
+                  )}
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-ink">
                       {name}
@@ -210,6 +246,16 @@ export function OrderCard({ order, onCancel }: { order: Order; onCancel?: () => 
           </button>
         )}
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={viewerImages}
+          index={lightboxIndex}
+          onIndex={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          alt={order.code}
+        />
+      )}
     </article>
   );
 }

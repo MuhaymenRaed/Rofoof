@@ -31,6 +31,7 @@ import {
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
   MANUAL_ORDER_COLOR,
+  orderItemImage,
   type Order,
   type OrderStatus,
 } from "@/lib/products";
@@ -411,10 +412,7 @@ function OrderDetailsModal({
 
   /** The artwork to print for one line: buyer upload → chosen design → cover. */
   function itemImage(it: Order["items"][number]): string | undefined {
-    if (it.customImageUrl) return it.customImageUrl;
-    const p = getProduct(it.productId);
-    if (!p) return undefined;
-    return (it.itemId ? p.items.find((x) => x.id === it.itemId)?.imageUrl : undefined) ?? p.image;
+    return orderItemImage(it, getProduct(it.productId));
   }
 
   /**
