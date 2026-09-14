@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isValidPhone, sanitizePhoneInput } from "@/lib/contact";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin, getCurrentUser } from "@/lib/auth/dal";
 import { ensureDeviceId } from "@/lib/device-id";
@@ -61,11 +62,36 @@ async function getOrderMoney(code: string): Promise<{
   }
 }
 
-/** Iraqi mobile in local form: 07 followed by 9 digits. */
-const IRAQ_PHONE_RE = /^07\d{9}$/;
+/**
+ * The SAME phone rule the checkout form enforces, imported rather than
+ * rewritten. It was duplicated here as `IRAQ_PHONE_RE.test(v.replace(/\D/g,""))`,
+ * which is not the same test: `\D` strips Arabic-Indic digits (٠-٩) instead of
+ * folding them, so a number the form accepted could be rejected here as
+ * `invalid_input` — a generic "try again" for a number the shopper can see is
+ * correct. One helper, one answer, on both sides.
+ */
+function isIraqiMobile(value: string): boolean {
+  return isValidPhone(value);
+}
+
+/**
+ * Store ONE form of a number: `07XXXXXXXXX`, ASCII, no punctuation. The cart
+ * input already folds `+964…`, `00964…` and Arabic-Indic digits into it, so
+ * this is normally a no-op — but it is what makes that true for every path
+ * into the database, including a prefilled profile number that never passed
+ * through the input. Everything downstream matches on the stored string:
+ * cancel_order_guest(), the coupon ledger, and the dropped-checkout lookup
+ * below all compare phone numbers literally.
+ */
+function normalizePhone(value: string): string {
+  return sanitizePhoneInput(value);
+}
 
 /** Minimum designs in a custom STICKER order — mirrors the request modal. */
 const MIN_STICKER_IMAGES = 10;
+
+/** Pieces per line. Mirrors `least(99, qty)` inside place_order(). */
+const MAX_LINE_QTY = 99;
 
 /**
  * Ceiling on a hand-set price, matching the `manual_total` check constraint in
@@ -79,13 +105,15 @@ const MAX_MANUAL_PRICE = 100_000_000;
 const placeOrderSchema = z
   .object({
     customerName: z.string().trim().min(2).max(80),
-    // An Iraqi mobile in local form (07XXXXXXXXX) — the same rule the checkout
-    // enforces, repeated here so a crafted request can't store a junk number.
+    // An Iraqi mobile in local form (07XXXXXXXXX) — literally the same rule the
+    // checkout form runs, so a crafted request can't store a junk number and an
+    // honest one can never be refused for a formatting difference.
     customerPhone: z
       .string()
       .trim()
       .max(25)
-      .refine((v) => IRAQ_PHONE_RE.test(v.replace(/\D/g, "")), "invalid_phone"),
+      .refine((v) => isIraqiMobile(v), "invalid_phone")
+      .transform(normalizePhone),
     // Optional backup number; blank is fine, but a value must be a real one.
     customerPhone2: z
       .string()
@@ -93,21 +121,37 @@ const placeOrderSchema = z
       .max(25)
       .nullable()
       .optional()
-      .refine(
-        (v) => !v || IRAQ_PHONE_RE.test(v.replace(/\D/g, "")),
-        "invalid_phone2",
-      ),
+      .refine((v) => !v || isIraqiMobile(v), "invalid_phone2")
+      .transform((v) => (v ? normalizePhone(v) : v)),
     // Province and a full address are required at checkout; the note is not.
     provinceCode: z.string().trim().min(1),
     addressLine: z.string().trim().min(3).max(200),
     notes: z.string().trim().max(500).nullable().optional(),
     couponCode: z.string().trim().max(40).nullable().optional(),
+    /**
+     * The discount the cart showed on screen when Order was pressed. Never
+     * trusted for pricing — place_order() alone decides what is charged — it
+     * exists only so the two can be COMPARED once the order exists. See the
+     * mismatch check after the RPC.
+     */
+    quotedDiscount: z.number().int().min(0).max(100_000_000).nullable().optional(),
     items: z
       .array(
         z.object({
           productId: z.string().min(1),
           itemId: z.string().uuid().nullable().optional(),
-          qty: z.number().int().min(1).max(99),
+          // Clamped, never rejected. place_order() itself does
+          // `greatest(1, least(99, qty))`, so a basket of 150 is an order for
+          // 99 as far as the database is concerned — rejecting it here instead
+          // turned that into `invalid_input`, i.e. a generic "try again" the
+          // shopper had no way to read. Match the database and let the order
+          // through. The cart caps the stepper at the same ceiling, so the
+          // number on screen is the number that gets placed.
+          qty: z.coerce
+            .number()
+            .int()
+            .catch(1)
+            .transform((n) => Math.min(Math.max(n, 1), MAX_LINE_QTY)),
           waterproof: z.boolean().optional().default(false),
           customImageUrl: z.string().url().max(500).nullable().optional(),
           note: z.string().max(200).nullable().optional(),
@@ -192,7 +236,16 @@ export type PlaceOrderResult =
        */
       manualPriceIgnored?: boolean;
     }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * Set only with `error: "unavailable"` — the product id, or the design's
+       * uuid, that the catalogue no longer offers. The cart removes the line
+       * carrying it so the retry succeeds.
+       */
+      unavailableId?: string;
+    };
 
 /**
  * Did the order actually record the hand-set prices it was sent?
@@ -334,6 +387,21 @@ export async function placeOrderAction(
       return { ok: false, error: "coupon_used" };
     if (/out_of_stock/.test(error.message))
       return { ok: false, error: "out_of_stock" };
+    // The catalogue moved under a basket that had been sitting in localStorage.
+    // place_order() looks every line up with `is_active and not is_deleted`, so
+    // a product (or one design of a package) the admin has since hidden raises
+    // `invalid_product <id>` / `invalid_item <uuid>`. That used to fall through
+    // to the raw Postgres string and surface as the generic "try again", which
+    // the shopper could do nothing about: a vanished product renders as NOTHING
+    // in the cart, so there was no line to see, let alone remove.
+    //
+    // The offending id travels back with the error so the cart can drop exactly
+    // that line and let the order through on the next press — without waiting
+    // for the 5-minute catalogue cache to notice, and without guessing.
+    const gone = /invalid_(product|item)\s+(\S+)/.exec(error.message);
+    if (gone) {
+      return { ok: false, error: "unavailable", unavailableId: gone[2] };
+    }
     // A non-admin session reached the admin-only pricing path. Distinct from a
     // generic failure because the fix is specific: sign in as an admin, or drop
     // the hand-priced line.
@@ -381,6 +449,30 @@ export async function placeOrderAction(
     await recordCouponRedemption(v.couponCode, couponIdentity, result.code);
   }
 
+  // THE REGRESSION ALARM.
+  //
+  // The cart quotes a discount from preview_coupon(); place_order() decides the
+  // one actually charged. Nothing ever compared them, which is how a coupon
+  // being applied to only part of the basket ran for weeks across 14 orders
+  // before a customer noticed (see docs/coupon-discount-base.sql). Any future
+  // drift between the two — a change to either function, a new offer kind, a
+  // discount base that stops matching the cart — now announces itself on the
+  // very first order it affects, in the alert the shop already reads.
+  //
+  // Deliberately NOT a failure: the order is placed and valid either way, and
+  // refusing it would turn a pricing discrepancy into a lost sale. The shop is
+  // told, and settles it with the customer.
+  const chargedDiscount = money?.discountTotal ?? null;
+  const discountMismatch =
+    v.quotedDiscount != null &&
+    chargedDiscount != null &&
+    v.quotedDiscount !== chargedDiscount;
+  if (discountMismatch) {
+    console.error(
+      `[placeOrder] DISCOUNT MISMATCH on ${result.code}: cart quoted ${v.quotedDiscount}, database applied ${chargedDiscount}`,
+    );
+  }
+
   // Alert the store's Telegram bot. Fully non-fatal: sendOrderTelegramNotification
   // never throws, so a Telegram outage can never fail an already-successful
   // order. Still awaited (not fire-and-forget) — Netlify Functions can freeze
@@ -398,6 +490,7 @@ export async function placeOrderAction(
     subtotal: money?.subtotal,
     discountTotal: money?.discountTotal,
     deliveryFee: money?.deliveryFee ?? 0,
+    quotedDiscount: discountMismatch ? v.quotedDiscount! : undefined,
     itemCount:
       v.items.reduce((sum, i) => sum + i.qty, 0) +
       v.customs.reduce((sum, c) => sum + c.images.length, 0) +
@@ -421,6 +514,104 @@ export async function placeOrderAction(
     total: result.total,
     manualPriceIgnored,
   };
+}
+
+/* ------------------------ Did that order land? -------------------------- */
+
+const recentOrderSchema = z.object({
+  customerName: z.string().trim().min(2).max(80),
+  customerPhone: z
+    .string()
+    .trim()
+    .max(25)
+    .refine(isIraqiMobile)
+    .transform(normalizePhone),
+  provinceCode: z.string().trim().min(1),
+  addressLine: z.string().trim().min(3).max(200),
+  /** When the browser pressed Order. Clamped below — never trusted as given. */
+  startedAt: z.number().int().positive().optional(),
+});
+
+/** The furthest back a lost response could plausibly have come from. */
+const RECENT_ORDER_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Slack on the browser's clock. Phones drift, and a floor set slightly in the
+ * future would hide the very order we are looking for.
+ */
+const CLOCK_SKEW_MS = 2 * 60 * 1000;
+
+/**
+ * The question a dropped checkout leaves behind: did it go through?
+ *
+ * On unstable mobile data a Server Action POST can reach the server, place the
+ * order, and lose the RESPONSE on the way back. The client sees a thrown action
+ * and used to tell the shopper "no order was created" — which it cannot know,
+ * and which is wrong precisely when it matters: they order again and the shop
+ * ships twice.
+ *
+ * So ask. An order that landed in the last few minutes for this exact contact
+ * tuple is the one that just dropped.
+ *
+ * WHY THE WHOLE TUPLE, and not just the phone: this answers over an unauthenticated
+ * action, so the match has to be something only the person who filled the form
+ * in knows. Name, number, province AND street address together are that; a
+ * phone number alone would let anyone fish for whether a number had ordered.
+ * The service-role client is used because a GUEST order has no user_id for RLS
+ * to match on — the tuple is the authorisation here, so it is checked in full.
+ */
+export async function findRecentOrderAction(input: {
+  customerName: string;
+  customerPhone: string;
+  provinceCode: string;
+  addressLine: string;
+  startedAt?: number;
+}): Promise<
+  | { found: true; code: string }
+  /**
+   * `checked` separates "we looked, and nothing is there" from "we could not
+   * look". Only the first justifies telling the shopper no order was created;
+   * the second means the connection is still down, which is exactly when a
+   * confident denial would cause the duplicate this whole path exists to
+   * prevent.
+   */
+  | { found: false; checked: boolean }
+> {
+  const parsed = recentOrderSchema.safeParse(input);
+  if (!parsed.success) return { found: false, checked: false };
+  const v = parsed.data;
+
+  // Only orders created after this attempt began. Without it, a repeat buyer
+  // who ordered twice inside the window would be shown the code of the FIRST
+  // order and have the second basket cleared from under them. Clamped into the
+  // window either way, so a wrong browser clock can only narrow the search.
+  const floor = Math.min(
+    Math.max(
+      (v.startedAt ?? 0) - CLOCK_SKEW_MS,
+      Date.now() - RECENT_ORDER_WINDOW_MS,
+    ),
+    Date.now(),
+  );
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("orders")
+      .select("code, created_at")
+      .eq("customer_phone", v.customerPhone)
+      .eq("customer_name", v.customerName)
+      .eq("province_code", v.provinceCode)
+      .eq("address_line", v.addressLine)
+      .gte("created_at", new Date(floor).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error || !data) return { found: false, checked: false };
+    if (data.length === 0) return { found: false, checked: true };
+    return { found: true, code: data[0].code };
+  } catch {
+    return { found: false, checked: false };
+  }
 }
 
 /* --------------------------- Custom requests ---------------------------- */

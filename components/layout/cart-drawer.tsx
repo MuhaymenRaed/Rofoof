@@ -35,7 +35,7 @@ import {
   stockCeilingFor,
 } from "@/lib/products";
 import { provinceCodes, provinceLabelKey } from "@/lib/provinces";
-import { placeOrderAction } from "@/lib/actions/orders";
+import { placeOrderAction, findRecentOrderAction } from "@/lib/actions/orders";
 import { previewCouponAction, type CouponPreview } from "@/lib/actions/coupons";
 import { updateProfileAction } from "@/lib/actions/profile";
 import {
@@ -90,6 +90,9 @@ export function CartDrawer() {
     setQty,
     removeFromCart,
     clearCart,
+    removedLines,
+    clearRemovedLines,
+    dropUnavailable,
     customRequests,
     removeCustomRequest,
     manualOrders,
@@ -116,7 +119,11 @@ export function CartDrawer() {
   const [error, setError] = useState(false);
   // A thrown checkout action (network drop, or a Server Action ID that no
   // longer exists after a new deploy) needs a refresh, not a blind retry.
-  const [staleError, setStaleError] = useState(false);
+  // Which of the two messages it gets depends on whether we managed to confirm
+  // that no order landed — see the catch in submit().
+  const [staleError, setStaleError] = useState<null | "checked" | "unknown">(
+    null,
+  );
   /** a queued sticker request is under the 10-design minimum */
   const [stickerMinError, setStickerMinError] = useState(false);
   const [stockError, setStockError] = useState(false);
@@ -316,7 +323,7 @@ export function CartDrawer() {
 
     setPending(true);
     setError(false);
-    setStaleError(false);
+    setStaleError(null);
     setStickerMinError(false);
     setStockError(false);
     setManualError(null);
@@ -331,17 +338,39 @@ export function CartDrawer() {
       addressLine: address.trim(),
     };
 
+    // Stamped before the request goes out, so the recovery lookup in the catch
+    // can tell an order THIS attempt created from one the same buyer placed a
+    // few minutes ago.
+    const startedAt = Date.now();
+
+    /** The one way this checkout ends well — shared by both paths below. */
+    const finish = (code: string) => {
+      setOrderCode(code);
+      try {
+        sessionStorage.setItem(DONE_KEY, code);
+      } catch {
+        /* ignore */
+      }
+      clearCart();
+      removeCoupon();
+      setStep("done");
+    };
+
     // Products AND queued custom requests go out as ONE order — the whole cart
     // is a single order in the customer's page, the dashboard, and the stats.
-    // Wrapped so a THROWN action (network drop, or a stale Server Action ID
-    // after a new deploy) resets the button and prompts a refresh instead of
-    // leaving it stuck on "sending". The order isn't created in that case.
+    // Wrapped so a THROWN action resets the button instead of leaving it stuck
+    // on "sending"; what that thrown action MEANS is worked out in the catch.
     let res: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
       res = await placeOrderAction({
         ...contact,
         notes: note.trim() || null,
         couponCode: coupon?.valid ? (coupon.code ?? null) : null,
+        // What the shopper can see on this screen right now. Sent so the server
+        // can check it against what the database actually charges — see the
+        // regression alarm in placeOrderAction. Not a price: the server ignores
+        // it for everything except that comparison.
+        quotedDiscount: moneyDiscount,
         items: cart.map((l) => ({
           productId: l.id,
           itemId: l.itemId ?? null,
@@ -364,8 +393,24 @@ export function CartDrawer() {
         })),
       });
     } catch {
+      // The action threw: either a Server Action id that no longer exists after
+      // a deploy, or — far more likely on the mobile data these shoppers are
+      // on — a connection that dropped. The two are indistinguishable from
+      // here, and they need opposite advice, so don't guess.
+      //
+      // A dropped connection can drop the RESPONSE to a request that already
+      // placed the order. Telling the shopper "no order was created" (which is
+      // what this used to do) is the one answer that makes them order again and
+      // the shop ship twice. So ask the server whether it landed.
+      const recovered = await findRecentOrderAction({ ...contact, startedAt });
       setPending(false);
-      setStaleError(true);
+      if (recovered.found) {
+        // It went through — the reply was all that was lost. Show the success
+        // screen with the real code, exactly as if nothing had gone wrong.
+        finish(recovered.code);
+        return;
+      }
+      setStaleError(recovered.checked ? "checked" : "unknown");
       return;
     }
 
@@ -375,6 +420,20 @@ export function CartDrawer() {
       // rather than the generic failure — the shopper can fix it themselves by
       // dropping the design, and "something went wrong" wouldn't tell them so.
       if (res.error === "out_of_stock") setStockError(true);
+      // The catalogue this browser holds is cached for up to five minutes, so a
+      // product hidden moments ago can still look fine here. place_order() is
+      // the authority and it named the id it refused — drop that line so the
+      // very next press goes through, instead of failing identically until the
+      // cache turns over.
+      else if (res.error === "unavailable") {
+        // If the id matches nothing here (a line already gone, or a refusal we
+        // can't place), fall back to the generic message rather than leaving
+        // the button looking like it did nothing at all.
+        const dropped = res.unavailableId
+          ? dropUnavailable(res.unavailableId)
+          : false;
+        if (!dropped) setError(true);
+      }
       // Admin-only paths: the hand-priced line was refused. Each of these has a
       // specific remedy, so neither is worth flattening into "try again".
       else if (res.error === "manual_forbidden")
@@ -403,20 +462,11 @@ export function CartDrawer() {
     // failure — but the admin has to know before the total is acted on.
     if (res.manualPriceIgnored) setManualIgnored(true);
 
-    setOrderCode(res.code);
-    // Persist so the success screen (and the code) survives any refresh/remount
-    // the checkout server action triggers — the buyer needs it to track later.
-    try {
-      sessionStorage.setItem(DONE_KEY, res.code);
-    } catch {
-      /* ignore */
-    }
-    clearCart();
-    // A completed redemption must never be carried into the next basket.
-    // The next basket can apply a fresh code, and the server remains the
-    // authority if this client is remounted before the state update lands.
-    removeCoupon();
-    setStep("done");
+    // Persists the code so the success screen survives any refresh/remount the
+    // checkout action triggers, clears the basket, and drops the spent coupon —
+    // a completed redemption must never carry into the next basket. Shared with
+    // the recovery path above so both end in exactly the same state.
+    finish(res.code);
 
     // Signed-in user typed details their profile was missing (or changed
     // them) — save it now so future checkouts are prefilled automatically
@@ -457,7 +507,7 @@ export function CartDrawer() {
     >
       <div
         onClick={dismiss}
-        className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-[var(--dur-slow)] ease-[var(--ease-out)] ${
           cartOpen ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -466,7 +516,10 @@ export function CartDrawer() {
         role="dialog"
         aria-modal="true"
         aria-label={t("cart.title")}
-        className={`absolute inset-y-0 end-0 flex w-[88%] max-w-[380px] flex-col bg-surface shadow-2xl transition-transform duration-300 ease-out ${
+        // Slides on `translate`, which Tailwind v4 emits as its own CSS
+        // property — so the drawer's travel never fights the `.tap` press
+        // transform on anything inside it.
+        className={`absolute inset-y-0 end-0 flex w-[88%] max-w-[380px] flex-col bg-surface shadow-2xl transition-transform duration-[var(--dur-slow)] ease-[var(--ease-out)] ${
           cartOpen
             ? "translate-x-0"
             : "ltr:translate-x-full rtl:-translate-x-full"
@@ -492,6 +545,42 @@ export function CartDrawer() {
             <X size={18} />
           </button>
         </div>
+
+        {/* Items the catalogue stopped offering while they sat in this basket.
+            Rendered ABOVE the step content rather than inside the checkout form,
+            because the removal happens as soon as the catalogue loads — long
+            before the shopper reaches checkout — and because it changes the
+            total, which they are owed an explanation for either way. Hidden on
+            the success screen: the order is placed, the basket is empty, and
+            there is nothing left to act on. */}
+        {removedLines.length > 0 && !orderCode && (
+          <div className="border-b border-amber-500/20 bg-amber-500/10 px-5 py-3">
+            <p className="text-xs font-semibold leading-relaxed text-amber-700">
+              {removedLines.length === 1
+                ? t("cart.unavailableOne")
+                : t("cart.unavailableMany")}
+            </p>
+            {/* Name what we can. A vanished PRODUCT leaves no name behind — it
+                is gone from the catalogue we render from — so those lines are
+                covered by the sentence above and nothing is invented here. */}
+            {removedLines.some((l) => l.nameAr || l.nameEn) && (
+              <p className="mt-1 text-[11px] font-bold text-amber-700/90">
+                {t("cart.unavailableNamed")}{" "}
+                {removedLines
+                  .map((l) => (lang === "ar" ? l.nameAr : l.nameEn))
+                  .filter(Boolean)
+                  .join(lang === "ar" ? "، " : ", ")}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={clearRemovedLines}
+              className="tap mt-2 rounded-lg bg-amber-500 px-3 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90"
+            >
+              {t("cart.unavailableDismiss")}
+            </button>
+          </div>
+        )}
 
         {/* Success — driven by orderCode (not `step`) so a post-checkout refresh
             can't swap it for the empty-cart screen before the buyer copies it. */}
@@ -688,8 +777,14 @@ export function CartDrawer() {
               )}
 
               {staleError && (
-                <div className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-xs font-semibold text-amber-700">
-                  <p>{t("checkout.stale")}</p>
+                <div className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-xs font-semibold leading-relaxed text-amber-700">
+                  <p>
+                    {t(
+                      staleError === "checked"
+                        ? "checkout.stale"
+                        : "checkout.staleUnknown",
+                    )}
+                  </p>
                   <button
                     type="button"
                     onClick={() => window.location.reload()}

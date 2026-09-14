@@ -703,7 +703,13 @@ export function StoreView({
             <>
               <div
                 id="tour-catalog"
-                className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"
+                // Keyed on the page AND the filter signature so the stagger
+                // replays whenever the contents actually change — paging or
+                // filtering then reads as a new set arriving rather than the
+                // old one silently swapping underneath. React remounts the
+                // grid, which is what restarts the animation.
+                key={`${current}:${pageItems.length}`}
+                className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"
               >
                 {current === 1 && (
                   <>

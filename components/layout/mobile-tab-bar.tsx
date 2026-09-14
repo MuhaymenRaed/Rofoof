@@ -45,7 +45,14 @@ export function MobileTabBar() {
             const active = isActive(tab.href);
             return (
               <Link key={tab.href} href={tab.href} className={tabClass(active)}>
-                {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" />}
+                {/* Keyed on the tab so React remounts it as the route changes
+                    and the underline draws itself in under the new tab. */}
+                {active && (
+                  <span
+                    key={tab.href}
+                    className="animate-draw-in absolute top-0 h-0.5 w-8 rounded-full bg-brand"
+                  />
+                )}
                 {tab.icon}
                 {t(tab.key)}
               </Link>
@@ -64,7 +71,13 @@ export function MobileTabBar() {
             <span className="relative">
               <Bag size={21} />
               {cartCount > 0 && (
-                <span className="absolute -end-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+                <span
+                  // Keyed on the number: a new key remounts the badge and
+                  // replays the bounce, so the basket visibly reacts even when
+                  // the drawer is closed.
+                  key={cartCount}
+                  className="count-pop absolute -end-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
+                >
                   {cartCount}
                 </span>
               )}
@@ -79,12 +92,15 @@ export function MobileTabBar() {
             className={tabClass(isActive("/favorites"))}
           >
             {isActive("/favorites") && (
-              <span className="absolute top-0 h-0.5 w-8 rounded-full bg-brand" />
+              <span className="animate-draw-in absolute top-0 h-0.5 w-8 rounded-full bg-brand" />
             )}
             <span className="relative">
               <Heart size={21} filled={isActive("/favorites")} />
               {wishlist.length > 0 && (
-                <span className="absolute -end-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+                <span
+                  key={wishlist.length}
+                  className="count-pop absolute -end-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
+                >
                   {wishlist.length}
                 </span>
               )}

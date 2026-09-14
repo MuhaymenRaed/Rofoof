@@ -102,6 +102,122 @@
   --animate-marquee: marquee 32s linear infinite;
   --animate-fade-in: fade-in 0.4s ease both;
   --animate-pop: pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  /* See the MOTION section below for what each of these is for. */
+  --animate-rise: rise var(--dur-slow) var(--ease-out) both;
+  --animate-settle: settle var(--dur-slow) var(--ease-out) both;
+  --animate-fade-through: fade-through var(--dur-base) var(--ease-out) both;
+  --animate-badge-bounce: badge-bounce 0.42s var(--ease-spring) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-draw-in: draw-in var(--dur-base) var(--ease-out) both;
+}
+
+/* ---------------------------------------------------------------------------
+   MOTION
+   ---------------------------------------------------------------------------
+   One vocabulary for the whole site, so movement reads as one hand rather than
+   as each component's own idea. Three rules hold it together:
+
+   1. ONLY `transform` and `opacity` animate. Both are composited off the main
+      thread, so a mid-range Android scrolling a hundred product cards never
+      pays layout or paint for them. No `width`, `height`, `top`, `filter` or
+      `box-shadow` transitions — the card hover shadow is the one exception and
+      it is a static swap, not a tween.
+   2. NOTHING moves far, and nothing moves for long. The longest thing here is
+      340ms; most are under 200ms. Motion is meant to explain where something
+      came from, not to be watched.
+   3. EVERYTHING stops under `prefers-reduced-motion`. The blanket rule at the
+      bottom of this file enforces it globally, so a new animation is covered by
+      default rather than by remembering.
+
+   Durations are named by intent, not by number, so a change of pace is one
+   edit and the ratios between them survive it.
+--------------------------------------------------------------------------- */
+:root {
+  /* A tap responding to the finger. Should feel instant, not animated. */
+  --dur-instant: 110ms;
+  /* Hover, colour, small state changes. The default for `transition`. */
+  --dur-fast: 170ms;
+  /* Something appearing or leaving in place: a panel, a chip, a badge. */
+  --dur-base: 240ms;
+  /* Something travelling: a drawer, a modal, a card entering the grid. */
+  --dur-slow: 340ms;
+
+  /* Decelerating. Everything that ENTERS uses this: fast at first, settling at
+     the end, which is what makes a short animation feel finished rather than
+     cut off. */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Accelerating. Everything that LEAVES uses this — a thing on its way out
+     should not linger politely. */
+  --ease-in: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  /* Both ends eased. For anything that moves between two on-screen positions,
+     like the tab indicator. */
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
+  /* A single overshoot. Reserved for confirmations — an item joining the cart,
+     a badge counting up. Used sparingly: it is the loudest thing here. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Enter, travelling a little way up. The workhorse: grids, lists, sections. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Enter in place, with the faintest scale. For things that belong where they
+   already are — a modal, a popover, a price updating. */
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Replacing content in a slot that keeps its size: a gallery image, a tab
+   panel. The outgoing copy is gone before this starts, so it only fades in. */
+@keyframes fade-through {
+  from {
+    opacity: 0;
+    transform: scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The active-tab underline drawing itself in. Scale rather than width: width
+   would relayout the bar on every frame, scaleX is composited. */
+@keyframes draw-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Placeholder sheen while real content is on its way. Deliberately low
+   contrast — it should register as "loading", not as a stripe. */
+@keyframes shimmer {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
 }
 
 @keyframes marquee {
@@ -256,8 +372,135 @@
   }
 }
 
+/* Every interactive element on the site already carries `.tap`, which existed
+   only to kill the grey iOS flash. It is the one class guaranteed to be on all
+   of them, so it is where the press lives: a control that gives nothing back
+   under the finger is the single biggest reason an app feels dead, and this
+   costs one composited transform.
+
+   `active` fires on touch as well as mouse, so it reaches the phones that
+   matter. `:disabled` is excluded — a dead button must not feel alive. */
 @utility tap {
   -webkit-tap-highlight-color: transparent;
+  /* This lands AFTER Tailwind's own `.transition` in the cascade, and a
+     transition shorthand replaces rather than merges — so the property list has
+     to be a superset of what `.transition` covers, or a `.tap` element would
+     silently lose its hover fade. `transform` is first because it is the one
+     this class adds; everything after it is what Tailwind already animated,
+     re-declared at the shared durations.
+
+     `translate`, `scale` and `rotate` are named separately because Tailwind v4
+     compiles its utilities to those standalone CSS properties — `transform`
+     alone would not cover `hover:-translate-y-1`. */
+  transition:
+    transform var(--dur-instant) var(--ease-out),
+    translate var(--dur-fast) var(--ease-out),
+    scale var(--dur-fast) var(--ease-out),
+    rotate var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    outline-color var(--dur-fast) var(--ease-out),
+    fill var(--dur-fast) var(--ease-out),
+    stroke var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    filter var(--dur-fast) var(--ease-out),
+    backdrop-filter var(--dur-fast) var(--ease-out);
+}
+
+.tap:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(0.96);
+}
+
+/* Larger surfaces need a smaller ratio — a card scaling by 4% looks like it is
+   being squashed, where a 36px button looks pressed. */
+.tap-soft:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(0.985);
+}
+
+@layer components {
+  /* ------------------------------------------------------------------ enter */
+  /* A list or grid whose children arrive in sequence rather than all at once.
+     The delay is capped at the 10th child: past that the stagger stops adding
+     meaning and starts making the last row wait, and a catalogue page can hold
+     a hundred cards. Anything beyond simply arrives with the 10th. */
+  .stagger > * {
+    animation: var(--animate-rise);
+    animation-delay: calc(var(--stagger-step, 38ms) * var(--i, 0));
+  }
+
+  /* Set by the markup via an inline `--i`; these cover the common case without
+     the component having to compute one per child. */
+  .stagger > *:nth-child(1)  { --i: 0; }
+  .stagger > *:nth-child(2)  { --i: 1; }
+  .stagger > *:nth-child(3)  { --i: 2; }
+  .stagger > *:nth-child(4)  { --i: 3; }
+  .stagger > *:nth-child(5)  { --i: 4; }
+  .stagger > *:nth-child(6)  { --i: 5; }
+  .stagger > *:nth-child(7)  { --i: 6; }
+  .stagger > *:nth-child(8)  { --i: 7; }
+  .stagger > *:nth-child(9)  { --i: 8; }
+  .stagger > *:nth-child(n + 10) { --i: 9; }
+
+  /* --------------------------------------------------------------- surfaces */
+  /* A card that answers the pointer. The shadow is a plain swap rather than a
+     transition: animating box-shadow repaints the whole card every frame, and
+     with a hundred on screen that is the difference between a smooth scroll
+     and a stuttering one. Only the lift is animated. */
+  .lift {
+    transition: transform var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+    will-change: transform;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .lift:hover {
+      transform: translate3d(0, -4px, 0);
+    }
+  }
+
+  /* ------------------------------------------------------------ placeholder */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--ink) 6%, transparent),
+      transparent
+    );
+    animation: var(--animate-shimmer);
+  }
+
+  /* ------------------------------------------------------------- indicators */
+  /* The sliding underline under an active tab. The element is positioned by the
+     markup; this only makes the move between positions readable as a move. */
+  .indicator-slide {
+    transition:
+      transform var(--dur-base) var(--ease-move),
+      width var(--dur-base) var(--ease-move),
+      opacity var(--dur-fast) var(--ease-out);
+  }
+
+  /* A count that has just changed. Keyed in React so re-mounting replays it. */
+  .count-pop {
+    animation: var(--animate-badge-bounce);
+  }
+
+  /* Modal backdrops. The panels already pop in; the dimmed sheet behind them
+     appeared instantly, which is what made a modal feel like it was cut in
+     rather than opened. Opacity only — the blur on these is a static value, not
+     an animated one, because animating backdrop-filter makes the compositor
+     re-blur the whole viewport every frame. */
+  .backdrop-in {
+    animation: fade-in var(--dur-base) var(--ease-out) both;
+  }
 }
 
 /**
@@ -414,6 +657,49 @@
   .tour-track,
   .tour-halo {
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   REDUCED MOTION — the blanket rule.
+
+   Individual `motion-reduce:` utilities were already scattered through the
+   components, but they only cover what someone remembered to mark. This covers
+   everything, including anything added later: if the reader has asked their OS
+   to limit animation, movement stops being a thing this site does.
+
+   Not `animation: none` — that would cancel the `both` fill on every enter
+   animation and leave those elements stuck at `opacity: 0`, i.e. an invisible
+   page. Collapsing the duration instead runs each animation to its final frame
+   immediately, so everything lands where it belongs with no movement at all.
+
+   `scroll-behavior` goes back to instant for the same reason: a smooth scroll
+   is motion, and this is the setting that asks for none.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* Transforms held by a hover or press state, rather than by an animation. */
+  .tap:active,
+  .tap-soft:active,
+  .lift:hover {
+    transform: none !important;
+  }
+
+  .skeleton::after {
+    display: none;
   }
 }
 

@@ -111,7 +111,10 @@ export function Header() {
           >
             <Heart size={18} filled={isActive("/favorites")} />
             {wishlist.length > 0 && (
-              <span className="absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+              <span
+                key={wishlist.length}
+                className="count-pop absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
+              >
                 {wishlist.length}
               </span>
             )}
@@ -132,8 +135,7 @@ export function Header() {
             {cartCount > 0 && (
               <span
                 key={cartCount}
-                className="absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
-                style={{ animation: "badge-bounce 0.3s ease both" }}
+                className="count-pop absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
               >
                 {cartCount}
               </span>

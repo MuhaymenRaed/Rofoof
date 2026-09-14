@@ -45,12 +45,30 @@ export interface CartLine {
   note?: string;
 }
 
+/**
+ * A line the catalogue no longer offers, kept only long enough to explain
+ * itself. See "Cart vs. the catalogue" in the provider for why it exists.
+ */
+export interface RemovedCartLine {
+  /** Product name when we still have it; null when the product itself is gone. */
+  nameAr: string | null;
+  nameEn: string | null;
+}
+
 export interface AddToCartOptions {
   itemId?: string;
   waterproof?: boolean;
   customImageUrl?: string;
   note?: string;
 }
+
+/**
+ * Hard ceiling on one line's quantity. place_order() clamps with
+ * `least(99, qty)` and the checkout schema clamps to match, so the cart has to
+ * stop here too — otherwise the stepper shows 150 and the order is placed for
+ * 99, which the shopper only discovers on the invoice.
+ */
+export const MAX_LINE_QTY = 99;
 
 /** Identity of a cart line: same product + item + waterproof merge together. */
 export function cartLineKey(l: Pick<CartLine, "id" | "itemId" | "waterproof">): string {
@@ -104,6 +122,15 @@ interface StoreContextValue {
   setQty: (lineKey: string, qty: number) => void;
   removeFromCart: (lineKey: string) => void;
   clearCart: () => void;
+  /** Lines dropped because the catalogue stopped offering them. */
+  removedLines: RemovedCartLine[];
+  /** Acknowledge the removal notice. */
+  clearRemovedLines: () => void;
+  /**
+   * Drop every line carrying this product id or design uuid. Called when
+   * checkout itself reports one as unavailable — see placeOrderAction.
+   */
+  dropUnavailable: (id: string) => boolean;
   /** custom design requests queued in the cart alongside products */
   customRequests: CustomCartRequest[];
   addCustomRequest: (req: Omit<CustomCartRequest, "id">) => void;
@@ -156,6 +183,8 @@ type ActionsValue = Pick<
   | "setQty"
   | "removeFromCart"
   | "clearCart"
+  | "clearRemovedLines"
+  | "dropUnavailable"
   | "addCustomRequest"
   | "removeCustomRequest"
   | "addManualOrder"
@@ -197,7 +226,13 @@ type CatalogValue = Pick<
 /** The basket. Changes on every quantity tap — deliberately narrow. */
 type CartValue = Pick<
   StoreContextValue,
-  "cart" | "customRequests" | "manualOrders" | "cartCount" | "cartSubtotal" | "pricingFor"
+  | "cart"
+  | "customRequests"
+  | "manualOrders"
+  | "cartCount"
+  | "cartSubtotal"
+  | "pricingFor"
+  | "removedLines"
 >;
 
 /** Its own context so hearting one product doesn't touch the cart's consumers. */
@@ -280,6 +315,9 @@ export function StoreProvider({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customRequests, setCustomRequests] = useState<CustomCartRequest[]>([]);
   const [manualOrders, setManualOrders] = useState<ManualCartOrder[]>([]);
+  const [removedLines, setRemovedLines] = useState<RemovedCartLine[]>([]);
+  /** Latest cart, readable from a stable callback without widening its deps. */
+  const cartRef = useRef<CartLine[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   // Latest wishlist without making every consumer re-subscribe — lets the DB
   // sync read current state without living inside a state updater.
@@ -318,6 +356,54 @@ export function StoreProvider({
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* ------------------------- Cart vs. the catalogue -------------------------
+   * A basket lives in localStorage indefinitely, and the catalogue moves under
+   * it: hiding a product sets is_active=false (the admin's "delete" is a soft
+   * one), and a package design can be retired on its own the same way. The
+   * storefront only ever loads active, undeleted rows, so such a line stops
+   * resolving — and the cart used to handle that by rendering NOTHING for it
+   * (`if (!product) return null`) while still counting its qty in the badge,
+   * pricing it at 0, and sending it to checkout anyway.
+   *
+   * place_order() looks every line up with `is_active and not is_deleted` and
+   * raises `invalid_product` / `invalid_item`, which surfaced as the generic
+   * "couldn't place the order, try again". The shopper could not act on it:
+   * the line they had to remove was invisible, so every retry failed the same
+   * way and the sale was lost.
+   *
+   * So drop those lines here, the moment the catalogue says they are gone, and
+   * say so. The rest of the basket still checks out, which is the whole point.
+   * ------------------------------------------------------------------------ */
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    // Never prune against a catalogue we failed to load. getProducts() degrades
+    // to [] on any transient DB/network error (see lib/data/catalog.ts), and
+    // pruning against that would empty every basket on the site over one blip.
+    if (products.length === 0) return;
+
+    const resolves = (l: CartLine) => {
+      const p = productMap.get(l.id);
+      if (!p) return false;
+      // A design that was retired on its own: the product still stands, so the
+      // line renders and looks normal — priced at the base product price —
+      // and only checkout knows it can't be ordered.
+      return !l.itemId || p.items.some((i) => i.id === l.itemId);
+    };
+
+    const gone = cart.filter((l) => !resolves(l));
+    if (gone.length === 0) return;
+
+    setCart((prev) => prev.filter(resolves));
+    setRemovedLines((prev) => [
+      ...prev,
+      ...gone.map((l) => {
+        const p = productMap.get(l.id);
+        return { nameAr: p?.nameAr ?? null, nameEn: p?.nameEn ?? null };
+      }),
+    ]);
+  }, [cart, products, productMap]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   // --- real clock, once we're past the prerender (see `now` on the context).
   // Re-read every minute so a flash sale that lapses while the shopper is
   // browsing stops advertising a price they can no longer get.
@@ -342,6 +428,7 @@ export function StoreProvider({
   // --- persist cart / wishlist
   useEffect(() => {
     try {
+      cartRef.current = cart;
       localStorage.setItem(LS.cart, JSON.stringify(cart));
     } catch {}
   }, [cart]);
@@ -471,7 +558,8 @@ export function StoreProvider({
         // checked on the way in too — otherwise pressing "add" five times gets
         // past a cap the stepper would have refused in one step.
         const ceiling = stockCeilingFor(productMap.get(id), opts?.itemId);
-        const cap = (n: number) => (ceiling == null ? n : Math.min(n, ceiling));
+        const cap = (n: number) =>
+          Math.min(ceiling == null ? n : Math.min(n, ceiling), MAX_LINE_QTY);
         const key = cartLineKey(next);
         const existing = prev.find((l) => cartLineKey(l) === key);
         if (existing) {
@@ -506,7 +594,13 @@ export function StoreProvider({
           : prev.map((l) => {
               if (cartLineKey(l) !== lineKey) return l;
               const ceiling = stockCeilingFor(productMap.get(l.id), l.itemId);
-              return { ...l, qty: ceiling == null ? qty : Math.min(qty, ceiling) };
+              return {
+                ...l,
+                qty: Math.min(
+                  ceiling == null ? qty : Math.min(qty, ceiling),
+                  MAX_LINE_QTY,
+                ),
+              };
             }),
       );
     },
@@ -516,6 +610,35 @@ export function StoreProvider({
   const removeFromCart = useCallback((lineKey: string) => {
     setCart((prev) => prev.filter((l) => cartLineKey(l) !== lineKey));
   }, []);
+
+  const clearRemovedLines = useCallback(() => setRemovedLines([]), []);
+
+  /**
+   * Checkout's own verdict, which beats ours: the catalogue this browser holds
+   * is cached for up to five minutes, so a product hidden a moment ago still
+   * resolves here and the reconcile above keeps the line. place_order() names
+   * the id it refused, and this drops it, so pressing Order again goes through
+   * instead of failing identically until the cache turns over.
+   *
+   * Returns whether anything was actually removed, so a caller relying on this
+   * to explain a failure can fall back when it explains nothing.
+   */
+  const dropUnavailable = useCallback((id: string) => {
+    // Read through a ref, not the updater: appending the notice from inside a
+    // setCart callback would run twice under StrictMode's double-invoke and
+    // report one removal as two.
+    const gone = cartRef.current.filter((l) => l.id === id || l.itemId === id);
+    if (gone.length === 0) return false;
+    setCart((prev) => prev.filter((l) => l.id !== id && l.itemId !== id));
+    setRemovedLines((prev) => [
+      ...prev,
+      ...gone.map((l) => {
+        const p = productMap.get(l.id);
+        return { nameAr: p?.nameAr ?? null, nameEn: p?.nameEn ?? null };
+      }),
+    ]);
+    return true;
+  }, [productMap]);
 
   /**
    * Clears products, queued custom requests AND manual lines — used after a
@@ -655,6 +778,8 @@ export function StoreProvider({
       setQty,
       removeFromCart,
       clearCart,
+      clearRemovedLines,
+      dropUnavailable,
       addCustomRequest,
       removeCustomRequest,
       addManualOrder,
@@ -679,6 +804,8 @@ export function StoreProvider({
       setQty,
       removeFromCart,
       clearCart,
+      clearRemovedLines,
+      dropUnavailable,
       addCustomRequest,
       removeCustomRequest,
       addManualOrder,
@@ -738,8 +865,24 @@ export function StoreProvider({
   );
 
   const cartValue = useMemo<CartValue>(
-    () => ({ cart, customRequests, manualOrders, cartCount, cartSubtotal, pricingFor }),
-    [cart, customRequests, manualOrders, cartCount, cartSubtotal, pricingFor],
+    () => ({
+      cart,
+      customRequests,
+      manualOrders,
+      cartCount,
+      cartSubtotal,
+      pricingFor,
+      removedLines,
+    }),
+    [
+      cart,
+      customRequests,
+      manualOrders,
+      cartCount,
+      cartSubtotal,
+      pricingFor,
+      removedLines,
+    ],
   );
 
   const wishlistValue = useMemo<WishlistValue>(

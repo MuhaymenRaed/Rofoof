@@ -44,7 +44,7 @@ export function ManualOrderModal() {
     <div className="fixed inset-0 z-[70] grid place-items-center p-4">
       <div
         onClick={closeManual}
-        className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
+        className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
         style={{ animation: "fade-in 0.2s ease both" }}
       />
       <ManualForm onClose={closeManual} />

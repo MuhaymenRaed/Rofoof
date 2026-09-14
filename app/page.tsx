@@ -108,7 +108,7 @@ function Grid({ products, priorityCount = 0 }: { products: Product[]; priorityCo
   return (
     // Tops out at 4 columns to match RAIL_SIZE, so a rail always reads as one
     // complete row instead of leaving a hole on the widest screens.
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {products.map((p, i) => (
         <ProductCard key={p.id} productId={p.id} priority={i < priorityCount} />
       ))}

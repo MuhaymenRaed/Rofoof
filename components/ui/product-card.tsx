@@ -91,7 +91,14 @@ export function ProductCard({
       // explain how ordering works (see lib/tour/steps.ts).
       data-tour="product-card"
       style={style}
-      className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-line-2 bg-surface transition duration-200 hover:-translate-y-1 hover:border-[var(--c)] hover:shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--c)_55%,transparent)]"
+      // `lift` carries the hover rise; the shadow is left as a plain hover swap
+      // rather than a transition because animating box-shadow repaints the whole
+      // card every frame, and a catalogue page holds over a hundred of them.
+      // The press deliberately is NOT here: `:active` on a non-interactive
+      // container fires when anything inside it is pressed, so tapping the
+      // wishlist heart would squash the whole card. The controls carry their
+      // own `.tap`. See the MOTION block in globals.css.
+      className="group lift relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-line-2 bg-surface hover:border-[var(--c)] hover:shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--c)_55%,transparent)]"
     >
       {/* Image / emoji — opens quick view */}
       <button
@@ -107,7 +114,7 @@ export function ProductCard({
              span: inset-inline-* resolves against the element's own direction,
              so an ltr one would put `end` back under the heart. The ltr run
              only has to cover the number. */
-          <span className="absolute top-2 end-2 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white shadow-md">
+          <span className="animate-pop absolute top-2 end-2 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black text-white shadow-md">
             <span dir="ltr">-{sale.percent}%</span>
           </span>
         )}
@@ -119,7 +126,7 @@ export function ProductCard({
         )}
 
         {soldOut && (
-          <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--surface)_72%,transparent)]">
+          <span className="animate-fade-through absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--surface)_72%,transparent)]">
             <span className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-bold text-surface">
               {t("badge.soldout")}
             </span>
@@ -170,7 +177,7 @@ export function ProductCard({
           onClick={() => openQuickView(product.id)}
           className="tap text-start"
         >
-          <h3 className="line-clamp-1 text-[13px] font-bold text-ink transition hover:text-brand">
+          <h3 className="line-clamp-1 text-[13px] font-bold text-ink transition-colors duration-[var(--dur-fast)] hover:text-brand">
             {name}
           </h3>
         </button>
@@ -199,13 +206,18 @@ export function ProductCard({
             onClick={handleAdd}
             disabled={soldOut}
             aria-label={t("product.add")}
-            className="tap grid h-9 w-9 shrink-0 place-items-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-40"
+            className="tap grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
             style={{
               background: justAdded ? "var(--c)" : "color-mix(in srgb, var(--c) 13%, transparent)",
               color: justAdded ? "#fff" : "var(--c)",
             }}
           >
-            {justAdded ? <Check size={16} /> : <Cart size={16} />}
+            {/* Keyed so React remounts the icon and the enter animation replays
+                on every add — the tick springing in is the card's way of saying
+                the basket heard you, which otherwise only the drawer confirms. */}
+            <span key={justAdded ? "added" : "idle"} className={justAdded ? "animate-pop" : ""}>
+              {justAdded ? <Check size={16} /> : <Cart size={16} />}
+            </span>
           </button>
         </div>
       </div>

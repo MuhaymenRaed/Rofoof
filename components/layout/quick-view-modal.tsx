@@ -61,7 +61,7 @@ export function QuickViewModal() {
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
       <div
         onClick={closeQuickView}
-        className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
+        className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
         style={{ animation: "fade-in 0.2s ease both" }}
       />
       <Content key={quickView.id} product={quickView} onClose={closeQuickView} />
@@ -354,6 +354,12 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             className="tap absolute inset-0 cursor-zoom-in"
           >
             <RetryImage
+              // Keyed on the image itself, so stepping the gallery remounts the
+              // element and the new frame fades up instead of snapping. Nothing
+              // animates out: the outgoing frame is simply replaced, which
+              // avoids holding two decoded photos on screen at once — the sort
+              // of thing that stutters on the phones this shop is used on.
+              key={mainImage}
               src={mainImage}
               alt={name}
               fill
@@ -365,7 +371,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
               loading="eager"
               placeholder="blur"
               blurDataURL={tintedBlurDataUrl(product.color)}
-              className="object-contain"
+              className="animate-fade-through object-contain"
               fallback={<span className="grid h-full w-full place-items-center text-[120px]">{product.emoji}</span>}
             />
           </button>
@@ -413,6 +419,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 className="tap absolute inset-0 cursor-zoom-in"
               >
                 <RetryImage
+                  key={mainImage}
                   src={mainImage}
                   alt={name}
                   fill
@@ -420,7 +427,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                   loading="eager"
                   placeholder="blur"
                   blurDataURL={tintedBlurDataUrl(product.color)}
-                  className="object-contain"
+                  className="animate-fade-through object-contain"
                   fallback={<span className="grid h-full w-full place-items-center text-6xl">{product.emoji}</span>}
                 />
               </button>

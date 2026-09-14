@@ -32,6 +32,13 @@ export interface OrderNotification {
   /** delivery fee, shown as its own line when provided */
   deliveryFee?: number;
   itemCount: number;
+  /**
+   * The discount the CART promised, when it disagrees with the one the database
+   * actually applied. Set only on a mismatch — see placeOrderAction — so this
+   * line is absent from every healthy alert and impossible to miss on a broken
+   * one.
+   */
+  quotedDiscount?: number;
 }
 
 const TELEGRAM_TIMEOUT_MS = 5000;
@@ -75,6 +82,19 @@ function moneyLines(order: OrderNotification, totalLabel: string): string[] {
     lines.push(`🚚 *أجور التوصيل:* ${money(order.deliveryFee)}`);
   }
   lines.push(`💰 *${totalLabel}:* ${money(resolvedTotal(order))}`);
+  // The shop quoted one discount and charged another. This is the alarm for the
+  // class of bug where place_order() and the cart's preview drift apart: it was
+  // a coupon being taken off only part of the basket, and it went unnoticed for
+  // weeks because nothing ever compared the two numbers. Now every order does.
+  if (order.quotedDiscount != null) {
+    lines.push(
+      "",
+      "⚠️ *تحذير: الخصم المطبَّق يخالف الخصم المعروض في السلة*",
+      `   السلة عرضت: -${money(order.quotedDiscount)}`,
+      `   وطُبِّق فعلياً: -${money(order.discountTotal ?? 0)}`,
+      "   _راجع كود الخصم — الزبون شاهد رقماً مختلفاً._",
+    );
+  }
   return lines;
 }
 
