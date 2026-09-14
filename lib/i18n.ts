@@ -779,6 +779,16 @@ export const dict = {
     en: "leave empty to apply to the whole cart",
   },
   "dash.couponProductsShort": { ar: "منتج", en: "products" },
+  /**
+   * Honest about a limit of the current engine: place_order() and
+   * preview_coupon() both apply the discount to the whole basket, so this
+   * selection does not narrow what the code comes off. See the note in
+   * docs/coupon-discount-base.sql.
+   */
+  "dash.couponProductsWarn": {
+    ar: "تنبيه: الخصم يطبّق على كامل السلة حالياً حتّى مع تحديد منتجات.",
+    en: "Note: the discount currently comes off the whole cart even when products are selected.",
+  },
   "dash.couponNoUsers": {
     ar: "لم يُعثر على زبائن بهذه الإيميلات",
     en: "No customers matched those emails",
@@ -897,6 +907,25 @@ export const dict = {
     en: "Delivery fee (0 = free)",
   },
   "offer.endsAt": { ar: "ينتهي في", en: "Ends at" },
+  "offer.startsAt": { ar: "يبدأ في", en: "Starts at" },
+
+  // Editing a live promo code (see updateCouponAction).
+  "dash.couponEdit": { ar: "تعديل", en: "Edit" },
+  "dash.couponEditing": { ar: "تعديل الكود", en: "Editing code" },
+  "dash.couponCodeLocked": {
+    ar: "لا يمكن تغيير اسم الكود — الطلبات السابقة وسجل الاستخدام مرتبطة به. لاسم جديد أنشئ كوداً جديداً.",
+    en: "The code name can't change — past orders and the usage ledger are keyed to it. For a new name, create a new code.",
+  },
+  "dash.couponEditKeepsUsage": {
+    ar: "التعديل يكمل الحملة الحالية: عداد الاستخدام لا يصفّر.",
+    en: "Editing continues the current campaign — the usage count is not reset.",
+  },
+  "dash.couponName": { ar: "اسم الحملة (اختياري)", en: "Campaign name (optional)" },
+  "dash.couponNotFound": {
+    ar: "لم يعد هذا الكود موجوداً — حدّث الصفحة.",
+    en: "This code no longer exists — refresh the page.",
+  },
+  "dash.couponSaveEdit": { ar: "حفظ التعديل", en: "Save changes" },
   "offer.create": { ar: "إنشاء العرض", en: "Create offer" },
   "offer.live": { ar: "فعّال", en: "Live" },
   "offer.off": { ar: "متوقف", en: "Off" },
@@ -1220,6 +1249,24 @@ export const dict = {
   "cart.pieces": { ar: "قطعة", en: "pieces" },
   "cart.discount": { ar: "الخصم", en: "Discount" },
   "cart.freeDelivery": { ar: "توصيل مجاني", en: "Free delivery" },
+  // A product (or one design of a package) was retired while it sat in the
+  // basket. Named rather than flattened into "try again": the line is gone from
+  // the cart by the time this shows, so the rest of the order still goes
+  // through and the shopper is told why the total changed.
+  "cart.unavailableOne": {
+    ar: "عنصر في سلتك لم يعد متوفراً وتمّ حذفه. بقية الطلب جاهزة — أكمل الآن.",
+    en: "An item in your cart is no longer available and was removed. The rest of your order is ready — go ahead and finish it.",
+  },
+  "cart.unavailableMany": {
+    ar: "بعض العناصر في سلتك لم تعد متوفرة وتمّ حذفها. بقية الطلب جاهزة — أكمل الآن.",
+    en: "Some items in your cart are no longer available and were removed. The rest of your order is ready — go ahead and finish it.",
+  },
+  /** Prefix used when we still know what the item was called. */
+  "cart.unavailableNamed": {
+    ar: "لم يعد متوفراً:",
+    en: "No longer available:",
+  },
+  "cart.unavailableDismiss": { ar: "حسناً", en: "Got it" },
   "cart.outOfStock": {
     ar: "نفدت الكمية من أحد التصاميم في سلتك. عدّل الكمية أو احذف التصميم ثم أعد المحاولة.",
     en: "One of the designs in your cart just ran out. Adjust the quantity or remove it, then try again.",
@@ -1287,9 +1334,17 @@ export const dict = {
     ar: "رقم بديل نتواصل به إذا تعذّر الوصول إليك على الرقم الأول.",
     en: "An alternative number we'll try if we can't reach you on the first one.",
   },
+  // Two different answers, because they need opposite advice. `stale` is only
+  // used once the server has been ASKED whether the order landed and has said
+  // no — see findRecentOrderAction.
   "checkout.stale": {
-    ar: "انتهت صلاحية هذه الصفحة بعد تحديث الموقع. حدّث الصفحة ثم أعد المحاولة — لم يتم إنشاء الطلب.",
-    en: "This page went out of date after a site update. Refresh and try again — no order was created.",
+    ar: "انقطع الاتصال قبل إرسال الطلب، وتحقّقنا: لم يتم إنشاء أي طلب. سلتك محفوظة — حدّث الصفحة وأعد المحاولة.",
+    en: "The connection dropped before the order was sent, and we checked — no order was created. Your cart is saved; refresh and try again.",
+  },
+  /** We could not reach the server to find out. Never claim either way. */
+  "checkout.staleUnknown": {
+    ar: "انقطع الاتصال ولم نتمكّن من التأكّد من وصول طلبك. لا تعد الطلب فوراً حتّى لا يتكرّر — حدّث الصفحة أوّلاً، أو راسلنا على واتساب.",
+    en: "The connection dropped and we couldn't confirm whether your order arrived. Don't re-order straight away or it may be placed twice — refresh first, or message us on WhatsApp.",
   },
   "checkout.reload": { ar: "تحديث الصفحة", en: "Refresh page" },
   "checkout.back": { ar: "رجوع للسلة", en: "Back to cart" },

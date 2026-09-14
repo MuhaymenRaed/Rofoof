@@ -210,6 +210,51 @@ async function resolveUserIds(emails: string[]): Promise<string[]> {
   return ids;
 }
 
+/**
+ * The reverse of resolveUserIds: the emails behind a coupon's stored targets,
+ * so the edit form can show who it is aimed at instead of an opaque count.
+ * Same single pass over the user list; ids that no longer resolve (a deleted
+ * account) are simply dropped, which is also what the coupon check does.
+ */
+async function resolveUserEmails(ids: string[]): Promise<string[]> {
+  const wanted = new Set(ids.filter(Boolean));
+  if (wanted.size === 0) return [];
+
+  const supabase = createAdminClient();
+  const emails: string[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error || !data?.users?.length) break;
+    for (const u of data.users) {
+      if (u.email && wanted.has(u.id)) emails.push(u.email);
+    }
+    if (data.users.length < 1000) break;
+  }
+  return emails;
+}
+
+/**
+ * Who a coupon currently targets, in the form the edit form takes back.
+ * Fetched on demand rather than with the coupon list: it costs a full pass over
+ * the user directory, and almost every coupon targets nobody.
+ */
+export async function getCouponTargetEmailsAction(
+  code: string,
+): Promise<{ ok: true; emails: string[] } | { ok: false }> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("coupons")
+    .select("target_user_ids")
+    .eq("code", code.trim().toUpperCase())
+    .maybeSingle<{ target_user_ids: string[] | null }>();
+  if (error) return { ok: false };
+  return { ok: true, emails: await resolveUserEmails(data?.target_user_ids ?? []) };
+}
+
 const createCouponSchema = z.object({
   code: z
     .string()
@@ -317,6 +362,77 @@ export async function createCouponAction(
     active: true,
   });
   if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard/offers");
+  return { ok: true };
+}
+
+/**
+ * Edit a coupon that already exists.
+ *
+ * Everything about a live code was previously fixed at creation — the only
+ * control an admin had was the on/off switch, so fixing a wrong percentage or
+ * extending a campaign meant deleting the code and recreating it, which wipes
+ * the redemption ledger and hands every customer who had already used it a
+ * fresh allowance.
+ *
+ * So this updates in place and deliberately leaves two things alone:
+ *
+ *  - `code`, because it is the primary key AND the key the ledger
+ *    (coupon_redemptions.coupon_code) and every past order's `coupon_code`
+ *    join on. Renaming would orphan all of it. A new name is a new coupon.
+ *  - `used_count` and the ledger rows, because an edit continues a campaign
+ *    rather than starting one. (Creating a code over a DELETED one does reset
+ *    them — see createCouponAction — because that genuinely is a new campaign.)
+ *
+ * `targetEmails` is sent whole: whatever the form shows is what the coupon ends
+ * up targeting, and an empty list means "everyone" — the form is seeded with
+ * the current targets (getCouponTargetEmailsAction) so that stays truthful.
+ */
+const updateCouponSchema = createCouponSchema;
+
+export type UpdateCouponInput = z.input<typeof updateCouponSchema>;
+
+export async function updateCouponAction(
+  input: UpdateCouponInput,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = updateCouponSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const c = parsed.data;
+  if (c.discountType === "percent" && c.value > 90)
+    return { ok: false, error: "invalid_input" };
+
+  const code = c.code.toUpperCase();
+  const targetUserIds = await resolveUserIds(c.targetEmails);
+  // Same refusal as creation: asked to target specific people, matched none.
+  // Saving would quietly widen the coupon to everybody.
+  if (c.targetEmails.length > 0 && targetUserIds.length === 0) {
+    return { ok: false, error: "no_matching_users" };
+  }
+
+  const supabase = createAdminClient();
+  // Scoped to a live row, so an edit can never resurrect a deleted campaign by
+  // the back door — that path is createCouponAction's, and it resets the ledger.
+  const { data, error } = await supabase
+    .from("coupons")
+    .update({
+      title: c.title || null,
+      discount_type: c.discountType,
+      value: c.value,
+      min_subtotal: c.minSubtotal,
+      usage_limit: c.usageLimit ?? null,
+      per_user_limit: c.perUserLimit ?? null,
+      product_ids: c.productIds.length > 0 ? c.productIds : null,
+      target_user_ids: targetUserIds.length > 0 ? targetUserIds : null,
+      starts_at: c.startsAt ?? null,
+      ends_at: c.endsAt ?? null,
+    })
+    .eq("code", code)
+    .eq("is_deleted", false)
+    .select("code");
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) return { ok: false, error: "not_found" };
 
   revalidatePath("/dashboard/offers");
   return { ok: true };

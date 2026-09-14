@@ -35,7 +35,7 @@ export default function ErrorPage({
           <button
             type="button"
             onClick={() => unstable_retry()}
-            className="tap rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+            className="tap cta rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
           >
             {t("error.retry")}
           </button>

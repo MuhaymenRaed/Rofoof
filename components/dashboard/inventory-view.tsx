@@ -83,7 +83,7 @@ export function InventoryView({
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="tap inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
+            className="tap cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition"
           >
             <Plus size={16} />
             {t("dash.addProduct")}

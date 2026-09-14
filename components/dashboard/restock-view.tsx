@@ -549,7 +549,7 @@ function RestockRow({
               type="button"
               disabled={pending}
               onClick={() => restock(customQty)}
-              className="tap rounded-lg bg-brand px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              className="tap cta rounded-lg bg-brand px-2.5 py-1.5 text-[11px] font-bold text-white transition disabled:opacity-50"
             >
               {t("restock.confirmRestock")}
             </button>
@@ -568,7 +568,7 @@ function RestockRow({
               type="button"
               disabled={pending}
               onClick={() => restock(row.soldSinceRestock)}
-              className="tap rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              className="tap cta rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition disabled:opacity-50"
             >
               {t("restock.addToStock")} +{row.soldSinceRestock}
             </button>

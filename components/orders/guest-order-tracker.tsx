@@ -81,7 +81,7 @@ export function GuestOrderTracker() {
           <button
             type="button"
             onClick={reset}
-            className="tap mt-5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+            className="tap cta mt-5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
           >
             {t("orders.trackAnother")}
           </button>
@@ -149,7 +149,7 @@ export function GuestOrderTracker() {
           <button
             type="submit"
             disabled={pending || !canTrack}
-            className="tap mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="tap cta mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Search size={17} />
             {pending ? t("orders.trackingLoad") : t("orders.trackButton")}
@@ -163,7 +163,7 @@ export function GuestOrderTracker() {
           <p className="text-xs font-semibold text-ink-2">{t("orders.guestSignInPrompt")}</p>
           <Link
             href="/login?next=/orders"
-            className="tap shrink-0 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2 text-xs font-bold text-brand transition hover:bg-brand hover:text-white"
+            className="tap cta shrink-0 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2 text-xs font-bold text-brand transition hover:bg-brand hover:text-white"
           >
             {t("auth.login")}
           </Link>

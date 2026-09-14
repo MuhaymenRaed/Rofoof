@@ -187,7 +187,7 @@ export function FeaturedManager({
             type="button"
             onClick={createGroup}
             disabled={pending || !newAr.trim() || !newEn.trim()}
-            className="tap inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            className="tap cta inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition disabled:opacity-50"
           >
             <Plus size={14} />
             {t("dash.createGroup")}
@@ -334,7 +334,7 @@ function GroupCard({
             setTimeout(() => setSaved(false), 1500);
           }}
           disabled={pending || !ar.trim() || !en.trim()}
-          className="tap inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand px-4 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+          className="tap cta inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand px-4 text-xs font-bold text-white transition disabled:opacity-50"
         >
           {saved ? <Check size={14} /> : null}
           {saved ? tr("profile.saved") : tr("profile.save")}
@@ -432,7 +432,7 @@ function GroupCard({
               setScopeValue("");
             }}
             disabled={pending || matches.length === 0}
-            className="tap inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            className="tap cta inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 text-xs font-bold text-white transition disabled:opacity-50"
           >
             <Star size={13} filled />
             {tr("dash.featuredAddAll")}

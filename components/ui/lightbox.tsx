@@ -72,8 +72,9 @@ export function Lightbox({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex flex-col bg-black/92"
-      style={{ animation: "fade-in 0.18s ease both" }}
+      // `backdrop-in` rather than an inline fade: it carries the shared
+      // duration and the `backwards` fill (see the note in globals.css).
+      className="backdrop-in fixed inset-0 z-[90] flex flex-col bg-black/92"
       role="dialog"
       aria-modal="true"
       aria-label={alt}

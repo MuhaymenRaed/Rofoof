@@ -30,13 +30,13 @@ export function FavoritesView() {
           <p className="mt-1 text-sm text-ink-3">{t("fav.emptyHint")}</p>
           <Link
             href="/store"
-            className="tap mt-5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+            className="tap cta mt-5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
           >
             {t("cart.browse")}
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((p) => (
             <ProductCard key={p.id} productId={p.id} />
           ))}

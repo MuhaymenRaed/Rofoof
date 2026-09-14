@@ -79,8 +79,7 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
     <div className="fixed inset-0 z-[60] grid place-items-center p-4">
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
+        className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
       />
       <div className="relative z-10 flex max-h-[92vh] w-full max-w-md animate-pop flex-col overflow-hidden rounded-3xl border border-line-2 bg-surface shadow-2xl">
         {/* Header */}
@@ -179,7 +178,7 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
                   disabled={
                     pending || !isValidOptionalPhone(phone) || !isValidOptionalPhone(phone2)
                   }
-                  className="tap flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                  className="tap cta flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-white transition disabled:opacity-60"
                 >
                   {pending ? t("profile.saving") : t("profile.save")}
                 </button>

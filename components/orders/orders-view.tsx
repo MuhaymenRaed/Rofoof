@@ -62,13 +62,13 @@ export function OrdersView({ orders: initialOrders }: { orders: Order[] }) {
           <p className="mt-4 font-bold text-ink">{t("orders.empty")}</p>
           <Link
             href="/store"
-            className="tap mt-5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+            className="tap cta mt-5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
           >
             {t("cart.browse")}
           </Link>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="stagger space-y-5">
           {orders.map((order) => (
             <OrderCard key={order.code} order={order} onCancel={() => setConfirming(order)} />
           ))}

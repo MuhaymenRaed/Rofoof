@@ -28,7 +28,9 @@ export function CustomOrderCard() {
       id="tour-custom-order"
       onClick={openCustom}
       style={style}
-      className="tap group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border-2 border-dashed text-start transition duration-200 hover:-translate-y-1 hover:shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--c)_55%,transparent)]"
+      // Same lift as a ProductCard, from the one motion definition, so the two
+      // kinds of tile in a catalogue row behave identically under the pointer.
+      className="tap-soft group lift relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border-2 border-dashed text-start hover:shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--c)_55%,transparent)]"
       aria-label={t("custom.title")}
     >
       <span

@@ -102,8 +102,7 @@ export function RestockDetailModal({
     <div className="fixed inset-0 z-[70] grid place-items-center p-4">
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
+        className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
       />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-md animate-pop flex-col overflow-hidden rounded-3xl border border-line-2 bg-surface shadow-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-line-2 px-6 py-4">
@@ -223,7 +222,7 @@ export function RestockDetailModal({
                   type="button"
                   disabled={pending}
                   onClick={() => restock(customQty)}
-                  className="tap flex-1 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  className="tap cta flex-1 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition disabled:opacity-50"
                 >
                   {t("restock.addToStock")}
                 </button>

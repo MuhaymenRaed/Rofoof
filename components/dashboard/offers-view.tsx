@@ -151,7 +151,7 @@ export function OffersView({ initialOffers }: { initialOffers: AdminOffer[] }) {
         <button
           type="button"
           onClick={() => setFormOpen((v) => !v)}
-          className="tap inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
+          className="tap cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition"
         >
           <Plus size={16} />
           {t("offer.new")}
@@ -273,7 +273,7 @@ export function OffersView({ initialOffers }: { initialOffers: AdminOffer[] }) {
           <button
             type="submit"
             disabled={pending}
-            className="tap rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+            className="tap cta rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition disabled:opacity-60"
           >
             {pending ? "…" : t("offer.create")}
           </button>
