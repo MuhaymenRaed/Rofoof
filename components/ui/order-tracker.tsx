@@ -5,7 +5,18 @@ import { Check } from "@/components/icons";
 import type { DictKey } from "@/lib/i18n";
 import { statusStep, type OrderStatus } from "@/lib/products";
 
-const STEPS: DictKey[] = ["step.pending", "step.accepted", "step.shipping", "step.delivered"];
+/**
+ * The customer's view of the journey. Must stay in the same order as
+ * `statusStep` in lib/products.ts — that map supplies the index into THIS
+ * array, so a step added there without one here would point past the end.
+ */
+const STEPS: DictKey[] = [
+  "step.pending",
+  "step.accepted",
+  "step.preparing",
+  "step.shipping",
+  "step.delivered",
+];
 const GREEN = "#22c55e";
 
 export function OrderTracker({ status }: { status: OrderStatus }) {
@@ -29,7 +40,11 @@ export function OrderTracker({ status }: { status: OrderStatus }) {
                 {done ? <Check size={13} /> : i + 1}
               </div>
               <span
-                className="mt-1.5 max-w-[64px] text-center text-[9px] font-semibold leading-tight"
+                // Sized for FIVE steps on a 430px phone: the old 64px box fit
+                // four across and started colliding at five. Width is capped in
+                // percentage terms by the flex parent; this just stops a long
+                // label bleeding into its neighbour.
+                className="mt-1.5 max-w-[56px] text-center text-[9px] font-semibold leading-tight"
                 style={{ color: done ? GREEN : "var(--ink-3)" }}
               >
                 {t(key)}

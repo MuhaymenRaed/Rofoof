@@ -14,7 +14,13 @@ export type Json =
   | Json[];
 
 export type BadgeType = "bestseller" | "new" | "waterproof";
-export type OrderStatusDb = "review" | "accepted" | "shipped" | "delivered";
+/** Mirrors the public.order_status enum — see docs/order-status-preparing.sql. */
+export type OrderStatusDb =
+  | "review"
+  | "accepted"
+  | "preparing"
+  | "shipped"
+  | "delivered";
 export type CouponType = "percent" | "fixed";
 export type UserRole = "customer" | "admin";
 export type ProductKindDb = "standard" | "package" | "tiered";

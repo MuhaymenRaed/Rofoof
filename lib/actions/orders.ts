@@ -732,9 +732,34 @@ export async function trackOrderAction(input: {
 const STATUSES: OrderStatusDb[] = [
   "review",
   "accepted",
+  "preparing",
   "shipped",
   "delivered",
 ];
+
+/**
+ * Did this write fail because the database has never heard of the status?
+ *
+ * `preparing` is added to the enum by docs/order-status-preparing.sql, and DDL
+ * is run by hand here — so this deploy can reach production first. Postgres
+ * answers an unknown enum label with 22P02 ("invalid input value for enum"),
+ * which would otherwise surface on the board as a bare error string. Caught so
+ * the admin is told the one thing that fixes it.
+ *
+ * Matched on the code AND the text, because PostgREST does not always preserve
+ * the SQLSTATE through the REST layer.
+ */
+function isUnknownStatusError(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  return (
+    error.code === "22P02" ||
+    /invalid input value for enum\s+(public\.)?order_status/i.test(
+      error.message ?? "",
+    )
+  );
+}
 
 /**
  * Whether an order at this status is holding real pieces off the shelf.
@@ -807,7 +832,15 @@ export async function updateOrderStatusAction(
     .from("orders")
     .update({ status })
     .eq("code", code);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    // The status never landed, so the pieces claimed a moment ago must not be
+    // left held against an order that did not move.
+    if (consumesStock(status)) await moveOrderStock(code, false);
+    if (isUnknownStatusError(error)) {
+      return { ok: false, error: "status_unsupported" };
+    }
+    return { ok: false, error: error.message };
+  }
 
   if (!consumesStock(status)) await moveOrderStock(code, false);
 
@@ -1116,10 +1149,21 @@ export async function cancelOrderAdminAction(code: string): Promise<{
  */
 export async function updateManyOrderStatusesAction(
   updates: { code: string; status: OrderStatusDb }[],
-): Promise<{ ok: boolean; failed: string[] }> {
+): Promise<{
+  ok: boolean;
+  failed: string[];
+  /**
+   * Why they failed, when every one of them failed for the same nameable
+   * reason. A bulk move that bounces off a status the database doesn't know
+   * yet is otherwise indistinguishable from the cards simply refusing to move.
+   */
+  reason?: "status_unsupported" | "out_of_stock";
+}> {
   await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const failed: string[] = [];
+  let unsupported = false;
+  let outOfStock = false;
 
   for (const u of updates.slice(0, 100)) {
     if (!STATUSES.includes(u.status)) {
@@ -1132,6 +1176,7 @@ export async function updateManyOrderStatusesAction(
     if (consumesStock(u.status)) {
       const stockErr = await moveOrderStock(u.code, true);
       if (stockErr) {
+        if (stockErr === "out_of_stock") outOfStock = true;
         failed.push(u.code);
         continue;
       }
@@ -1142,6 +1187,7 @@ export async function updateManyOrderStatusesAction(
       .eq("code", u.code);
     if (error) {
       failed.push(u.code);
+      if (isUnknownStatusError(error)) unsupported = true;
       // The status didn't move, so don't leave its pieces held.
       if (consumesStock(u.status)) await moveOrderStock(u.code, false);
       continue;
@@ -1153,5 +1199,15 @@ export async function updateManyOrderStatusesAction(
   revalidatePath("/dashboard");
   revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
-  return { ok: failed.length === 0, failed };
+  return {
+    ok: failed.length === 0,
+    failed,
+    // The missing enum is reported first: it stops every card in the batch,
+    // where a stock shortage only stops the ones actually short.
+    reason: unsupported
+      ? "status_unsupported"
+      : outOfStock
+        ? "out_of_stock"
+        : undefined,
+  };
 }

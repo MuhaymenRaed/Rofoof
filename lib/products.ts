@@ -502,7 +502,20 @@ export const CUSTOM_TYPE_LABEL: Record<CustomType, { ar: string; en: string }> =
 };
 
 /* ------------------------------- Orders -------------------------------- */
-export type OrderStatus = "review" | "accepted" | "shipped" | "delivered";
+/**
+ * The order's journey, in order. `preparing` (قيد التجهيز) sits between
+ * accepted and shipped: the shop has committed to the order and is making it,
+ * but it has not left yet.
+ *
+ * The ORDER of this union is the order of the journey, and `statusStep` below
+ * depends on it. A status added in the middle must go in the middle here.
+ */
+export type OrderStatus =
+  | "review"
+  | "accepted"
+  | "preparing"
+  | "shipped"
+  | "delivered";
 
 export interface OrderItem {
   productId: string;
@@ -611,17 +624,28 @@ export function orderItemFinish(
   return applies ? "regular" : null;
 }
 
-/** Map an order status to the active tracker step index (0..3). */
+/**
+ * Map an order status to the active tracker step index (0..4).
+ *
+ * Exhaustive by type: `Record<OrderStatus, number>` means adding a status to
+ * the union above without giving it a step here is a compile error, not a
+ * runtime `undefined` that quietly lights up step zero.
+ */
 export const statusStep: Record<OrderStatus, number> = {
   review: 0,
   accepted: 1,
-  shipped: 2,
-  delivered: 3,
+  preparing: 2,
+  shipped: 3,
+  delivered: 4,
 };
 
 export const statusStyle: Record<OrderStatus, { key: DictKey; color: string }> = {
   review: { key: "status.review", color: "#f59e0b" },
   accepted: { key: "status.accepted", color: "#8b5cf6" },
+  // Indigo, chosen to sit visibly between the purple of accepted and the teal
+  // of shipped — the two it is most often compared against at a glance on the
+  // board — while staying clear of the amber that already means "review".
+  preparing: { key: "status.preparing", color: "#6366f1" },
   shipped: { key: "status.shipped", color: "#0ea5a4" },
   delivered: { key: "status.delivered", color: "#22c55e" },
 };
