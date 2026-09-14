@@ -137,12 +137,14 @@ export const dict = {
   // Tracker steps
   "step.pending": { ar: "بانتظار التأكيد", en: "Pending" },
   "step.accepted": { ar: "مقبول", en: "Accepted" },
+  "step.preparing": { ar: "قيد التجهيز", en: "Preparing" },
   "step.shipping": { ar: "بالطريق", en: "On the way" },
   "step.delivered": { ar: "تم التوصيل", en: "Delivered" },
 
   // Order statuses
   "status.review": { ar: "قيد المراجعة", en: "Under review" },
   "status.accepted": { ar: "تم القبول", en: "Accepted" },
+  "status.preparing": { ar: "قيد التجهيز", en: "Preparing" },
   "status.shipped": { ar: "تم الشحن", en: "Shipped" },
   "status.delivered": { ar: "تم التسليم", en: "Delivered" },
 
@@ -949,6 +951,15 @@ export const dict = {
   "dash.downloadError": {
     ar: "تعذّر تحميل الصور",
     en: "Couldn't download the images",
+  },
+  /**
+   * The board offered a status the database does not know yet — i.e. this
+   * deploy landed before docs/order-status-preparing.sql was run. Named
+   * precisely, because the fix is one specific action by one specific person.
+   */
+  "dash.statusNeedsMigration": {
+    ar: "هذه الحالة غير مضافة في قاعدة البيانات بعد. شغّل docs/order-status-preparing.sql في Supabase ثم أعد المحاولة — لم يتغير الطلب.",
+    en: "This status isn't in the database yet. Run docs/order-status-preparing.sql in Supabase, then try again — the order was not changed.",
   },
   "dash.setStatus": { ar: "حالة الطلب", en: "Order status" },
   "dash.viewDetails": { ar: "عرض التفاصيل", en: "View details" },

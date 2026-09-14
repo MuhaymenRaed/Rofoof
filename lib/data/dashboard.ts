@@ -203,7 +203,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 /** Orders per status — feeds the distribution pie chart. */
 export async function getStatusCounts(): Promise<Record<OrderStatus, number>> {
   const supabase = await createSupabaseServerClient();
-  const counts: Record<OrderStatus, number> = { review: 0, accepted: 0, shipped: 0, delivered: 0 };
+  const counts: Record<OrderStatus, number> = {
+    review: 0,
+    accepted: 0,
+    preparing: 0,
+    shipped: 0,
+    delivered: 0,
+  };
   const { data, error } = await supabase.from("orders").select("status").limit(2000);
   if (error || !data) {
     console.error("[dashboard] statusCounts:", error);

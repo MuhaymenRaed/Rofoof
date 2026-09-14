@@ -47,7 +47,18 @@ import {
 import { usePaginatedList } from "@/lib/hooks/use-paginated-list";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const FLOW: OrderStatus[] = ["review", "accepted", "shipped", "delivered"];
+/**
+ * The journey, in order. `shifted()` walks it for the bulk forward/back
+ * buttons, so its order IS the order the arrows move through — `preparing`
+ * sits between accepted and shipped here for exactly that reason.
+ */
+const FLOW: OrderStatus[] = [
+  "review",
+  "accepted",
+  "preparing",
+  "shipped",
+  "delivered",
+];
 
 function shifted(status: OrderStatus, dir: 1 | -1): OrderStatus | null {
   const i = FLOW.indexOf(status) + dir;
@@ -99,6 +110,8 @@ export function OrdersBoard({
   const [detailCode, setDetailCode] = useState<string | null>(null);
   /** the shelf could not cover an order the admin tried to accept */
   const [stockError, setStockError] = useState(false);
+  /** The board offered a status the database doesn't have yet. */
+  const [statusUnsupported, setStatusUnsupported] = useState(false);
   const [, startTransition] = useTransition();
 
   // Live-reflect new orders and buyer cancellations (INSERT/DELETE/UPDATE)
@@ -148,6 +161,7 @@ export function OrdersBoard({
         setOrders((prev) => prev.map((o) => (o.code === code ? { ...o, status: current } : o)));
         // Reverting alone looks like the click did nothing. Name the reason.
         if (res.error === "out_of_stock") setStockError(true);
+        else if (res.error === "status_unsupported") setStatusUnsupported(true);
       }
     });
   }
@@ -175,6 +189,10 @@ export function OrdersBoard({
             res.failed.includes(o.code) ? { ...o, status: before.get(o.code) ?? o.status } : o,
           ),
         );
+        // Same courtesy as the single-order path: a row of cards snapping back
+        // with no explanation is the thing being avoided here.
+        if (res.reason === "status_unsupported") setStatusUnsupported(true);
+        else if (res.reason === "out_of_stock") setStockError(true);
       }
     });
   }
@@ -184,6 +202,23 @@ export function OrdersBoard({
       {/* Accepting is what takes the pieces off the shelf, so it's the step
           that can fail for lack of them. Say so, and stay until dismissed —
           the card silently snapping back is not an explanation. */}
+      {/* The deploy landed before the SQL did. Distinct from the stock warning
+          because the remedy is not the admin's to guess at: one file, run once.
+          Red rather than amber — nothing will move until it is done. */}
+      {statusUnsupported && (
+        <div className="mb-4 flex items-start gap-2 rounded-2xl bg-red-500/10 px-3.5 py-3 text-xs font-semibold leading-relaxed text-red-500">
+          <span className="flex-1">{t("dash.statusNeedsMigration")}</span>
+          <button
+            type="button"
+            onClick={() => setStatusUnsupported(false)}
+            aria-label={t("aria.close")}
+            className="tap shrink-0 rounded-lg p-0.5 transition hover:bg-red-500/20"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {stockError && (
         <div className="mb-4 flex items-start gap-2 rounded-2xl bg-amber-500/10 px-3.5 py-3 text-xs font-semibold text-amber-700">
           <span className="flex-1">{t("dash.acceptOutOfStock")}</span>
@@ -839,7 +874,11 @@ function OrderDetailsModal({
           {/* Full status control */}
           <div>
             <p className="mb-2 text-xs font-bold text-ink-2">{t("dash.setStatus")}</p>
-            <div className="grid grid-cols-4 gap-1.5">
+            {/* Five statuses in a four-column grid left the last one alone on
+                its own row. Two rows of clean thirds read better in the narrow
+                detail panel than five squeezed columns, and it opens out on a
+                wider screen. */}
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
               {FLOW.map((s) => {
                 const meta = statusStyle[s];
                 const active = order.status === s;
