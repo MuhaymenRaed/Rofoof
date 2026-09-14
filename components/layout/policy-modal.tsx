@@ -54,7 +54,6 @@ export function PolicyModal({
       <div
         onClick={onClose}
         className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
       />
       <div className="relative z-10 flex max-h-[92vh] w-full max-w-lg animate-pop flex-col overflow-hidden rounded-3xl border border-line-2 bg-surface shadow-2xl">
         {/* Header */}

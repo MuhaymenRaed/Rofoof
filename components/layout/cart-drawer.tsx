@@ -627,7 +627,7 @@ export function CartDrawer() {
               href={waHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="tap mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-bold text-white transition hover:opacity-90"
+              className="tap cta mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3 text-sm font-bold text-white transition"
             >
               <Whatsapp size={18} />
               {t("checkout.sendWhatsapp")}
@@ -652,7 +652,7 @@ export function CartDrawer() {
             <Link
               href="/store"
               onClick={closeCart}
-              className="tap mt-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+              className="tap cta mt-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
             >
               {t("cart.browse")}
             </Link>
@@ -832,7 +832,7 @@ export function CartDrawer() {
               <button
                 type="submit"
                 disabled={pending || !canCheckout}
-                className="tap flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="tap cta flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pending ? t("checkout.placing") : t("checkout.confirm")}
               </button>
@@ -1167,7 +1167,7 @@ export function CartDrawer() {
                       type="button"
                       onClick={applyCoupon}
                       disabled={couponPending || couponInput.trim() === ""}
-                      className="tap shrink-0 rounded-xl bg-surface-2 px-4 text-xs font-bold text-ink-2 transition hover:bg-brand hover:text-white disabled:opacity-50"
+                      className="tap cta shrink-0 rounded-xl bg-surface-2 px-4 text-xs font-bold text-ink-2 transition hover:bg-brand hover:text-white disabled:opacity-50"
                     >
                       {couponPending ? "…" : t("cart.couponApply")}
                     </button>
@@ -1233,7 +1233,7 @@ export function CartDrawer() {
               <button
                 type="button"
                 onClick={() => setStep("form")}
-                className="tap mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3.5 text-sm font-bold text-white transition hover:opacity-90"
+                className="tap cta mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-5 py-3.5 text-sm font-bold text-white transition"
               >
                 {t("checkout.proceed")}
               </button>

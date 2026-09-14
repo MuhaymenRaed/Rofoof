@@ -232,7 +232,7 @@ export function OrdersBoard({
             type="button"
             onClick={() => bulkMove(1)}
             disabled={selected.size === 0}
-            className="tap inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="tap cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
           >
             {t("dash.nextStep")}
             <span className="rtl:rotate-180">
@@ -672,7 +672,6 @@ function OrderDetailsModal({
       <div
         onClick={onClose}
         className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
       />
       <div
         role="dialog"
@@ -751,7 +750,7 @@ function OrderDetailsModal({
                 type="button"
                 onClick={() => download("", groups, "images")}
                 disabled={downloadingKey !== null}
-                className="tap flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
+                className="tap cta flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
               >
                 <Download size={16} />
                 {downloadingKey === ""
@@ -1011,7 +1010,7 @@ function OrderDetailsModal({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={t("custom.imagesLabel")}
-                      className="tap grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand transition hover:bg-brand hover:text-white"
+                      className="tap cta grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand transition hover:bg-brand hover:text-white"
                     >
                       <Photo size={14} />
                     </a>

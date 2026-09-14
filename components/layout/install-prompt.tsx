@@ -136,8 +136,7 @@ export function InstallPrompt() {
     <div
       role="region"
       aria-label={t("pwa.title")}
-      className="border-b border-line-2 bg-brand-soft"
-      style={{ animation: "fade-in 0.3s ease both" }}
+      className="animate-rise border-b border-line-2 bg-brand-soft"
     >
       <div className="mx-auto flex max-w-6xl items-center gap-2.5 px-4 py-2 sm:px-6">
         <Image
@@ -159,7 +158,7 @@ export function InstallPrompt() {
           <button
             type="button"
             onClick={() => setShowIosGuide(true)}
-            className="tap inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90"
+            className="tap cta inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition"
           >
             <Share size={13} />
             {t("pwa.iosGuide")}
@@ -168,7 +167,7 @@ export function InstallPrompt() {
           <button
             type="button"
             onClick={install}
-            className="tap inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90"
+            className="tap cta inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-[11px] font-bold text-white transition"
           >
             <Plus size={13} />
             {t("pwa.install")}
@@ -195,13 +194,11 @@ export function InstallPrompt() {
             aria-label={t("aria.close")}
             onClick={() => setShowIosGuide(false)}
             className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-            style={{ animation: "fade-in 0.2s ease both" }}
           />
           <div
             role="dialog"
             aria-label={t("pwa.iosGuideTitle")}
-            className="relative z-10 w-full max-w-sm rounded-3xl border border-line-2 bg-surface p-6 shadow-2xl"
-            style={{ animation: "pop 0.28s cubic-bezier(0.34,1.56,0.64,1) both" }}
+            className="animate-pop relative z-10 w-full max-w-sm rounded-3xl border border-line-2 bg-surface p-6 shadow-2xl"
           >
             <div className="mb-5 flex items-center gap-3">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand text-white">
@@ -228,7 +225,7 @@ export function InstallPrompt() {
             <button
               type="button"
               onClick={() => setShowIosGuide(false)}
-              className="tap mt-6 w-full rounded-2xl bg-brand py-3 text-sm font-bold text-white transition hover:opacity-90"
+              className="tap cta mt-6 w-full rounded-2xl bg-brand py-3 text-sm font-bold text-white transition"
             >
               {t("pwa.gotIt")}
             </button>

@@ -86,7 +86,6 @@ export function CustomRequestModal() {
       <div
         onClick={closeCustom}
         className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
       />
       <RequestForm onClose={closeCustom} />
     </div>,

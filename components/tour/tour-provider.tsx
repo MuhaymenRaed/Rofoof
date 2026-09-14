@@ -940,7 +940,7 @@ function TourOverlay({
             <button
               type="button"
               onClick={onNext}
-              className="tap inline-flex items-center gap-1 rounded-xl bg-brand px-4 py-2 text-[12px] font-bold text-white transition hover:opacity-90"
+              className="tap cta inline-flex items-center gap-1 rounded-xl bg-brand px-4 py-2 text-[12px] font-bold text-white transition"
             >
               {isLast ? labels.finish : labels.next}
               {!isLast && (

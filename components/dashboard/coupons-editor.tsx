@@ -221,7 +221,7 @@ export function CouponsEditor({
             setError(null);
             setOpen(true);
           }}
-          className="tap inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
+          className="tap cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition"
         >
           <Plus size={15} />
           {t("dash.newCoupon")}
@@ -446,7 +446,7 @@ export function CouponsEditor({
               // targets are in the box — saving before they land would read as
               // "targets nobody", i.e. open the coupon to everyone.
               disabled={pending || loadingTargets || code.trim().length < 2}
-              className="tap rounded-xl bg-brand px-5 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              className="tap cta rounded-xl bg-brand px-5 py-2 text-xs font-bold text-white transition disabled:opacity-50"
             >
               {pending || loadingTargets
                 ? "…"

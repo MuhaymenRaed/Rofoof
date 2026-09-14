@@ -39,7 +39,7 @@ export function AccountMenu() {
         aria-label={t("profile.title")}
         id="tour-user-profile"
         data-tour="profile"
-        className="tap grid h-9 w-9 place-items-center rounded-full bg-brand text-sm font-black text-white ring-2 ring-transparent transition hover:ring-brand-line"
+        className="tap cta grid h-9 w-9 place-items-center rounded-full bg-brand text-sm font-black text-white ring-2 ring-transparent transition hover:ring-brand-line"
       >
         {initial}
       </button>

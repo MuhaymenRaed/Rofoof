@@ -636,7 +636,6 @@ export function ProductEditorModal({
       <div
         onClick={onClose}
         className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
       />
       <form
         onSubmit={submit}
@@ -769,7 +768,7 @@ export function ProductEditorModal({
                   type="button"
                   onClick={saveVolumeTiers}
                   disabled={volSaving}
-                  className="tap ms-auto inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  className="tap cta ms-auto inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-1.5 text-xs font-bold text-white transition disabled:opacity-50"
                 >
                   {volSaved ? t("profile.saved") : volSaving ? "…" : t("dash.saveLadder")}
                 </button>
@@ -879,7 +878,7 @@ export function ProductEditorModal({
                     type="button"
                     onClick={applyBulkPrice}
                     disabled={bulkPrice.trim() === ""}
-                    className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                    className="tap cta shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
                   >
                     {t("dash.applyToAll")}
                   </button>
@@ -898,7 +897,7 @@ export function ProductEditorModal({
                     type="button"
                     onClick={applyBulkStock}
                     disabled={bulkStock.trim() === ""}
-                    className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                    className="tap cta shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
                   >
                     {t("dash.applyToAll")}
                   </button>
@@ -1166,7 +1165,7 @@ export function ProductEditorModal({
                     type="button"
                     onClick={addCategory}
                     disabled={catPending || !catNameAr.trim() || !catNameEn.trim()}
-                    className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                    className="tap cta shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
                   >
                     {catPending ? "…" : t("dash.addCategory")}
                   </button>
@@ -1262,7 +1261,7 @@ export function ProductEditorModal({
                       type="button"
                       onClick={addSubcategory}
                       disabled={subPending || !subNameAr.trim() || !subNameEn.trim()}
-                      className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                      className="tap cta shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
                     >
                       {subPending ? "…" : t("dash.addCategory")}
                     </button>
@@ -1322,7 +1321,7 @@ export function ProductEditorModal({
                   type="button"
                   onClick={addFandom}
                   disabled={fanPending || !fanNameAr.trim() || !fanNameEn.trim()}
-                  className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  className="tap cta shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-50"
                 >
                   {fanPending ? "…" : t("dash.addCategory")}
                 </button>
@@ -1448,7 +1447,7 @@ export function ProductEditorModal({
             <button
               type="submit"
               disabled={pending}
-              className="tap rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+              className="tap cta rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition disabled:opacity-60"
             >
               {uploading
                 ? t("dash.uploading")

@@ -19,7 +19,7 @@ export default function NotFound() {
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Link
             href="/"
-            className="tap rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+            className="tap cta rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
           >
             {t("notFound.home")}
           </Link>

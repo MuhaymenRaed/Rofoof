@@ -289,7 +289,7 @@ export function LoginForm() {
           <button
             type="submit"
             disabled={pending || oauthPending}
-            className="tap h-11 w-full rounded-xl bg-brand text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="tap cta h-11 w-full rounded-xl bg-brand text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? "…" : isSignup ? t("auth.signup") : t("auth.login")}
           </button>

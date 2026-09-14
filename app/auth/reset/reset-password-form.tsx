@@ -94,7 +94,7 @@ export function ResetPasswordForm() {
             <p className="mt-1.5 text-sm text-ink-3">{t("reset.invalidHint")}</p>
             <Link
               href="/forgot-password"
-              className="tap mt-5 inline-block rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+              className="tap cta mt-5 inline-block rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
             >
               {t("reset.requestNew")}
             </Link>
@@ -111,7 +111,7 @@ export function ResetPasswordForm() {
             <div className="mt-5 flex flex-col gap-2">
               <Link
                 href="/login"
-                className="tap rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                className="tap cta rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
               >
                 {t("reset.backToLogin")}
               </Link>
@@ -177,7 +177,7 @@ export function ResetPasswordForm() {
               <button
                 type="submit"
                 disabled={pending}
-                className="tap h-11 w-full rounded-xl bg-brand text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                className="tap cta h-11 w-full rounded-xl bg-brand text-sm font-bold text-white transition disabled:opacity-60"
               >
                 {pending ? t("reset.updating") : t("reset.update")}
               </button>

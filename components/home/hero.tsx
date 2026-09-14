@@ -58,7 +58,7 @@ export function Hero() {
           <div id="tour-hero-actions" className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/store"
-              className="tap inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-[13px] font-bold text-white transition hover:opacity-90"
+              className="tap cta inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-[13px] font-bold text-white transition"
             >
               <Bag size={16} />
               {t("hero.shop")}

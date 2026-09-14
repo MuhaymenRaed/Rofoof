@@ -68,7 +68,7 @@ export default async function HomePage() {
           cost is part of the first impression rather than a surprise found
           further down. The admin can switch it off from the dashboard. */}
       {siteSettings.deliveryNoticeActive && (
-        <div id="tour-delivery" className="mt-6">
+        <div id="tour-delivery" className="reveal mt-6">
           <DeliveryNotice />
         </div>
       )}
@@ -79,23 +79,25 @@ export default async function HomePage() {
               because it is the first one and the tour scrolls it into view;
               marked optional in steps.ts since a shop with no sales yet and no
               curated rail has nothing here to point at. */}
-          <section id="tour-rails" className="mt-9">
+          <section id="tour-rails" className="reveal mt-9">
             <SectionTitle titleKey="section.bestsellers" viewAllHref="/store" />
             <Grid products={bestsellers} priorityCount={2} />
           </section>
 
-          <div className="my-8 h-px bg-line-2" />
+          <div className="reveal my-8 h-px bg-line-2" />
         </>
       )}
 
       {rails.map(({ group, productIds }) => (
         <div key={group.id}>
           <FeaturedSection group={group} productIds={productIds} />
-          <div className="my-8 h-px bg-line-2" />
+          <div className="reveal my-8 h-px bg-line-2" />
         </div>
       ))}
 
-      <section className={bestsellers.length > 0 || rails.length > 0 ? undefined : "mt-9"}>
+      <section
+        className={`reveal ${bestsellers.length > 0 || rails.length > 0 ? "" : "mt-9"}`}
+      >
         <SectionTitle titleKey="section.fresh" viewAllHref="/store" />
         <Grid products={fresh} />
       </section>

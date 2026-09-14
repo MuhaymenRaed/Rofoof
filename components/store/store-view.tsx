@@ -598,7 +598,7 @@ export function StoreView({
             <button
               type="button"
               onClick={() => setAddOpen(true)}
-              className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+              className="tap cta flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
             >
               <Plus size={17} />
               {t("dash.newProduct")}
@@ -606,7 +606,7 @@ export function StoreView({
             <button
               type="button"
               onClick={() => setFiltersManagerOpen(true)}
-              className="tap flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
+              className="tap cta flex items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white"
             >
               <Sliders size={17} />
               {t("store.manageFilters")}
@@ -627,7 +627,7 @@ export function StoreView({
             separation registers before any label is read, and they stack on a
             phone and sit side by side from lg up. */}
         <div id="tour-categories">
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="stagger mt-4 grid gap-3 lg:grid-cols-2">
             <CategoryFilterGroup
               tone="brand"
               title={t("store.groupType")}
@@ -694,7 +694,7 @@ export function StoreView({
               <button
                 type="button"
                 onClick={clearEverything}
-                className="tap mt-4 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                className="tap cta mt-4 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition"
               >
                 {t("store.clear")}
               </button>

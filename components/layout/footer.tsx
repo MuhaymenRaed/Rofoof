@@ -34,7 +34,7 @@ export function Footer() {
   const year = 2026;
 
   return (
-    <footer className="mt-16 border-t border-line-2 bg-surface">
+    <footer className="reveal mt-16 border-t border-line-2 bg-surface">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         {/* Stacked and centered on phones; columned and start-aligned from sm up */}
         <div className="grid gap-10 text-center sm:grid-cols-2 sm:text-start lg:grid-cols-4">

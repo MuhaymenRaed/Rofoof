@@ -85,7 +85,7 @@ export function FeaturedSection({
   }
 
   return (
-    <section className="mt-9">
+    <section className="reveal mt-9">
       <div className="mb-4 flex items-center justify-between gap-3">
         {editing ? (
           <div className="flex-1 space-y-2">
@@ -112,7 +112,7 @@ export function FeaturedSection({
                 onClick={save}
                 disabled={pending || !ar.trim() || !en.trim()}
                 aria-label={t("profile.save")}
-                className="tap grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand text-white transition hover:opacity-90 disabled:opacity-50"
+                className="tap cta grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand text-white transition disabled:opacity-50"
               >
                 <Check size={16} />
               </button>

@@ -45,7 +45,6 @@ export function ManualOrderModal() {
       <div
         onClick={closeManual}
         className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
       />
       <ManualForm onClose={closeManual} />
     </div>,

@@ -60,7 +60,7 @@ export function AnnouncementEditor() {
           type="button"
           onClick={save}
           disabled={pending}
-          className="tap shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+          className="tap cta shrink-0 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-60"
         >
           {saved ? t("dash.saved") : t("dash.updateAnnouncement")}
         </button>

@@ -130,7 +130,7 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
           type="button"
           onClick={saveDelivery}
           disabled={pending}
-          className="tap mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+          className="tap cta mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-60"
         >
           {savedKey === "delivery" ? <Check size={14} /> : null}
           {savedKey === "delivery" ? t("profile.saved") : t("profile.save")}
@@ -181,7 +181,7 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
           type="button"
           onClick={saveStats}
           disabled={pending}
-          className="tap mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+          className="tap cta mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white transition disabled:opacity-60"
         >
           {savedKey === "stats" ? <Check size={14} /> : null}
           {savedKey === "stats" ? t("profile.saved") : t("profile.save")}

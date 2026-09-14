@@ -62,7 +62,6 @@ export function QuickViewModal() {
       <div
         onClick={closeQuickView}
         className="backdrop-in absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        style={{ animation: "fade-in 0.2s ease both" }}
       />
       <Content key={quickView.id} product={quickView} onClose={closeQuickView} />
     </div>
@@ -743,7 +742,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
             type="button"
             onClick={handleAdd}
             disabled={!canAdd || uploadingCustom}
-            className="tap flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-ink-3"
+            className="tap cta flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:bg-ink-3"
           >
             {soldOut ? (
               t("product.soldout")
