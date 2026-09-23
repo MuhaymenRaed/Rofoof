@@ -34,8 +34,10 @@ import {
   WATERPROOF_CUSTOM_KINDS,
   orderItemImage,
   orderItemFinish,
+  qtyMeaning,
   type Finish,
   type Order,
+  type OrderItem,
   type OrderStatus,
 } from "@/lib/products";
 import {
@@ -673,6 +675,50 @@ function OrderDetailsModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, lang, t, getProduct, categoryLabel]);
 
+  /**
+   * The order's lines as one list, with TRUE replicates folded together.
+   *
+   * A replicate is the same request placed more than once: identical kind,
+   * finish, note, price and — the part that decides it — the identical set of
+   * artwork. Two poster requests carrying ten DIFFERENT designs are two jobs,
+   * not one job doubled, and are left as two rows. Two carrying the same five
+   * designs are one job to do twice, and become a single row marked ×2.
+   *
+   * This is the only place a custom request can gain a replicate count at all:
+   * there is no + control on one anywhere in the cart, so ordering the same
+   * artwork twice is how a customer asks for two of it.
+   */
+  const lines = useMemo<{ item: OrderItem; replicas: number; total: number }[]>(() => {
+    const out: { item: OrderItem; replicas: number; total: number }[] = [];
+    const seen = new Map<string, number>(); // dup key -> index in `out`
+    for (const it of order.items) {
+      // Catalogue and manual lines already carry their own count in `qty`;
+      // only custom requests are folded.
+      if (qtyMeaning(it) !== "pieces") {
+        out.push({ item: it, replicas: 1, total: it.lineTotal });
+        continue;
+      }
+      const key = [
+        it.customKind,
+        it.waterproof,
+        it.note ?? "",
+        it.manualTotal ?? "",
+        it.unitPrice,
+        it.qty,
+        it.customImages.join(" "),
+      ].join("|");
+      const at = seen.get(key);
+      if (at === undefined) {
+        seen.set(key, out.length);
+        out.push({ item: it, replicas: 1, total: it.lineTotal });
+      } else {
+        out[at].replicas += 1;
+        out[at].total += it.lineTotal;
+      }
+    }
+    return out;
+  }, [order]);
+
   const totalImages = groups.reduce((n, g) => n + g.urls.length, 0);
   /** which set is downloading right now ("" = the whole order), or null */
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
@@ -811,9 +857,16 @@ function OrderDetailsModal({
                     <FinishChip finish={g.finish} long />
                     <span className="text-[11px] font-semibold text-ink-3">
                       {g.urls.length} {t("dash.itemsLabel")}
-                      {/* Two requests of the same kind merged into one set —
-                          say so, so the count isn't read as one job */}
-                      {g.requestCount > 1 && ` · ×${g.requestCount}`}
+                      {/* Several CUSTOM requests of one kind pooled into a set.
+                          This used to read "· ×2", the notation for "make two
+                          of these" — it is not: it is two separate requests
+                          whose artwork happens to print together. It now says
+                          which it is, and is hidden for catalogue sets, where
+                          every line contributes one design and the count only
+                          ever repeated the number of thumbnails. */}
+                      {g.base.startsWith("custom:") &&
+                        g.requestCount > 1 &&
+                        ` · ${t("dash.fromRequests")} ${g.requestCount}`}
                     </span>
                     <button
                       type="button"
@@ -982,21 +1035,32 @@ function OrderDetailsModal({
 
           {/* Items */}
           <ul className="space-y-2">
-            {order.items.map((it, i) => {
+            {lines.map(({ item: it, replicas, total }, i) => {
               const itemName = lang === "ar" ? it.nameAr : it.nameEn;
               const variant = lang === "ar" ? it.itemNameAr : it.itemNameEn;
               /**
-               * More than one piece of THIS line.
+               * COPIES — how many of this the shop has to make. The one number
+               * on the row that costs money to misread.
                *
-               * The count used to be plain 11px grey text — "×3" sat in the same
-               * muted row as the finish chip and the note, at the same weight as
-               * everything else — so an order for three of something read as an
-               * order for one, and got packed as one. A quantity is the single
-               * most expensive thing on this row to misread, so when it is
-               * anything but one it is marked three times over: on the picture,
-               * as a solid pill, and by tinting the whole line.
+               * For a catalogue line that is `qty`: the shopper pressed + until
+               * it said 3, so make 3. For a custom request it is NOT `qty` —
+               * there `qty` counts uploaded artwork, so sixteen means sixteen
+               * different designs printed once each, and the copies are how
+               * many times that whole request was ordered (almost always one).
+               *
+               * Marking a sixteen-design request "×16" told the admin to print
+               * ninety-six stickers. Pieces get counted; only copies multiply.
+               *
+               * Every line reads the same way — "1 قطعة ×3" — whichever kind it
+               * is, so the admin never has to work out which number a row is
+               * showing them. A catalogue line is one design ordered `qty`
+               * times; a custom request is `qty` designs ordered `replicas`
+               * times. Same two slots, same two meanings, always in that order.
                */
-              const multiple = it.qty > 1;
+              const custom = qtyMeaning(it) === "pieces";
+              const pieces = custom ? it.qty : 1;
+              const copies = custom ? replicas : it.qty;
+              const multiple = copies > 1;
               return (
                 <li
                   key={i}
@@ -1040,7 +1104,7 @@ function OrderDetailsModal({
                         aria-hidden
                         className="absolute -top-1.5 -start-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[10px] font-black text-white ring-2 ring-surface"
                       >
-                        ×{it.qty}
+                        ×{copies}
                       </span>
                     )}
                   </span>
@@ -1050,16 +1114,31 @@ function OrderDetailsModal({
                       {variant && <span className="font-semibold text-ink-3"> — {variant}</span>}
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
+                      {/* WHAT it is: distinct pieces on this line — violet, and
+                          never written with a ×. It is a count, not a
+                          multiplier, and the two were indistinguishable while
+                          both read "×16". Violet because nothing else in this
+                          row uses it (sky is waterproof, emerald is free,
+                          indigo is manual-priced), so the two numbers can never
+                          be mistaken for each other at a glance. */}
                       <span
-                        title={t("dash.itemsLabel")}
-                        className={
-                          multiple
-                            ? "rounded-md bg-brand px-1.5 py-0.5 text-[11px] font-black tabular-nums text-white"
-                            : "tabular-nums"
-                        }
+                        title={t("dash.piecesTitle")}
+                        className="rounded-md bg-violet-500/12 px-2 py-0.5 text-[12px] font-black tabular-nums text-violet-600"
                       >
-                        ×{it.qty}
+                        {pieces} {t("dash.piecesChip")}
                       </span>
+                      {/* HOW MANY of it to make. The only number on the row that
+                          is ever brand-red, so red on this row always means the
+                          same thing. Absent at one copy: the ordinary case must
+                          not compete with the case that needs acting on. */}
+                      {multiple && (
+                        <span
+                          title={t("dash.copiesTitle")}
+                          className="rounded-md bg-brand px-2 py-0.5 text-[12px] font-black tabular-nums text-white"
+                        >
+                          ×{copies}
+                        </span>
+                      )}
                       {it.freeQty > 0 && (
                         <span className="font-bold text-emerald-600">
                           ({it.freeQty} {t("cart.free")})
@@ -1101,7 +1180,7 @@ function OrderDetailsModal({
                     </a>
                   )}
                   <span className="shrink-0 font-bold text-ink-2">
-                    {formatPrice(it.lineTotal, lang)}
+                    {formatPrice(total, lang)}
                   </span>
                 </li>
               );

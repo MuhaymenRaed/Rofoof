@@ -675,6 +675,39 @@ export function orderItemFinish(
 }
 
 /**
+ * What an order line's `qty` is actually counting. The two are NOT the same
+ * number and must never be shown the same way.
+ *
+ *  - "copies" — a catalogue line. The shopper pressed + until it said 3, and
+ *    the shop makes THREE of one design. This is a replicate count: the thing
+ *    an admin can get wrong by packing one.
+ *  - "pieces" — a custom request. `qty` is how many artwork files the customer
+ *    uploaded: sixteen stickers means sixteen DIFFERENT designs, printed once
+ *    each. There is no + on a custom request anywhere in the cart, so its qty
+ *    can never mean "make sixteen of these".
+ *
+ * Showing a custom line's sixteen as "×16" tells the admin to print ninety-six
+ * stickers. The multiplier belongs to copies alone; pieces get counted, not
+ * multiplied. A manual line is an ordinary priced job, so it counts copies.
+ */
+export type QtyMeaning = "copies" | "pieces";
+
+export function qtyMeaning(item: Pick<OrderItem, "customKind" | "productId">): QtyMeaning {
+  // A manual job is priced and made like any other line.
+  if (item.customKind === "manual") return "copies";
+  if (item.customKind) return "pieces";
+  /**
+   * No kind recorded. `custom_kind` arrived after the shop had already taken
+   * custom orders, so the oldest requests carry none — and reading them by the
+   * kind alone filed them as catalogue lines, which turned a request for
+   * seventy-four sticker designs into an instruction to make seventy-four
+   * copies of one. The honest test is the product: a line with nothing in the
+   * catalogue behind it is a custom request whatever its kind column says.
+   */
+  return item.productId ? "copies" : "pieces";
+}
+
+/**
  * Map an order status to the active tracker step index (0..4).
  *
  * Exhaustive by type: `Record<OrderStatus, number>` means adding a status to

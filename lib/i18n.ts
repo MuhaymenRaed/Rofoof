@@ -981,6 +981,18 @@ export const dict = {
   "dash.nextStep": { ar: "الخطوة التالية", en: "Next step" },
   "dash.prevStep": { ar: "الخطوة السابقة", en: "Previous step" },
   "dash.itemsLabel": { ar: "القطع", en: "Items" },
+  // Copies vs pieces. These are two different numbers on the same row and the
+  // shop loses money when they are confused, so each says which it is.
+  "dash.piecesChip": { ar: "قطعة", en: "pcs" },
+  "dash.copiesTitle": {
+    ar: "عدد النسخ المطلوبة — اصنع هذا السطر بهذا العدد من المرّات",
+    en: "Copies to make — produce this line this many times",
+  },
+  "dash.piecesTitle": {
+    ar: "عدد القطع المختلفة في هذا السطر. بدون علامة ×N فالمطلوب نسخة واحدة منها",
+    en: "Distinct pieces on this line. With no ×N, one copy is wanted",
+  },
+  "dash.fromRequests": { ar: "من طلبات منفصلة عددها", en: "from separate requests:" },
   "dash.orderDetails": { ar: "تفاصيل الطلب", en: "Order details" },
   "dash.customerInfo": { ar: "بيانات الزبون", en: "Customer info" },
   "dash.downloadAll": { ar: "تحميل كل الصور", en: "Download all images" },
@@ -1143,6 +1155,9 @@ export const dict = {
   },
   "custom.perPiece": { ar: "سعر القطعة", en: "Per piece" },
   "custom.piecesCount": { ar: "عدد القطع", en: "Pieces" },
+  // Compact count beside a custom request in the cart. "× 6" read as "six
+  // copies of it"; it is six separate designs, each made once.
+  "custom.designsCount": { ar: "تصميم", en: "designs" },
   "custom.estimated": { ar: "السعر التقديري", en: "Estimated price" },
   "custom.addToCart": { ar: "أضف إلى السلة", en: "Add to cart" },
   "custom.sending": {
