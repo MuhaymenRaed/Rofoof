@@ -1034,8 +1034,13 @@ export function CartDrawer() {
                               <Icon size={11} />
                               {lang === "ar" ? meta.ar : meta.en}
                             </span>
+                            {/* Not "× 6": a custom request has no quantity — the
+                                number is how many designs were uploaded, each
+                                made once. A × in front of it reads as six
+                                copies, which is what the admin's board was
+                                also showing. */}
                             <span className="text-[10px] font-semibold text-ink-3">
-                              × {req.images.length}
+                              {req.images.length} {t("custom.designsCount")}
                             </span>
                             {req.waterproof && (
                               <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-500/12 px-1.5 py-0.5 text-[9px] font-bold text-sky-600">
