@@ -15,6 +15,7 @@ import {
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { mapOrder, type OrderRowWithItems } from "@/lib/data/mappers";
 import { TAGS } from "@/lib/data/tags";
+import { revalidateCatalog } from "@/lib/cache";
 import {
   sendOrderTelegramNotification,
   sendOrderCancelledTelegramNotification,
@@ -222,6 +223,20 @@ const placeOrderSchema = z
   );
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
+
+/**
+ * Why place_order() refused a code it was handed. Mirrors the `raise exception
+ * 'coupon_*'` names in docs/coupon-discount-base.sql, which are the app's
+ * contract with the database: a code that reaches checkout is applied or
+ * refused with one of these — never silently left off the order.
+ */
+export type CouponRefusal =
+  | "not_found"
+  | "not_started"
+  | "expired"
+  | "not_targeted"
+  | "min_subtotal";
+
 export type PlaceOrderResult =
   | {
       ok: true;
@@ -245,6 +260,11 @@ export type PlaceOrderResult =
        * carrying it so the retry succeeds.
        */
       unavailableId?: string;
+      /**
+       * Set only with `error: "coupon_invalid"` — the database refused the code
+       * the cart had shown as applied. The cart removes it and says why.
+       */
+      couponReason?: CouponRefusal;
     };
 
 /**
@@ -378,6 +398,23 @@ export async function placeOrderAction(
     // Postgres string would be shown to the shopper otherwise.
     if (/coupon_per_user_limit/.test(error.message))
       return { ok: false, error: "coupon_used" };
+    // place_order() found the code wanting — expired, under its minimum, aimed
+    // at someone else, or gone. It used to DROP the code in that case and place
+    // the order at full price with nothing said, which is how customers who had
+    // just watched the cart take 15% off were billed the whole amount (see
+    // docs/coupon-discount-base.sql). Now the database refuses instead, and the
+    // cart is told which condition failed so it can remove the code, explain,
+    // and let the shopper order again at a price they have actually seen.
+    const refused = /coupon_(not_found|not_started|expired|not_targeted|min_subtotal)/.exec(
+      error.message,
+    );
+    if (refused) {
+      return {
+        ok: false,
+        error: "coupon_invalid",
+        couponReason: refused[1] as CouponRefusal,
+      };
+    }
     if (/coupon_usage_limit/.test(error.message))
       return { ok: false, error: "coupon_exhausted" };
     if (
@@ -491,6 +528,7 @@ export async function placeOrderAction(
     discountTotal: money?.discountTotal,
     deliveryFee: money?.deliveryFee ?? 0,
     quotedDiscount: discountMismatch ? v.quotedDiscount! : undefined,
+    quotedCoupon: discountMismatch ? (v.couponCode ?? null) : undefined,
     itemCount:
       v.items.reduce((sum, i) => sum + i.qty, 0) +
       v.customs.reduce((sum, c) => sum + c.images.length, 0) +
@@ -848,6 +886,14 @@ export async function updateOrderStatusAction(
   revalidatePath("/dashboard");
   revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
+  // Stock may just have moved, and the catalogue is what shows stock — the
+  // storefront's cards and design pickers, the overview's stock KPIs, all read
+  // the cached product list. Without this they kept the pre-acceptance counts
+  // for up to five minutes: a design that had just sold out stayed buyable,
+  // and the "out of stock" tile stayed put, while the inventory list (which
+  // reads live) had already moved. The same admin looking at both saw stock
+  // that had changed in one place and not the other.
+  revalidateCatalog();
   return { ok: true };
 }
 
@@ -1111,6 +1157,10 @@ export async function cancelOrderAdminAction(code: string): Promise<{
   // discount code back rather than leave them holding a spent one.
   await releaseCouponRedemption(trimmed);
 
+  // The pieces went back on the shelf above; make the storefront and the
+  // stock KPIs see them (see updateOrderStatusAction).
+  revalidateCatalog();
+
   if (snap) {
     const itemCount = snap.is_custom
       ? (snap.custom_images?.length ?? 0)
@@ -1199,6 +1249,8 @@ export async function updateManyOrderStatusesAction(
   revalidatePath("/dashboard");
   revalidateTag(TAGS.sales, "max");
   revalidatePath("/orders");
+  // Same as the single-order path: the batch may have moved stock.
+  revalidateCatalog();
   return {
     ok: failed.length === 0,
     failed,

@@ -38,6 +38,21 @@
 --  comment at the coupon block for what is deliberately NOT changed
 --  (`product_ids`) and why.
 --
+--  SECOND CHANGE, ADDED AFTER THE FIRST RUN — RE-RUN THIS FILE
+--  The coupon block used to DROP a code that failed any of its conditions:
+--  the order went through at full price with no coupon and no error. The
+--  subtotal bug above triggered exactly that on every custom-only basket
+--  (v_subtotal was 0, so `0 >= min_subtotal` failed) — the cart showed 15%,
+--  the order recorded nothing, and the customer's tracking page and the
+--  admin's alert both showed no discount. Now a code that was sent is either
+--  applied or REFUSED with a named reason (coupon_not_found, coupon_expired,
+--  coupon_not_started, coupon_not_targeted, coupon_min_subtotal:<min>). The
+--  cart turns each into a message, removes the code, and lets the customer
+--  order again at the honest price. See the coupon block for the reasoning.
+--
+--  This file is a plain CREATE OR REPLACE — safe to run as many times as you
+--  like, and running it again is how the second change lands.
+--
 --  THE FIX
 --  Move the custom-request/manual insert loop ABOVE the `select subtotal`, so
 --  the discount block sees the finished basket. Nothing else changes: the same
@@ -357,19 +372,31 @@ begin
 
   -- coupon candidate
   --
-  -- The three added conditions below close a gap between what the CART refuses
-  -- and what CHECKOUT accepted. preview_coupon() already enforces the start of
-  -- the window and the targeting list, so the cart would never let a customer
-  -- apply such a code — but place_order() never checked either, and the code it
-  -- is handed comes from the browser. Anyone who learned a code aimed at one
-  -- customer, or one scheduled for next month, got the discount by sending it
-  -- straight to checkout. `not is_deleted` is belt-and-braces: deleting a coupon
-  -- already clears `active`, so this only matters if a row is ever soft-deleted
-  -- without it.
+  -- A CODE THAT WAS SENT IS EITHER APPLIED OR REFUSED — NEVER DROPPED.
   --
-  -- Nothing in this shop currently uses starts_at or targeting, so this changes
-  -- no live coupon's behaviour today — it makes the settings mean what they say
-  -- from here on, which matters now that the dashboard can edit them.
+  -- The first version of this block was one SELECT with every condition in
+  -- its WHERE clause, and `if v_coupon.code is not null then ...` after it. A
+  -- code that failed any condition simply matched no row, and the order went
+  -- through at full price with coupon_code = NULL. Nothing raised, nothing
+  -- logged. The cart had already shown the customer their 15%.
+  --
+  -- That is exactly how the subtotal bug above hurt people for as long as it
+  -- did: on a custom-only basket the old, too-early v_subtotal was 0, so
+  -- `0 >= min_subtotal` failed, the SELECT found nothing, and the order was
+  -- placed without the code. The customer saw "-4,200" in the cart, the admin
+  -- saw an order with no discount, and the only trace was the mismatch alarm
+  -- in Telegram. Between the alarm going live and this file being run, that
+  -- was every order that tried to use a code.
+  --
+  -- So each condition is now checked one at a time and RAISES with a name the
+  -- app can put into words. The transaction rolls back, the cart takes the
+  -- code off, tells the customer why, and lets them press Order again at the
+  -- honest price — or fix the basket. A discount can drift between preview
+  -- and checkout for many reasons in future; whatever the reason, the order
+  -- is never quietly placed at a price the customer did not see.
+  --
+  -- The conditions themselves are the ones preview_coupon() enforces in the
+  -- cart, so on a healthy system none of these ever fires — they are a tripwire.
   --
   -- STILL NOT ENFORCED HERE: `product_ids`. A coupon scoped to specific products
   -- discounts the WHOLE basket, both in the cart preview and here — the two
@@ -381,17 +408,30 @@ begin
   -- migration exists to remove.
   if p_coupon_code is not null and btrim(p_coupon_code) <> '' then
     select * into v_coupon from public.coupons
-    where code = upper(btrim(p_coupon_code)) and active
-      and not is_deleted
-      and (starts_at is null or starts_at <= now())
-      and (ends_at is null or ends_at > now())
-      and (target_user_ids is null or auth.uid() = any(target_user_ids))
-      and v_subtotal >= min_subtotal;
-    if v_coupon.code is not null then
-      v_coupon_discount := case when v_coupon.discount_type = 'percent'
-        then floor(v_subtotal * v_coupon.value / 100.0)::int
-        else v_coupon.value end;
+    where code = upper(btrim(p_coupon_code)) and active and not is_deleted;
+
+    if v_coupon.code is null then
+      raise exception 'coupon_not_found';
     end if;
+    if v_coupon.starts_at is not null and v_coupon.starts_at > now() then
+      raise exception 'coupon_not_started';
+    end if;
+    if v_coupon.ends_at is not null and v_coupon.ends_at <= now() then
+      raise exception 'coupon_expired';
+    end if;
+    -- A targeted code is for named accounts only; a guest (auth.uid() null)
+    -- can never be on the list, so the null has to count as "not targeted".
+    if v_coupon.target_user_ids is not null
+       and (auth.uid() is null or not (auth.uid() = any(v_coupon.target_user_ids))) then
+      raise exception 'coupon_not_targeted';
+    end if;
+    if v_subtotal < coalesce(v_coupon.min_subtotal, 0) then
+      raise exception 'coupon_min_subtotal:%', coalesce(v_coupon.min_subtotal, 0);
+    end if;
+
+    v_coupon_discount := case when v_coupon.discount_type = 'percent'
+      then floor(v_subtotal * v_coupon.value / 100.0)::int
+      else v_coupon.value end;
   end if;
 
   -- conditional cart-percent offer candidate (global or user-specific)
@@ -466,32 +506,18 @@ commit;
 -- ============================================================================
 --  VERIFY
 -- ============================================================================
---  New columns are there and line_total honours the override:
---    select column_name, is_generated, generation_expression
---      from information_schema.columns
---     where table_name = 'order_items'
---       and column_name in ('manual_total','custom_images','custom_kind','line_total');
+--  0. Is the function you have live actually this one? Both must read TRUE.
+--     (pg_get_functiondef keeps the body verbatim, comments included.)
 --
---  Per-request artwork on recent custom orders (each row = one request):
---    select o.code, i.custom_kind, i.qty, i.manual_total, i.line_total,
---           coalesce(array_length(i.custom_images, 1), 0) as images
---      from public.order_items i
---      join public.orders o on o.id = i.order_id
---     where i.product_id is null
---     order by o.created_at desc
---     limit 20;
+--       select position('select subtotal into v_subtotal' in def)
+--                > position('custom-request and manual line items' in def)
+--                as customs_priced_before_discount,
+--              position('coupon_not_found' in def) > 0
+--                as sent_code_is_never_dropped
+--         from (select pg_get_functiondef(
+--                 'public.place_order(text,text,text,text,text,text,jsonb,jsonb,text)'::regprocedure
+--               ) as def) d;
 --
---  Nothing was repriced by this migration (expect 0 rows):
---    select code from public.orders o
---     where o.subtotal <> coalesce((select sum(i.line_total)
---       from public.order_items i where i.order_id = o.id), 0);
--- ============================================================================
-
-commit;
-
--- ============================================================================
---  VERIFY
--- ============================================================================
 --  1. The discount base is now the whole basket. Place a test order with one
 --     catalogue product and one custom request, apply a percent code, then:
 --
@@ -502,7 +528,37 @@ commit;
 --     fraction of it — and total must equal subtotal - discount_total +
 --     delivery_fee.
 --
---  2. Orders that were under-discounted by the old ordering (for the record —
+--  2. HONOURING A CODE THAT WAS DROPPED (optional, one order at a time)
+--
+--     Every Telegram alert carrying the "⚠️" block names an order whose
+--     customer entered a code that the old function then left off. The order
+--     itself is fine — it is just billed without the discount the customer
+--     saw. To give it to them after the fact, set the discount by hand; the
+--     total recomputes itself, and the redemption trigger records the use.
+--     (It will refuse with coupon_per_user_limit if that customer has already
+--     used a once-per-customer code on another order — that is the rule
+--     working, not a fault.)
+--
+--       update public.orders
+--          set coupon_code    = 'HOLA',
+--              discount_total = least(subtotal, floor(subtotal * 15 / 100.0)::int),
+--              offer_note     = 'كوبون HOLA'
+--        where code = 'RFQ-9xxx'
+--          and coupon_code is null;
+--
+--     Candidates, if the alerts are gone: orders since the alarm went live that
+--     carry custom lines and no code. Not all of these tried a code — check
+--     against the alerts, or ask the customer — but every one that did is here.
+--
+--       select o.code, o.created_at, o.customer_name, o.subtotal, o.total
+--         from public.orders o
+--        where o.coupon_code is null
+--          and o.created_at >= '2026-09-14'
+--          and exists (select 1 from public.order_items i
+--                       where i.order_id = o.id and i.product_id is null)
+--        order by o.created_at;
+--
+--  3. Orders that were under-discounted by the old ordering (for the record —
 --     this migration does not change them):
 --
 --       select o.code, o.created_at, o.coupon_code, o.subtotal, o.discount_total,

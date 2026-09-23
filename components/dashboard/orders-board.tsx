@@ -985,35 +985,81 @@ function OrderDetailsModal({
             {order.items.map((it, i) => {
               const itemName = lang === "ar" ? it.nameAr : it.nameEn;
               const variant = lang === "ar" ? it.itemNameAr : it.itemNameEn;
+              /**
+               * More than one piece of THIS line.
+               *
+               * The count used to be plain 11px grey text — "×3" sat in the same
+               * muted row as the finish chip and the note, at the same weight as
+               * everything else — so an order for three of something read as an
+               * order for one, and got packed as one. A quantity is the single
+               * most expensive thing on this row to misread, so when it is
+               * anything but one it is marked three times over: on the picture,
+               * as a solid pill, and by tinting the whole line.
+               */
+              const multiple = it.qty > 1;
               return (
                 <li
                   key={i}
-                  className="flex items-center gap-2.5 rounded-xl border border-line-2 px-3 py-2.5 text-[13px]"
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-[13px] ${
+                    multiple ? "border-brand/40 bg-brand-soft/60" : "border-line-2"
+                  }`}
                 >
                   {/* The design to print, so the admin sees it without opening
                       links. A manual line has no artwork by definition, so it
                       gets the manual mark rather than a generic package box. */}
-                  {itemImage(it) ? (
-                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line-2">
-                      <RetryImage src={itemImage(it)!} alt="" fill sizes="40px" className="object-cover" />
-                    </span>
-                  ) : it.customKind === "manual" ? (
-                    <span
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white"
-                      style={{ background: MANUAL_ORDER_COLOR }}
-                    >
-                      <Tag size={16} />
-                    </span>
-                  ) : (
-                    <Package size={13} className="shrink-0 text-ink-3" />
-                  )}
+                  <span className="relative shrink-0">
+                    {itemImage(it) ? (
+                      <span className="relative block h-10 w-10 overflow-hidden rounded-lg border border-line-2">
+                        <RetryImage
+                          src={itemImage(it)!}
+                          alt=""
+                          fill
+                          sizes="40px"
+                          className="object-cover"
+                        />
+                      </span>
+                    ) : it.customKind === "manual" ? (
+                      <span
+                        className="grid h-10 w-10 place-items-center rounded-lg text-white"
+                        style={{ background: MANUAL_ORDER_COLOR }}
+                      >
+                        <Tag size={16} />
+                      </span>
+                    ) : (
+                      <span className="grid h-10 w-10 place-items-center rounded-lg border border-line-2 bg-surface-2 text-ink-3">
+                        <Package size={16} />
+                      </span>
+                    )}
+                    {/* On the corner of the artwork, the way a cart badge sits
+                        on a cart: the admin looks at the picture to know what to
+                        make, so the count has to be where the looking happens.
+                        aria-hidden — the pill below says the same thing in the
+                        reading order. */}
+                    {multiple && (
+                      <span
+                        aria-hidden
+                        className="absolute -top-1.5 -start-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[10px] font-black text-white ring-2 ring-surface"
+                      >
+                        ×{it.qty}
+                      </span>
+                    )}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold text-ink">
                       {itemName}
                       {variant && <span className="font-semibold text-ink-3"> — {variant}</span>}
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-3">
-                      ×{it.qty}
+                      <span
+                        title={t("dash.itemsLabel")}
+                        className={
+                          multiple
+                            ? "rounded-md bg-brand px-1.5 py-0.5 text-[11px] font-black tabular-nums text-white"
+                            : "tabular-nums"
+                        }
+                      >
+                        ×{it.qty}
+                      </span>
                       {it.freeQty > 0 && (
                         <span className="font-bold text-emerald-600">
                           ({it.freeQty} {t("cart.free")})

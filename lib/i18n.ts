@@ -580,6 +580,34 @@ export const dict = {
   "dash.totalCustomers": { ar: "إجمالي العملاء", en: "Total customers" },
   "dash.lowStock": { ar: "مخزون منخفض", en: "Low stock" },
   "dash.outOfStock": { ar: "نفد المخزون", en: "Out of stock" },
+  // Shown when a stock filter matches nothing. "No items" read as a failure to
+  // load; nothing being empty is the good outcome and should say so.
+  "dash.noneOut": { ar: "لا يوجد أي صنف نفد مخزونه 🎉", en: "Nothing is out of stock 🎉" },
+  "dash.noneLow": { ar: "لا يوجد أي صنف قارب على النفاد 🎉", en: "Nothing is running low 🎉" },
+  // Tooltip on the stock chips. The chip counts SHELF UNITS, so it matches the
+  // overview tile exactly; the list under it is the products those units live
+  // in, which is a smaller number. Saying both out loud stops that reading as a
+  // contradiction.
+  "dash.inProducts": { ar: "ضمن", en: "across" },
+  "dash.productsLabel": { ar: "منتج", en: "products" },
+  // Counted per SHELF UNIT — a package's individual designs, or a plain
+  // product — not per product. One design running out inside a package of
+  // twenty is exactly the case an admin needs to see, and a per-product count
+  // hid it behind the nineteen that were fine.
+  "dash.unitsOut": { ar: "أصناف نفدت", en: "Items out of stock" },
+  "dash.unitsLow": { ar: "أصناف قاربت على النفاد", en: "Items running low" },
+  /** inventory row chip: "{n} designs of this package are at zero" */
+  "dash.designsOut": { ar: "نفدت", en: "out" },
+  /** inventory row chip: "{n} designs of this package are running low" */
+  "dash.designsLow": { ar: "منخفض", en: "low" },
+  "dash.designsOutTitle": {
+    ar: "تصاميم في هذه الحزمة نفد مخزونها",
+    en: "Designs in this package that are out of stock",
+  },
+  "dash.designsLowTitle": {
+    ar: "تصاميم في هذه الحزمة قارب مخزونها على النفاد",
+    en: "Designs in this package that are running low",
+  },
   "dash.onDiscount": { ar: "منتجات مخفّضة", en: "On discount" },
   "dash.topProducts": { ar: "الأكثر مبيعاً", en: "Top sellers" },
   "dash.sold": { ar: "مباع", en: "sold" },
@@ -847,15 +875,24 @@ export const dict = {
     ar: "سجّل الدخول لاستخدام هذا الكود",
     en: "Sign in to use this code",
   },
-  // The per-customer cap, which now binds to the device (and, at checkout, to
-  // the phone number) rather than only to an account — see lib/coupon-guard.ts.
+  // The per-customer cap, which binds to the device, the account AND (at
+  // checkout) the phone number — see lib/coupon-guard.ts. Worded as "you",
+  // not "this device": at checkout the match is usually the number, and a
+  // message blaming the device for a code the customer used from another one
+  // reads as a bug rather than a rule.
   "cart.couponDeviceUsed": {
-    ar: "سبق أن استُخدم هذا الكود على هذا الجهاز — لا يمكن استخدامه مرة أخرى",
-    en: "This code has already been used on this device — it can't be used again",
+    ar: "سبق أن استخدمت هذا الكود — لا يمكن استخدامه مرة أخرى",
+    en: "You've already used this code — it can't be used again",
   },
   "cart.couponScoped": {
     ar: "يطبَّق على منتجات محددة — يُحتسب النهائي عند الإتمام",
     en: "Applies to selected products — final amount is set at checkout",
+  },
+  // Shown under any checkout-time coupon refusal. The order was NOT placed;
+  // the code is off the basket and the total on screen is the honest one.
+  "cart.couponDropped": {
+    ar: "لم يُرسل الطلب. أُزيل الكود من السلة — اضغط «إتمام الطلب» مرة أخرى للمتابعة بالسعر الظاهر الآن.",
+    en: "Your order was not sent. The code was removed from the cart — press Order again to continue at the price shown now.",
   },
   "dash.volumePriced": { ar: "تسعير حسب العدد", en: "Price by count" },
   "dash.volumeLadder": { ar: "سلّم الأعداد", en: "Count ladder" },
