@@ -1,8 +1,8 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapProduct, selectProducts, type ProductRowWithFandoms } from "./mappers";
-import { LOW_STOCK_BELOW, totalStockFor, type Product, type OrderStatus } from "@/lib/products";
-import { getProducts } from "./catalog";
+import { type Product, type OrderStatus } from "@/lib/products";
+import { getStockIndex, type StockFilter } from "./stock";
 
 export interface TopProduct {
   id: string;
@@ -144,37 +144,30 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const top = Array.isArray(d.top_products) ? (d.top_products as Record<string, unknown>[]) : [];
 
   /**
-   * The three stock counts are recomputed here instead of taken from the RPC.
+   * The three stock counts come from getStockIndex(), not from the RPC and not
+   * from the public catalogue.
    *
    * dashboard_stats() predates per-design stock, so it can only count
-   * products.stock — which means nothing for a package. Every package order
-   * drags that column down while the designs themselves stay full, so packages
-   * slide into "out of stock" and stay there, and no amount of resetting the
-   * data brings them back. Counting from the catalogue, where a package is the
-   * sum of its designs, is the only figure that stays true.
+   * products.stock — a column that means nothing for a package: every package
+   * order drags it down while the designs stay full, so packages slide into
+   * "out of stock" and never come back.
+   *
+   * Counting the cached catalogue instead was closer but still wrong in two
+   * ways the admin could see: it read `is_active = true`, so a hidden product
+   * that had run out was counted nowhere, and it read a five-minute cache, so
+   * accepting an order moved the inventory list while this tile stood still.
+   * The index reads the same live, whole-catalogue set the inventory list pages
+   * through, so the two screens now answer the same question the same way.
    *
    * Everything else still comes from the RPC.
    */
-  const products = await getProducts();
-  const counts = products.reduce(
-    (acc, p) => {
-      const stock = totalStockFor(p);
-      if (stock === null) return acc; // not tracked yet — counts as neither
-      if (stock === 0) acc.out += 1;
-      else {
-        acc.in += 1;
-        if (stock < LOW_STOCK_BELOW) acc.low += 1;
-      }
-      return acc;
-    },
-    { in: 0, low: 0, out: 0 },
-  );
+  const { counts } = await getStockIndex();
 
   return {
-    inStock: counts.in,
+    inStock: counts.inStock,
     totalProducts: n("total_products"),
-    lowStock: counts.low,
-    outOfStock: counts.out,
+    lowStock: counts.lowUnits,
+    outOfStock: counts.outUnits,
     onDiscount: n("on_discount"),
     newUsers: n("new_users"),
     totalCustomers: n("total_customers"),
@@ -373,9 +366,49 @@ export interface InventoryPage {
 /**
  * A page of products (including inactive) for inventory management. Fetches
  * `limit + 1` rows to detect `hasMore` without a separate count query.
+ *
+ * `filter` narrows the whole catalogue to the products holding an empty or a
+ * low shelf unit — resolved on the SERVER, through getStockIndex(). It used to
+ * be a client-side `.filter()` over whatever had been scrolled into memory,
+ * which meant the answer depended on how far the admin had scrolled: with a
+ * hundred products loaded thirty at a time, a design that ran out on page three
+ * was not in the array the filter ran over, so the button reported one empty
+ * product while there were two. Asking the server is the only way the count and
+ * the list can be the whole shop.
  */
-export async function getInventory(offset = 0, limit = 30): Promise<InventoryPage> {
+export async function getInventory(
+  offset = 0,
+  limit = 30,
+  filter?: StockFilter,
+): Promise<InventoryPage> {
   const supabase = await createSupabaseServerClient();
+
+  if (filter) {
+    const index = await getStockIndex();
+    const ids = index[filter];
+    const pageIds = ids.slice(offset, offset + limit);
+    if (pageIds.length === 0) return { products: [], hasMore: false };
+
+    const { data, error } = await selectProducts((select) =>
+      supabase.from("products").select(select).eq("is_deleted", false).in("id", pageIds),
+    );
+    if (error || !data) {
+      console.error("[dashboard] inventory(filter):", error);
+      return { products: [], hasMore: false };
+    }
+    // `in` returns rows in the database's order, so the index's worst-first
+    // ranking is reapplied here — otherwise the product with four dead designs
+    // could sort below one with a single low design.
+    const byId = new Map(
+      (data as unknown as ProductRowWithFandoms[]).map((r) => [r.id, mapProduct(r)]),
+    );
+    const products = pageIds.flatMap((id) => {
+      const p = byId.get(id);
+      return p ? [p] : [];
+    });
+    return { products, hasMore: ids.length > offset + limit };
+  }
+
   const { data, error } = await selectProducts((select) =>
     supabase
       .from("products")

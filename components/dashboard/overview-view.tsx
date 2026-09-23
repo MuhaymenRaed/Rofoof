@@ -56,8 +56,9 @@ const MINI_META: { key: DictKey; field: keyof DashboardStats; money?: boolean; a
   { key: "dash.revenue30d", field: "revenue30d", money: true },
   { key: "dash.totalCustomers", field: "totalCustomers" },
   { key: "dash.onDiscount", field: "onDiscount" },
-  { key: "dash.lowStock", field: "lowStock", alert: true },
-  { key: "dash.outOfStock", field: "outOfStock", alert: true },
+  // Per shelf unit (a package's designs, or the product) — see getDashboardStats.
+  { key: "dash.unitsLow", field: "lowStock", alert: true },
+  { key: "dash.unitsOut", field: "outOfStock", alert: true },
 ];
 
 export function OverviewView({

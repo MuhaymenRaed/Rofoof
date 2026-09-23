@@ -169,6 +169,56 @@ export function totalStockFor(p: Product): number | null {
 }
 
 /**
+ * The things the shop actually keeps count of, for one product: each design of
+ * a package, or the product itself for anything else. This is the same split
+ * the database moves stock by (admin_set_order_stock groups by product_id,
+ * item_id) and the restock queue lists by — the one "shelf unit".
+ *
+ * WHY THIS EXISTS: every dashboard count used to be per PRODUCT, through
+ * totalStockFor(). For a package that is the SUM of its designs, so a design
+ * that had run out inside a package of twenty was invisible — the package
+ * still read "95", never turned red, and the "out of stock" tile never moved.
+ * The admin could see designs greyed out on the storefront that the dashboard
+ * insisted were fine. Counting the units the shop actually stocks is the only
+ * figure that agrees with what the customer is shown.
+ *
+ * Untracked units (null) are left out, as everywhere else: unknown is not zero.
+ */
+export function stockUnitsFor(p: StockShape): number[] {
+  if (p.kind === "package" && p.items.length > 0) {
+    return p.items.flatMap((i) => (i.stock == null ? [] : [i.stock]));
+  }
+  return p.stock == null ? [] : [p.stock];
+}
+
+/**
+ * The least a thing has to be for its stock to be counted: what kind it is, and
+ * the counts of it and its designs.
+ *
+ * Deliberately looser than `Pick<Product, …>` so the server can answer "how
+ * much is on the shelf" from a four-column query instead of hydrating a whole
+ * catalogue of products, images and categories to count to two. A full
+ * `Product` satisfies it structurally, so the dashboard, the inventory filter
+ * and the storefront all reach the same verdict through the same three
+ * functions — which is the point. See lib/data/stock.ts.
+ */
+export interface StockShape {
+  kind: ProductKind;
+  items: { stock: number | null }[];
+  stock?: number | null;
+}
+
+/** How many of a product's shelf units are at zero. */
+export function outOfStockUnits(p: StockShape): number {
+  return stockUnitsFor(p).filter((n) => n <= 0).length;
+}
+
+/** How many of a product's shelf units are below the low-stock line but not out. */
+export function lowStockUnits(p: StockShape): number {
+  return stockUnitsFor(p).filter((n) => n > 0 && n < LOW_STOCK_BELOW).length;
+}
+
+/**
  * Whether a package has anything left to sell. A package is only sold out once
  * every one of its designs is — a single design running out must not take the
  * whole product off the shelf.

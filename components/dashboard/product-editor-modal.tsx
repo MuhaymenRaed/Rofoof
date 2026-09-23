@@ -67,6 +67,14 @@ interface ImageRow {
   price: string;
   /** units left of this design (package products only); "" → inherits 0 */
   stock: string;
+  /**
+   * `stock` as it was when the editor opened — undefined for a design that
+   * doesn't exist yet. A row whose stock still equals this is NOT written on
+   * save: stock is a live number the orders board moves underneath this form,
+   * and writing back whatever was loaded quietly undid every acceptance since.
+   * See upsertProductAction.
+   */
+  initialStock?: string;
 }
 
 function slugify(input: string, seed: number) {
@@ -131,6 +139,8 @@ export function ProductEditorModal({
   const [volSaving, setVolSaving] = useState(false);
   const [volSaved, setVolSaved] = useState(false);
   const [stock, setStock] = useState("25");
+  // Same rule as ImageRow.initialStock, for a plain product's own count.
+  const [initialStock, setInitialStock] = useState<string | null>(null);
   const [descAr, setDescAr] = useState("");
   const [descEn, setDescEn] = useState("");
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
@@ -193,6 +203,7 @@ export function ProductEditorModal({
     );
     setVolSaved(false);
     setStock(String(product?.stock ?? 25));
+    setInitialStock(product ? String(product.stock ?? 25) : null);
     setDescAr(product?.descAr ?? "");
     setDescEn(product?.descEn ?? "");
     setSelectedCats(product?.categories?.length ? product.categories : []);
@@ -217,6 +228,7 @@ export function ProductEditorModal({
           // null = the stock column isn't in the database yet; leave the field
           // blank rather than showing a 0 the admin never typed.
           stock: it.stock === null ? "" : String(it.stock),
+          initialStock: it.stock === null ? "" : String(it.stock),
         })),
       );
     } else {
@@ -455,13 +467,25 @@ export function ProductEditorModal({
 
     startTransition(async () => {
       // upload new files to product-images/<id>/…
-      const finalRows: { itemId?: string; url: string; price: string; stock: string }[] = [];
+      const finalRows: {
+        itemId?: string;
+        url: string;
+        price: string;
+        stock: string;
+        initialStock?: string;
+      }[] = [];
       const toUpload = rows.filter((r) => r.file);
       if (toUpload.length > 0) setUploading(true);
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (r.url) {
-          finalRows.push({ itemId: r.itemId, url: r.url, price: r.price, stock: r.stock });
+          finalRows.push({
+            itemId: r.itemId,
+            url: r.url,
+            price: r.price,
+            stock: r.stock,
+            initialStock: r.initialStock,
+          });
           continue;
         }
         if (!r.file) continue;
@@ -497,6 +521,12 @@ export function ProductEditorModal({
       const discountFixedNum =
         discountMode === "fixed" ? Math.max(0, Number(discountFixed) || 0) : 0;
       const stockNum = Math.max(0, Number(stock) || 0);
+      // Only a count the admin actually changed is sent. An untouched field is
+      // sent as null, which upsertProductAction reads as "leave the database's
+      // number alone" — that number may have moved since this form was opened
+      // (every accepted order moves it), and the value loaded here is stale
+      // the moment it has. Saving a price edit must never restock a product.
+      const stockToSave = initialStock !== null && stock === initialStock ? null : stockNum;
       const surchargeNum = waterproofEligible ? Math.max(0, Number(surcharge) || 0) : 0;
       const isWaterproof = waterproofEligible ? waterproof : false;
       const allowsCustom = customEligible ? allowCustom : false;
@@ -507,7 +537,11 @@ export function ProductEditorModal({
             id: r.itemId,
             imageUrl: r.url,
             price: r.price.trim() === "" ? null : Math.max(0, Number(r.price) || 0),
-            stock: Math.max(0, Number(r.stock) || 0),
+            // Same rule per design: unchanged → null → left alone on the server.
+            stock:
+              r.initialStock !== undefined && r.stock === r.initialStock
+                ? null
+                : Math.max(0, Number(r.stock) || 0),
           }))
         : [];
       const tiersPayload = isTiered
@@ -527,7 +561,7 @@ export function ProductEditorModal({
         discountPercent: discountNum,
         discountFixed: discountFixedNum,
         volumePriced,
-        stock: stockNum,
+        stock: stockToSave,
         descAr: descAr.trim(),
         descEn: descEn.trim(),
         images: finalRows.map((r) => r.url),
@@ -589,7 +623,7 @@ export function ProductEditorModal({
             nameAr: "",
             nameEn: "",
             price: it.price,
-            stock: it.stock,
+            stock: it.stock ?? 0,
           })),
           tiers: tiersPayload,
           soldOut: false,

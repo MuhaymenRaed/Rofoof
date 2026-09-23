@@ -39,6 +39,13 @@ export interface OrderNotification {
    * one.
    */
   quotedDiscount?: number;
+  /**
+   * The code the cart sent with that quote, if any. Named in the alert so the
+   * admin can see the customer DID enter a code — an order that arrives with
+   * no coupon on it otherwise reads as "didn't use one", which is the opposite
+   * of what happened.
+   */
+  quotedCoupon?: string | null;
 }
 
 const TELEGRAM_TIMEOUT_MS = 5000;
@@ -87,12 +94,14 @@ function moneyLines(order: OrderNotification, totalLabel: string): string[] {
   // a coupon being taken off only part of the basket, and it went unnoticed for
   // weeks because nothing ever compared the two numbers. Now every order does.
   if (order.quotedDiscount != null) {
+    const code = order.quotedCoupon?.trim();
     lines.push(
       "",
-      "⚠️ *تحذير: الخصم المطبَّق يخالف الخصم المعروض في السلة*",
-      `   السلة عرضت: -${money(order.quotedDiscount)}`,
-      `   وطُبِّق فعلياً: -${money(order.discountTotal ?? 0)}`,
-      "   _راجع كود الخصم — الزبون شاهد رقماً مختلفاً._",
+      "⚠️ *تنبيه: الخصم المسجَّل على الطلب يختلف عمّا شاهده الزبون في السلة*",
+      ...(code ? [`   🎟️ الكود الذي أدخله الزبون: \`${escapeMarkdown(code)}\``] : []),
+      `   شاهد في السلة: -${money(order.quotedDiscount)}`,
+      `   سُجِّل على الطلب: -${money(order.discountTotal ?? 0)}`,
+      "   _الطلب صحيح ومؤكَّد، لكن الزبون يتوقع الرقم الذي شاهده — سوِّ الفرق معه._",
     );
   }
   return lines;

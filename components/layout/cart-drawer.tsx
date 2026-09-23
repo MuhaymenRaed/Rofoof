@@ -454,6 +454,18 @@ export function CartDrawer() {
             ? "cart.couponDeviceUsed"
             : "cart.couponUsed",
         );
+      }
+      // The database refused the code outright — expired, under its minimum,
+      // aimed at another account, or gone. The ORDER WAS NOT PLACED: rather
+      // than silently billing full price for a basket that showed a discount
+      // a moment ago (which is what used to happen), place_order() rolled the
+      // whole thing back. Same remedy as above: take the code off, say why,
+      // and the next press goes through at the price now on screen.
+      else if (res.error === "coupon_invalid") {
+        removeCoupon();
+        setCouponError(
+          couponMessage({ valid: false, reason: res.couponReason }),
+        );
       } else setError(true);
       return;
     }
@@ -765,8 +777,13 @@ export function CartDrawer() {
               )}
 
               {couponError && (
-                <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700">
+                <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-700">
                   {t(couponError)}
+                  {/* Every checkout-time refusal ends the same way: the code is
+                      off the basket and the total above is now the real one. */}
+                  <span className="mt-0.5 block font-medium">
+                    {t("cart.couponDropped")}
+                  </span>
                 </p>
               )}
 

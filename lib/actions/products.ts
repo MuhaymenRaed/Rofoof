@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth/dal";
 import { TAGS } from "@/lib/data/tags";
 import { revalidateCatalog } from "@/lib/cache";
 import { getInventory, type InventoryPage } from "@/lib/data/dashboard";
+import { getStockIndex, type StockFilter, type StockCounts } from "@/lib/data/stock";
 import type { CategoryGroup, CategoryInfo, SubcategoryInfo } from "@/lib/products";
 
 const upsertProductSchema = z.object({
@@ -53,8 +54,11 @@ const upsertProductSchema = z.object({
         nameAr: z.string().trim().max(120).optional().default(""),
         nameEn: z.string().trim().max(120).optional().default(""),
         price: z.number().int().min(0).max(10_000_000).nullable().optional(),
-        /** units left of this design; the package's own stock column is unused */
-        stock: z.number().int().min(0).max(100000).optional().default(0),
+        /**
+         * Units left of this design; the package's own stock column is unused.
+         * null / absent = "don't touch it" — see the note on `stock` below.
+         */
+        stock: z.number().int().min(0).max(100000).nullable().optional(),
       }),
     )
     .max(120)
@@ -71,7 +75,18 @@ const upsertProductSchema = z.object({
     .max(10)
     .optional()
     .default([]),
-  stock: z.number().int().min(0).max(100000).optional().default(0),
+  /**
+   * null / absent = leave the stored count exactly as it is.
+   *
+   * Stock is the one field on this form that the database changes on its own:
+   * every accepted order takes pieces off, every cancellation puts them back.
+   * The editor used to send back whatever number it had LOADED, so saving any
+   * edit — a price, a category, a photo — silently restored the count to what
+   * it was when the form opened, undoing every order accepted in between. To
+   * the admin that looked like stock that never went down. Now the editor only
+   * sends a count the admin actually typed, and this is what "not sent" means.
+   */
+  stock: z.number().int().min(0).max(100000).nullable().optional(),
   /** shown in the homepage "featured picks" showcase */
   isFeatured: z.boolean().optional().default(false),
   /** false = create only (fail on duplicate id) */
@@ -99,9 +114,14 @@ export type UpsertProductInput = z.input<typeof upsertProductSchema>;
  */
 async function writeItemStock(
   productId: string,
-  items: { imageUrl: string; stock: number }[],
+  items: { imageUrl: string; stock?: number | null }[],
 ): Promise<string | null> {
-  if (items.length === 0) return null;
+  // Only designs whose count the admin set. The rest are left to the number
+  // the orders board has been maintaining — see the schema note on `stock`.
+  const changed = items.flatMap((it) =>
+    it.stock == null ? [] : [{ imageUrl: it.imageUrl, stock: it.stock }],
+  );
+  if (changed.length === 0) return null;
 
   // Service role deliberately. admin_set_product_items is SECURITY DEFINER, so
   // it writes these rows with the function's rights; a plain update from the
@@ -117,7 +137,7 @@ async function writeItemStock(
     .eq("is_deleted", false);
   if (readErr || !saved) return readErr?.message ?? null;
 
-  const wanted = new Map(items.map((it) => [it.imageUrl, it.stock]));
+  const wanted = new Map(changed.map((it) => [it.imageUrl, it.stock]));
   // One statement per distinct count rather than per design: a package is
   // nearly always restocked to a single number across every design, so this is
   // usually a single round trip instead of twenty.
@@ -171,17 +191,22 @@ export async function upsertProductAction(
     waterproof_surcharge: p.waterproofSurcharge,
     allow_custom_image: p.allowCustomImage,
     kind: p.kind,
-    stock: p.stock,
     is_featured: p.isFeatured,
+    // Absent from the update entirely when not sent, so the column is not
+    // touched — an `undefined` here would still be dropped by PostgREST, but
+    // being explicit keeps the intent visible.
+    ...(p.stock != null ? { stock: p.stock } : {}),
   };
 
   if (p.isUpdate) {
     const { error } = await supabase.from("products").update(row).eq("id", p.id);
     if (error) return { ok: false, error: error.message };
   } else {
+    // A new product has no stored count to leave alone: it starts at what was
+    // typed, or at zero.
     const { error } = await supabase
       .from("products")
-      .insert({ ...row, emoji: "📦", is_active: true });
+      .insert({ ...row, stock: p.stock ?? 0, emoji: "📦", is_active: true });
     if (error) return { ok: false, error: error.message };
   }
 
@@ -273,10 +298,32 @@ export async function setProductActiveAction(
   return { ok: true };
 }
 
-/** Next page of the admin inventory list (infinite scroll). */
-export async function loadMoreInventoryAction(offset: number): Promise<InventoryPage> {
+/**
+ * Next page of the admin inventory list (infinite scroll), optionally narrowed
+ * to the products holding an empty or a low shelf unit.
+ *
+ * The filter is resolved server-side over the WHOLE catalogue — see
+ * getInventory(). Filtering in the browser only ever saw the pages that had
+ * been scrolled in, so the answer changed as you scrolled.
+ */
+export async function loadMoreInventoryAction(
+  offset: number,
+  filter?: StockFilter,
+): Promise<InventoryPage> {
   await requireAdmin();
-  return getInventory(offset);
+  return getInventory(offset, 30, filter);
+}
+
+/**
+ * Fresh whole-catalogue stock counts for the inventory list's filter chips.
+ *
+ * Re-read after every stock change (a save, an order accepted elsewhere) so the
+ * numbers on the chips can't outlive the shelf they describe.
+ */
+export async function refreshStockCountsAction(): Promise<StockCounts> {
+  await requireAdmin();
+  const { counts } = await getStockIndex();
+  return counts;
 }
 
 /* ------------------------------ Categories ------------------------------ */

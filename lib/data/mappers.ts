@@ -39,7 +39,7 @@ export const PRODUCT_SELECT = productSelect(`${ITEM_COLUMNS}, stock`);
 export const PRODUCT_SELECT_LEGACY = productSelect(ITEM_COLUMNS);
 
 /** PostgREST's undefined_column, i.e. "the migration hasn't been run yet". */
-function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+export function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   return error.code === "42703" || /column .*stock.* does not exist/i.test(error.message ?? "");
 }
