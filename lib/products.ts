@@ -265,6 +265,18 @@ export interface VolumeTier {
 export interface SiteSettings {
   deliveryFeeDefault: number;
   deliveryFeeKarbala: number;
+  /**
+   * Per-province delivery fees, by province code — the admin's own map, which
+   * overrides both numbers above for any province it names.
+   *
+   * Empty when `province_delivery_fees` isn't in the database yet, and that is
+   * exactly what makes this safe to deploy ahead of its migration: an empty map
+   * falls every province back through `deliveryFeeFor()` to the old
+   * Karbala-vs-the-rest rule, which is what the shop charges today. A province
+   * the admin has never priced behaves the same way, permanently — the map is
+   * a set of exceptions, not a table that has to be complete.
+   */
+  deliveryFees: Record<string, number>;
   /** admin switch for the delivery banner under the home-page hero */
   deliveryNoticeActive: boolean;
   /**
@@ -284,8 +296,25 @@ export interface SiteSettings {
   statRating: string;
 }
 
-/** Province-aware delivery fee (Karbala is cheaper); mirrors place_order(). */
+/**
+ * What delivery costs to one province; mirrors place_order().
+ *
+ * Three steps, most specific first:
+ *   1. the admin's own fee for that province, when they've set one;
+ *   2. the Karbala rate, the one province that had a column of its own;
+ *   3. the all-provinces default.
+ *
+ * Step 1 is skipped entirely on a database without the fees table, so the
+ * storefront quotes exactly what it quotes today until the migration lands and
+ * the admin fills the map in. A fee of 0 is a real answer (free delivery to
+ * that province), which is why this tests for a missing KEY and not for a
+ * falsy number.
+ */
 export function deliveryFeeFor(provinceCode: string | null | undefined, s: SiteSettings): number {
+  if (provinceCode) {
+    const own = s.deliveryFees?.[provinceCode];
+    if (typeof own === "number") return own;
+  }
   return provinceCode === "karbala" ? s.deliveryFeeKarbala : s.deliveryFeeDefault;
 }
 
@@ -315,10 +344,38 @@ export interface Product {
   subEn: string;
   price: number;
   emoji: string;
-  /** cover image (= images[0]). Falls back to emoji when empty. */
+  /**
+   * The thumbnail: the one picture that stands for this product in cards, cart
+   * lines, order rows and search results. Falls back to the emoji when empty.
+   *
+   * The admin CHOOSES it in the editor — it is not `images[0]`. It used to be,
+   * which meant the only way to change the thumbnail was to delete and re-upload
+   * photos until the right one happened to land first. It is stored in its own
+   * column (`products.image_url`) and is always one of `images`; see
+   * `coverImageOf()` for what happens when it names a photo that has since been
+   * removed.
+   */
   image?: string;
-  /** all product images (Supabase Storage / CDN), ordered; first is the cover. */
+  /** all product images (Supabase Storage / CDN), in the admin's order. */
   images: string[];
+  /**
+   * Print masters, index-aligned with `images`: `printImages[i]` is the file to
+   * send to the cutter for `images[i]`, and "" where that photo has none.
+   *
+   * The two exist because they are two different pictures of one design. The
+   * catalogue photo is styled to sell — a sticker on a laptop, a poster on a
+   * wall, capped at display resolution. The print master is the artwork alone,
+   * at print resolution, bleed and all. The shop was keeping those in a phone
+   * gallery and matching them up by eye at production time.
+   *
+   * Aligned by index rather than paired in a table because the editor rebuilds
+   * both arrays from the same rows in one pass, so they cannot drift — and
+   * because it needs no new table. Empty for a product with no print files, and
+   * on a database without the column, so the shop behaves as it does today
+   * until the migration lands. Read it through `printImageFor()`, which matches
+   * by URL and so survives a reorder.
+   */
+  printImages: string[];
   /** accent color — backgrounds/pills are derived from it via color-mix */
   color: string;
   /** primary category (= categories[0]) — kept for compatibility */
@@ -360,6 +417,48 @@ export interface Product {
   descAr: string;
   descEn: string;
   tags: string[];
+}
+
+/* ------------------------- Thumbnail & print files ----------------------- */
+
+/**
+ * Which of a product's photos is its thumbnail.
+ *
+ * The admin's choice wins, and `images[0]` is only the fallback — for a product
+ * saved before the picker existed (where the stored cover IS the first photo
+ * anyway), and for the one case the choice can go stale: a cover naming a photo
+ * that is no longer in `images`, which SQL run by hand can leave behind. Falling
+ * back beats rendering a thumbnail the product no longer has.
+ *
+ * `images.length === 0` keeps a stored cover as-is rather than discarding it,
+ * so a legacy row carrying only `image_url` still shows its picture.
+ */
+export function coverImageOf(
+  images: string[],
+  storedCover: string | null | undefined,
+): string | undefined {
+  if (storedCover && (images.length === 0 || images.includes(storedCover))) return storedCover;
+  return images[0];
+}
+
+/**
+ * The print master for one of a product's photos, or undefined when that photo
+ * hasn't got one.
+ *
+ * Matched by URL rather than by the caller's own index, because the callers that
+ * need this — an order line, a package design — hold a photo URL and nothing
+ * else. It also means a reorder in the editor can't silently hand the admin the
+ * wrong file to print, which an index passed across a module boundary could.
+ */
+export function printImageFor(
+  /** the live catalogue entry; undefined for a retired or missing product */
+  p: Pick<Product, "images" | "printImages"> | undefined,
+  imageUrl: string | null | undefined,
+): string | undefined {
+  if (!p || !imageUrl) return undefined;
+  const at = p.images.indexOf(imageUrl);
+  if (at === -1) return undefined;
+  return p.printImages[at] || undefined;
 }
 
 /* ------------------------------ Pricing --------------------------------- */
@@ -537,6 +636,15 @@ export interface ManualCartOrder {
 
 /** Distinct accent for custom requests everywhere (lists, badges, stats). */
 export const CUSTOM_ORDER_COLOR = "#d946ef";
+
+/**
+ * Distinct accent for print masters, wherever they appear beside the catalogue
+ * photo they belong to — the editor's paired slots and the admin's artwork
+ * sets. Violet, deliberately none of the colours already carrying a meaning in
+ * those two places: not the brand red, not the custom-request magenta, not the
+ * waterproof sky, not the delivered green.
+ */
+export const PRINT_FILE_COLOR = "#7c3aed";
 
 /**
  * Distinct accent for admin manual orders — deliberately not the custom-request

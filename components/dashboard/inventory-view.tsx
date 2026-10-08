@@ -306,10 +306,18 @@ export function InventoryView({
           setModalOpen(false);
           setEditing(null);
         }}
-        onSaved={(created) => {
-          // Optimistically show a newly-created product at the top instantly;
-          // the editor also calls router.refresh() to reconcile with the DB.
-          if (created) setList((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+        onSaved={(saved) => {
+          // Replace the row in place after an edit, prepend after a create.
+          // This list is seeded once and router.refresh() does not re-read it,
+          // so without this the row — and the form reopened from it — stayed
+          // as it was when the page loaded. See the editor for the full note.
+          if (saved) {
+            setList((prev) =>
+              prev.some((p) => p.id === saved.id)
+                ? prev.map((p) => (p.id === saved.id ? saved : p))
+                : [saved, ...prev],
+            );
+          }
           // A save can zero a design or refill one, so the chips are re-read
           // rather than left showing the shelf as it was when the page opened.
           refreshCounts();

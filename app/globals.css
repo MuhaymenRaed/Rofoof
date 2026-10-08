@@ -461,6 +461,95 @@
   .dash-input:focus::placeholder {
     opacity: 0.45;
   }
+
+  /* The floating basket. Position only — the look lives on the component.
+
+     On a phone it has to clear BOTH the tab bar (h-14) and the home indicator,
+     so the offset is arithmetic rather than a fixed step on the spacing scale.
+     `inset-inline-end` and not `right`, because the shop is RTL: the button
+     belongs on the side the thumb is already on, which swaps with the
+     language. */
+  .floating-cart {
+    position: fixed;
+    inset-inline-end: 0.875rem;
+    /* Clears the 3.5rem tab bar and the home indicator, with a small gap. */
+    bottom: calc(env(safe-area-inset-bottom) + 4.25rem);
+    z-index: 40;
+    /* Separation from whatever it is floating over, without the heavy ring an
+       earlier version used — the shop's cards are light, so a soft drop is
+       enough to lift it off them and it stays out of the way visually. */
+    box-shadow:
+      0 6px 16px -4px rgb(0 0 0 / 0.28),
+      0 2px 6px -2px rgb(0 0 0 / 0.18);
+  }
+  @media (min-width: 768px) {
+    .floating-cart {
+      inset-inline-end: 1.5rem;
+      bottom: 1.5rem;
+    }
+  }
+
+  /* ----------------------------- Checkboxes -----------------------------
+     The browser's native box is the one control on the site still wearing the
+     operating system's colours — square, grey-blue, and in dark mode a bright
+     white slab. Every other surface here is ours, so these are too.
+
+     Styled on the ELEMENT rather than behind a class, so it reaches every
+     checkbox in the app at once and a new one can't be added untreated. Shape
+     and size still come from the caller's utility classes (`h-4 w-4`,
+     `h-5 w-5`), which is why nothing here sets a width or a height.
+
+     `--check-accent` lets one instance differ without a second rule: the
+     delivery-fee editor paints Kurdistan's rows teal by setting it inline, and
+     everything else inherits the brand red. */
+  input[type="checkbox"] {
+    --check-accent: var(--brand);
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    border-radius: 0.375rem;
+    border: 1.5px solid var(--line);
+    background: var(--surface-2);
+    cursor: pointer;
+    display: inline-grid;
+    place-content: center;
+    box-shadow: 0 0 0 0 var(--ring);
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+  /* The tick is drawn, not typed: a glyph would inherit the page font and sit
+     differently on every device. Scaled from 0 so it springs in on check. */
+  input[type="checkbox"]::before {
+    content: "";
+    width: 0.65em;
+    height: 0.65em;
+    transform: scale(0);
+    transform-origin: center;
+    background: #fff;
+    clip-path: polygon(14% 44%, 0 59%, 39% 100%, 100% 22%, 85% 7%, 39% 70%);
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+  input[type="checkbox"]:checked {
+    background: var(--check-accent);
+    border-color: var(--check-accent);
+  }
+  input[type="checkbox"]:checked::before {
+    transform: scale(1);
+  }
+  input[type="checkbox"]:hover:not(:disabled):not(:checked) {
+    border-color: color-mix(in srgb, var(--check-accent) 55%, var(--line));
+  }
+  /* Keyboard focus only — a ring on every tap would fight the press animation
+     that `.tap` already gives. */
+  input[type="checkbox"]:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--check-accent) 35%, transparent);
+  }
+  input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 /* Every interactive element on the site already carries `.tap`, which existed

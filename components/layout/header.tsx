@@ -8,7 +8,7 @@ import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { AccountMenu } from "@/components/layout/account-menu";
-import { Search, Heart, Bag, Menu, X, Globe, Grid } from "@/components/icons";
+import { Search, Heart, Menu, X, Globe, Grid } from "@/components/icons";
 import type { DictKey } from "@/lib/i18n";
 
 const NAV: { href: string; key: DictKey }[] = [
@@ -19,7 +19,7 @@ const NAV: { href: string; key: DictKey }[] = [
 ];
 
 export function Header() {
-  const { t, toggleLang, cartCount, wishlist, openCart } = useStore();
+  const { t, toggleLang, wishlist } = useStore();
   const { isAdmin, ready } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -120,27 +120,12 @@ export function Header() {
             )}
           </Link>
 
-          <button
-            type="button"
-            onClick={openCart}
-            aria-label={t("aria.cart")}
-            // Tour anchor. `data-tour` rather than an id because the cart also
-            // lives in the phone tab bar — the engine picks whichever of the two
-            // is visible at the current breakpoint (see lib/tour/steps.ts).
-            id="tour-cart-icon"
-            data-tour="cart"
-            className="tap relative hidden h-9 w-9 place-items-center rounded-lg text-ink-2 transition hover:bg-surface-2 hover:text-ink md:grid"
-          >
-            <Bag size={18} />
-            {cartCount > 0 && (
-              <span
-                key={cartCount}
-                className="count-pop absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
-              >
-                {cartCount}
-              </span>
-            )}
-          </button>
+          {/* The basket is not here any more. It floats on every page instead
+              (FloatingCart), which keeps it reachable once the header has
+              scrolled away and gives it one home rather than two — it used to
+              be here AND in the phone tab bar, and the tour had to guess which
+              of the two was on screen. The tour's `data-tour="cart"` anchor
+              moved with it. */}
 
           {/* Account */}
           <div className="ms-1 hidden md:block">

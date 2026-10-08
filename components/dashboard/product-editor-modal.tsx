@@ -5,10 +5,23 @@ import { createPortal } from "react-dom";
 import { RetryImage } from "@/components/ui/retry-image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
-import { X, Plus, Trash, Droplet, Photo, Cube, Star, Package } from "@/components/icons";
+import {
+  X,
+  Plus,
+  Trash,
+  Droplet,
+  Photo,
+  Cube,
+  Star,
+  Package,
+  Printer,
+  Download,
+} from "@/components/icons";
 import {
   canBeWaterproof,
+  printImageFor,
   splitCategoryGroups,
+  PRINT_FILE_COLOR,
   type CategoryGroup,
   type CategoryInfo,
   type FandomInfo,
@@ -23,11 +36,13 @@ import {
   createFandomAction,
   createSubcategoryAction,
   deleteSubcategoryAction,
+  getProductPrintImagesAction,
 } from "@/lib/actions/products";
 import { setProductGroupsAction } from "@/lib/actions/featured";
 import { updateVolumeTiersAction } from "@/lib/actions/offers";
-import { toWebpVariants, DISPLAY_MAX_DIMENSION } from "@/lib/webp";
+import { toWebpVariants, DISPLAY_MAX_DIMENSION, MAX_DIMENSION } from "@/lib/webp";
 import { uploadImagePair } from "@/lib/upload-image";
+import { downloadImagesAsZip } from "@/lib/zip";
 import type { DictKey } from "@/lib/i18n";
 
 const PALETTE = ["#e8321a", "#4caf50", "#00897b", "#e91e8c", "#7e57c2", "#f9a825"];
@@ -58,12 +73,30 @@ const DEFAULT_TIERS = [
  * selectable item with its own optional price; for other kinds it's just a
  * gallery image. Existing slots carry `id` (item) / `url`; new ones carry
  * `file` + `preview`.
+ *
+ * A slot is a PAIR: the photo the shopper sees, and the print master that photo
+ * is produced from (`print*`). They are uploaded, removed and reordered
+ * together, which is what keeps the two stored arrays index-aligned — see
+ * Product.printImages.
  */
 interface ImageRow {
+  /**
+   * Stable local identity, assigned when the slot appears and never reused.
+   *
+   * The chosen cover is remembered by this and not by index or URL: indices
+   * shift the moment a slot is removed, and a slot that is still an unuploaded
+   * File has no URL to be remembered by.
+   */
+  key: string;
   itemId?: string;
   url?: string;
   file?: File;
   preview?: string;
+  /** the stored print master for this photo, when it has one */
+  printUrl?: string;
+  /** a print master picked in this session, not yet uploaded */
+  printFile?: File;
+  printPreview?: string;
   price: string;
   /** units left of this design (package products only); "" → inherits 0 */
   stock: string;
@@ -75,6 +108,25 @@ interface ImageRow {
    * See upsertProductAction.
    */
   initialStock?: string;
+}
+
+/** A fresh slot identity. `crypto.randomUUID` is available in every browser
+ *  this dashboard runs in, and these never leave the component. */
+function rowKey(): string {
+  return crypto.randomUUID();
+}
+
+/** The URL to render for a slot's photo, or its print master. */
+function rowSrc(r: ImageRow): string {
+  return r.url ?? r.preview ?? "";
+}
+
+function printSrc(r: ImageRow): string {
+  return r.printUrl ?? r.printPreview ?? "";
+}
+
+function hasPrint(r: ImageRow): boolean {
+  return !!(r.printUrl || r.printPreview);
 }
 
 function slugify(input: string, seed: number) {
@@ -121,8 +173,20 @@ export function ProductEditorModal({
   } = useStore();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const printFileRef = useRef<HTMLInputElement>(null);
 
   const isEdit = !!product;
+  /**
+   * The id of a product this modal CREATED, once it exists in the database.
+   *
+   * Set the moment the insert succeeds, and it turns every later save in the
+   * same sitting into an update. Without it, a save that got as far as creating
+   * the row and then stopped — a failed showcase-group write, a print-files
+   * column that is not there yet — left the admin looking at a filled-in form
+   * whose Save button would insert a SECOND product, under a second generated
+   * id, every time they pressed it.
+   */
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   const [kind, setKind] = useState<ProductKind>("standard");
   const [nameAr, setNameAr] = useState("");
@@ -160,6 +224,28 @@ export function ProductEditorModal({
   /** home-page showcase rails this product belongs to */
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const [rows, setRows] = useState<ImageRow[]>([]);
+  /**
+   * Which slot is the thumbnail, by `ImageRow.key`. null means "the first one",
+   * which is both the old behaviour and the right answer for a brand-new
+   * product whose photos are still being added.
+   */
+  const [coverKey, setCoverKey] = useState<string | null>(null);
+  /** the slot a print-file pick is destined for, by key */
+  const [printTarget, setPrintTarget] = useState<string | null>(null);
+  /**
+   * Whether this form knows the product's stored print masters yet.
+   *
+   * It is NOT decorative: `printImages` is only sent on save once this is true,
+   * because "I don't know" and "there are none" must not be the same message to
+   * the server. The editor opens over the dashboard inventory (which carries
+   * the masters) and over the store page (whose products come from the public
+   * catalogue and are stripped of them) — so without this, saving a price from
+   * the store page erased every print master the product had.
+   */
+  const [printLoaded, setPrintLoaded] = useState(false);
+  const [printZipError, setPrintZipError] = useState(false);
+  const [zipping, setZipping] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkStock, setBulkStock] = useState("");
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
@@ -219,21 +305,39 @@ export function ProductEditorModal({
     );
     // Package products: slots come from their items (each has its own price);
     // others: from the plain image gallery.
-    if (product?.kind === "package" && product.items.length > 0) {
-      setRows(
-        product.items.map((it) => ({
-          itemId: it.id,
-          url: it.imageUrl,
-          price: it.price === null ? "" : String(it.price),
-          // null = the stock column isn't in the database yet; leave the field
-          // blank rather than showing a 0 the admin never typed.
-          stock: it.stock === null ? "" : String(it.stock),
-          initialStock: it.stock === null ? "" : String(it.stock),
-        })),
-      );
-    } else {
-      setRows((product?.images ?? []).map((url) => ({ url, price: "", stock: "" })));
-    }
+    // The print master is looked up by URL in both branches, so it follows its
+    // photo even where a legacy row's item order and `images` order disagree.
+    const seeded: ImageRow[] =
+      product?.kind === "package" && product.items.length > 0
+        ? product.items.map((it) => ({
+            key: rowKey(),
+            itemId: it.id,
+            url: it.imageUrl,
+            printUrl: printImageFor(product, it.imageUrl),
+            price: it.price === null ? "" : String(it.price),
+            // null = the stock column isn't in the database yet; leave the field
+            // blank rather than showing a 0 the admin never typed.
+            stock: it.stock === null ? "" : String(it.stock),
+            initialStock: it.stock === null ? "" : String(it.stock),
+          }))
+        : product
+          ? product.images.map((url) => ({
+              key: rowKey(),
+              url,
+              printUrl: printImageFor(product, url),
+              price: "",
+              stock: "",
+            }))
+          : [];
+    setRows(seeded);
+    // The cover is stored as a URL and tracked here as a slot key, so it is
+    // resolved once, now, while the two are still known to line up. A cover
+    // naming a photo the product no longer has falls back to the first slot —
+    // the same answer coverImageOf() gives on the way out.
+    setCoverKey(seeded.find((r) => r.url === product?.image)?.key ?? null);
+    setPrintTarget(null);
+    setPrintZipError(false);
+    setWarning(null);
     setTiers(
       product?.tiers?.length
         ? product.tiers.map((tr) => ({ minQty: String(tr.minQty), unitPrice: String(tr.unitPrice) }))
@@ -248,8 +352,56 @@ export function ProductEditorModal({
     setSubFormOpen(false);
     setFanFormOpen(false);
     setConfirmingDelete(false);
+    setCreatedId(null);
     setError(null);
   }, [open, product, storeVolumeTiers, storeFeaturedGroups]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /**
+   * Load the product's stored print masters, whichever list the editor was
+   * opened from.
+   *
+   * The seeding effect above already fills these in when the product came from
+   * the dashboard inventory, so that path renders instantly and this only
+   * confirms it. When it came from the store page the product has none to seed
+   * from — the public catalogue is stripped of them — and this is the only
+   * thing that puts them on screen, and the only thing that makes it safe to
+   * save from there at all.
+   */
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open) return;
+    // A product being created has nothing stored yet, so the form already knows
+    // everything there is to know.
+    if (!product) {
+      setPrintLoaded(true);
+      return;
+    }
+    let active = true;
+    setPrintLoaded(false);
+    getProductPrintImagesAction(product.id)
+      .then((stored) => {
+        if (!active) return;
+        const indexOf = new Map(product.images.map((url, i) => [url, i]));
+        setRows((prev) =>
+          prev.map((r) => {
+            // A master picked while this was in flight is the admin's newer
+            // intent and outranks whatever is stored.
+            if (!r.url || r.printFile) return r;
+            const at = indexOf.get(r.url);
+            return { ...r, printUrl: (at === undefined ? "" : stored[at]) || undefined };
+          }),
+        );
+        setPrintLoaded(true);
+      })
+      .catch(() => {
+        // Left false on purpose: a form that could not read the masters must
+        // not go on to overwrite them with its own blanks.
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, product]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -268,6 +420,7 @@ export function ProductEditorModal({
     () => () =>
       rowsRef.current.forEach((r) => {
         if (r.preview) URL.revokeObjectURL(r.preview);
+        if (r.printPreview) URL.revokeObjectURL(r.printPreview);
       }),
     [],
   );
@@ -297,17 +450,101 @@ export function ProductEditorModal({
     const accepted = picked.slice(0, room);
     setRows((prev) => [
       ...prev,
-      ...accepted.map((f) => ({ file: f, preview: URL.createObjectURL(f), price: "", stock: "" })),
+      ...accepted.map((f) => ({
+        key: rowKey(),
+        file: f,
+        preview: URL.createObjectURL(f),
+        price: "",
+        stock: "",
+      })),
     ]);
     e.target.value = "";
   }
 
   function removeRow(i: number) {
+    const r = rows[i];
+    // Removing the chosen cover hands the choice back to the first slot rather
+    // than leaving a cover key pointing at nothing. Decided out here, not
+    // inside the updater below: an updater has to stay a pure function of the
+    // previous state, and React is free to run it more than once.
+    if (r && coverKey === r.key) setCoverKey(null);
     setRows((prev) => {
-      const r = prev[i];
-      if (r?.preview) URL.revokeObjectURL(r.preview);
+      const row = prev[i];
+      if (row?.preview) URL.revokeObjectURL(row.preview);
+      if (row?.printPreview) URL.revokeObjectURL(row.printPreview);
       return prev.filter((_, idx) => idx !== i);
     });
+  }
+
+  /**
+   * Open the file picker for ONE slot's print master.
+   *
+   * The target is remembered by slot key rather than by index: the picker is a
+   * separate dialog the admin can take their time in, and a slot removed while
+   * it is open would otherwise land the file on whichever photo inherited that
+   * index.
+   */
+  function openPrintPicker(key: string) {
+    setPrintTarget(key);
+    printFileRef.current?.click();
+  }
+
+  function pickPrintImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    const key = printTarget;
+    setPrintTarget(null);
+    if (!file || !key) return;
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        if (r.printPreview) URL.revokeObjectURL(r.printPreview);
+        // The new pick replaces a stored master as well as a pending one: the
+        // slot holds one print file, and `printUrl` left set would win at save.
+        return {
+          ...r,
+          printFile: file,
+          printPreview: URL.createObjectURL(file),
+          printUrl: undefined,
+        };
+      }),
+    );
+  }
+
+  function removePrint(key: string) {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        if (r.printPreview) URL.revokeObjectURL(r.printPreview);
+        return { ...r, printFile: undefined, printPreview: undefined, printUrl: undefined };
+      }),
+    );
+  }
+
+  /** Stored print masters, in slot order — what the ZIP button can offer. */
+  const storedPrintUrls = rows.flatMap((r) => (r.printUrl ? [r.printUrl] : []));
+  const printCount = rows.filter(hasPrint).length;
+
+  /**
+   * Download every print master as one ZIP, ready to send to the cutter.
+   *
+   * Only the STORED ones: a file picked a moment ago is still on the admin's own
+   * disk, so putting it in the archive would be handing them back a copy of
+   * something they already have while implying the product has been saved.
+   */
+  async function downloadPrintFiles() {
+    if (storedPrintUrls.length === 0) return;
+    setPrintZipError(false);
+    setZipping(true);
+    try {
+      // The product id is already a slug, and is ASCII — an Arabic file name
+      // would arrive as mojibake out of most unzip tools (see lib/zip.ts).
+      await downloadImagesAsZip(storedPrintUrls, `${product?.id ?? "product"}-print.zip`);
+    } catch {
+      setPrintZipError(true);
+    } finally {
+      setZipping(false);
+    }
   }
 
   function setRowPrice(i: number, value: string) {
@@ -463,25 +700,68 @@ export function ProductEditorModal({
       return;
     }
     setError(null);
-    const id = product?.id ?? slugify(nameEn || nameAr, performance.now() | 0);
+    // A product this modal already created keeps its id, so pressing Save
+    // again updates that row instead of minting a new one.
+    const id = product?.id ?? createdId ?? slugify(nameEn || nameAr, performance.now() | 0);
+    const creating = !isEdit && createdId === null;
 
     startTransition(async () => {
       // upload new files to product-images/<id>/…
       const finalRows: {
+        key: string;
         itemId?: string;
         url: string;
+        printUrl: string;
         price: string;
         stock: string;
         initialStock?: string;
       }[] = [];
-      const toUpload = rows.filter((r) => r.file);
+      const toUpload = rows.filter((r) => r.file || r.printFile);
       if (toUpload.length > 0) setUploading(true);
+
+      /**
+       * Upload one slot's print master, if it picked a new one.
+       *
+       * Capped at MAX_DIMENSION rather than DISPLAY_MAX_DIMENSION, because this
+       * is the file the admin PRINTS from — the same reason a customer's own
+       * artwork is kept at print resolution. Capping it at display size would
+       * quietly hand the cutter a 1600px master.
+       *
+       * A failure here is reported like any other upload failure: the print
+       * master is the whole point of the pair, and saving the product with the
+       * photo attached and the master silently missing is the one outcome the
+       * admin must not have to discover at the printer.
+       */
+      const putPrint = async (r: ImageRow, i: number): Promise<string | null> => {
+        if (!r.printFile) return r.printUrl ?? "";
+        const image = await toWebpVariants(r.printFile, MAX_DIMENSION);
+        const uploaded = await uploadImagePair({
+          bucket: "product-images",
+          // Its own prefix, so a glance at the bucket (or a lifecycle rule) can
+          // tell production masters from catalogue photos.
+          base: `${id}/print/${Date.now()}-${i}`,
+          image,
+          maxDimension: MAX_DIMENSION,
+          upsert: true,
+        });
+        if (!uploaded.ok) {
+          setUploading(false);
+          setError(uploaded.error);
+          return null;
+        }
+        return uploaded.url;
+      };
+
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (r.url) {
+          const printUrl = await putPrint(r, i);
+          if (printUrl === null) return;
           finalRows.push({
+            key: r.key,
             itemId: r.itemId,
             url: r.url,
+            printUrl,
             price: r.price,
             stock: r.stock,
             initialStock: r.initialStock,
@@ -510,9 +790,45 @@ export function ProductEditorModal({
           setError(uploaded.error);
           return;
         }
-        finalRows.push({ url: uploaded.url, price: r.price, stock: r.stock });
+        const printUrl = await putPrint(r, i);
+        if (printUrl === null) return;
+        finalRows.push({
+          key: r.key,
+          url: uploaded.url,
+          printUrl,
+          price: r.price,
+          stock: r.stock,
+        });
       }
       setUploading(false);
+
+      // Fold the stored URLs back into the slots, in place of the Files they
+      // came from. Everything in the bucket is now referenced by a slot, so a
+      // second Save in the same sitting re-uploads nothing — which matters
+      // because the print-files warning below deliberately leaves this form
+      // open and invites exactly that.
+      if (toUpload.length > 0) {
+        const doneByKey = new Map(finalRows.map((r) => [r.key, r]));
+        setRows((prev) =>
+          prev.map((r) => {
+            const done = doneByKey.get(r.key);
+            if (!done) return r;
+            // Safe to revoke here: the same update swaps the slot onto the
+            // stored URL, so nothing renders the blob: preview again.
+            if (r.preview) URL.revokeObjectURL(r.preview);
+            if (r.printPreview) URL.revokeObjectURL(r.printPreview);
+            return {
+              ...r,
+              url: done.url,
+              file: undefined,
+              preview: undefined,
+              printUrl: done.printUrl || undefined,
+              printFile: undefined,
+              printPreview: undefined,
+            };
+          }),
+        );
+      }
 
       const priceNum = Number(price);
       // Only one discount mode is stored; the other is zeroed out.
@@ -553,6 +869,12 @@ export function ProductEditorModal({
             .filter((tr, idx, arr) => arr.findIndex((x) => x.minQty === tr.minQty) === idx)
         : [];
 
+      // Resolved from the final rows, so the chosen cover is the UPLOADED url
+      // of that slot and not the blob: preview it was picked by. Falls back to
+      // the first photo, which is what coverImageOf() does with it anyway.
+      const coverUrl =
+        finalRows.find((r) => r.key === coverKey)?.url ?? finalRows[0]?.url;
+
       const res = await upsertProductAction({
         id,
         nameAr: nameAr.trim(),
@@ -565,6 +887,14 @@ export function ProductEditorModal({
         descAr: descAr.trim(),
         descEn: descEn.trim(),
         images: finalRows.map((r) => r.url),
+        coverUrl,
+        // Index-aligned with `images` by construction — both come off the same
+        // rows in the same pass, which is the whole reason the pairing can be
+        // stored as two arrays rather than a join table.
+        //
+        // Omitted entirely until the stored masters have been read back, so a
+        // form that does not know them cannot overwrite them with its blanks.
+        ...(printLoaded ? { printImages: finalRows.map((r) => r.printUrl) } : {}),
         color,
         categories: selectedCats,
         // drop any subcategory whose parent category was unselected
@@ -578,10 +908,27 @@ export function ProductEditorModal({
         kind,
         items: itemsPayload,
         tiers: tiersPayload,
-        isUpdate: isEdit,
+        isUpdate: !creating,
       });
       if (!res.ok) {
         setError(res.error ?? t("checkout.error"));
+        return;
+      }
+      // The row now exists, whatever happens below. Recorded before the first
+      // thing that can stop early, so a second press updates it instead of
+      // creating another one.
+      if (creating) setCreatedId(id);
+
+      // The product saved, but the print masters had nowhere to go — the column
+      // arrives with a migration that may not have been run. Said out loud and
+      // the modal left open, because the admin would otherwise walk away
+      // believing those files are attached. Pressing Save again after running
+      // the migration finishes the job — see `createdId`.
+      if (res.warning === "print_images_missing") {
+        setWarning(t("dash.printMigration"));
+        // Everything else about the product DID save, so the list behind the
+        // modal is brought up to date rather than left showing the old row.
+        router.refresh();
         return;
       }
 
@@ -595,54 +942,68 @@ export function ProductEditorModal({
         }
       }
 
-      // Optimistic create: hand back a fully-built product so the list can show
-      // it instantly; router.refresh() then reconciles with the DB.
-      if (!isEdit) {
-        const created: Product = {
-          id,
-          nameAr: nameAr.trim(),
-          nameEn: nameEn.trim() || nameAr.trim(),
+      /**
+       * Hand the saved product back to the list — on an EDIT as well as a
+       * create, which it did not used to do.
+       *
+       * The inventory list is seeded ONCE from the server and is not re-read by
+       * `router.refresh()` (its seed is component state; only a filter change
+       * re-fetches it). So after saving an edit, the row behind this modal was
+       * still the row as it was when the page loaded — and reopening the
+       * product showed that stale copy. With print files that reads as the
+       * upload having failed: the master is in the bucket and in the database,
+       * but the form you reopen was built from a product fetched before it
+       * existed, so the slot comes back empty.
+       *
+       * An edit starts from `product` so fields this form does not touch
+       * (badge, sort order, created_at) survive; a create supplies the few
+       * defaults a brand-new row gets.
+       */
+      const saved: Product = {
+        ...(product ?? {
           subAr: "",
           subEn: "",
-          price: priceNum,
           emoji: "🛍️",
-          image: finalRows[0]?.url,
-          images: finalRows.map((r) => r.url),
-          color,
-          category: selectedCats[0] ?? "",
-          categories: selectedCats,
-          subcategories: selectedSubs.filter((c) => visibleSubs.some((s) => s.code === c)),
-          fandoms: selectedFandoms,
-          waterproof: isWaterproof,
-          waterproofSurcharge: surchargeNum,
-          allowCustomImage: allowsCustom,
-          kind,
-          items: itemsPayload.map((it) => ({
-            id: it.id ?? crypto.randomUUID(),
-            imageUrl: it.imageUrl,
-            nameAr: "",
-            nameEn: "",
-            price: it.price,
-            stock: it.stock ?? 0,
-          })),
-          tiers: tiersPayload,
           soldOut: false,
           isActive: true,
-          stock: stockNum,
-          discountPercent: discountNum,
-          discountFixed: discountFixedNum,
-          volumePriced,
-          isFeatured: groupIds.length > 0,
           order: Date.now(),
           createdAt: new Date().toISOString(),
-          descAr: descAr.trim(),
-          descEn: descEn.trim(),
           tags: [],
-        };
-        onSaved?.(created);
-      } else {
-        onSaved?.();
-      }
+        }),
+        id,
+        nameAr: nameAr.trim(),
+        nameEn: nameEn.trim() || nameAr.trim(),
+        price: priceNum,
+        image: coverUrl,
+        images: finalRows.map((r) => r.url),
+        printImages: finalRows.map((r) => r.printUrl),
+        color,
+        category: selectedCats[0] ?? "",
+        categories: selectedCats,
+        subcategories: selectedSubs.filter((c) => visibleSubs.some((s) => s.code === c)),
+        fandoms: selectedFandoms,
+        waterproof: isWaterproof,
+        waterproofSurcharge: surchargeNum,
+        allowCustomImage: allowsCustom,
+        kind,
+        items: itemsPayload.map((it) => ({
+          id: it.id ?? crypto.randomUUID(),
+          imageUrl: it.imageUrl,
+          nameAr: "",
+          nameEn: "",
+          price: it.price,
+          stock: it.stock ?? 0,
+        })),
+        tiers: tiersPayload,
+        stock: stockNum,
+        discountPercent: discountNum,
+        discountFixed: discountFixedNum,
+        volumePriced,
+        isFeatured: groupIds.length > 0,
+        descAr: descAr.trim(),
+        descEn: descEn.trim(),
+      };
+      onSaved?.(saved);
       router.refresh();
       onClose();
     });
@@ -819,6 +1180,17 @@ export function ProductEditorModal({
               </span>
             </span>
             {isPackage && <p className="mb-2 text-[11px] text-ink-3">{t("dash.packageHint")}</p>}
+            {/* The pairing, said once at the top. Every slot below is two
+                pictures of one design: the photo that sells it and the file it
+                is produced from. */}
+            <p className="mb-2 flex items-start gap-1.5 text-[11px] leading-snug text-ink-3">
+              <Printer
+                size={13}
+                className="mt-px shrink-0"
+                style={{ color: PRINT_FILE_COLOR }}
+              />
+              {t("dash.printPairHint")}
+            </p>
             <input
               ref={fileRef}
               type="file"
@@ -827,62 +1199,155 @@ export function ProductEditorModal({
               onChange={pickImages}
               className="hidden"
             />
+            {/* One input for every print slot — the destination is held in
+                `printTarget` rather than in eighteen hidden inputs. */}
+            <input
+              ref={printFileRef}
+              type="file"
+              accept="image/*"
+              onChange={pickPrintImage}
+              className="hidden"
+            />
             <div className={`grid gap-2 ${isPackage ? "grid-cols-3" : "grid-cols-4"}`}>
-              {rows.map((r, i) => (
-                <div key={r.itemId ?? r.url ?? r.preview ?? i} className="space-y-1">
-                  <div className="relative aspect-square overflow-hidden rounded-xl border border-line-2">
-                    <RetryImage
-                      src={r.url ?? r.preview ?? ""}
-                      alt=""
-                      fill
-                      sizes="96px"
-                      unoptimized={!!r.preview}
-                      className="object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeRow(i)}
-                      aria-label={t("dash.cancel")}
-                      className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
-                    >
-                      <X size={12} />
-                    </button>
-                    {i === 0 && !isPackage && (
-                      <span className="absolute bottom-1 start-1 rounded bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
-                        {t("dash.cover")}
-                      </span>
-                    )}
-                  </div>
-                  {isPackage && (
-                    <>
-                      <input
-                        type="number"
-                        min={0}
-                        value={r.price}
-                        onChange={(e) => setRowPrice(i, e.target.value)}
-                        placeholder={price || t("dash.itemPrice")}
-                        aria-label={t("dash.itemPrice")}
-                        className="dash-input h-8 px-2 text-center text-xs"
+              {rows.map((r, i) => {
+                // null means "the first slot", so a product nobody has chosen a
+                // cover for still shows one — and shows the same one the store
+                // will render. See coverImageOf().
+                const isCover = coverKey === null ? i === 0 : coverKey === r.key;
+                return (
+                  <div key={r.key} className="space-y-1">
+                    <div className="relative aspect-square overflow-hidden rounded-xl border border-line-2">
+                      <RetryImage
+                        src={rowSrc(r)}
+                        alt=""
+                        fill
+                        sizes="96px"
+                        unoptimized={!!r.preview}
+                        className="object-cover"
                       />
-                      {/* Stock sits directly under the price it belongs to, so a
-                          design's price and its remaining count read as one unit. */}
-                      <label className="flex items-center gap-1 rounded-lg border border-line-2 bg-surface-2/50 ps-2">
-                        <Package size={11} className="shrink-0 text-ink-3" />
+                      <button
+                        type="button"
+                        onClick={() => removeRow(i)}
+                        aria-label={t("dash.cancel")}
+                        className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
+                      >
+                        <X size={12} />
+                      </button>
+                      {/* Pick the thumbnail. On every kind, package included: a
+                          package's card needs a cover as much as a standard
+                          product's, and the only way to change it used to be to
+                          delete photos until the right one happened to be first. */}
+                      <button
+                        type="button"
+                        onClick={() => setCoverKey(r.key)}
+                        aria-pressed={isCover}
+                        aria-label={t("dash.makeCover")}
+                        title={isCover ? t("dash.cover") : t("dash.makeCover")}
+                        className={`tap absolute start-1 top-1 grid h-6 w-6 place-items-center rounded-full transition ${
+                          isCover ? "bg-brand text-white" : "bg-black/60 text-white hover:bg-brand"
+                        }`}
+                      >
+                        <Star size={12} />
+                      </button>
+                      {isCover && (
+                        <span className="absolute bottom-1 start-1 rounded bg-brand px-1.5 py-0.5 text-[9px] font-bold text-white">
+                          {t("dash.cover")}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* The print master for THIS photo, directly under it. Empty
+                        is a dashed violet slot that reads as "something belongs
+                        here"; filled is the file itself, tappable to replace. */}
+                    {hasPrint(r) ? (
+                      <div
+                        className="relative aspect-square overflow-hidden rounded-xl border-2"
+                        style={{ borderColor: PRINT_FILE_COLOR }}
+                      >
+                        <RetryImage
+                          src={printSrc(r)}
+                          alt=""
+                          fill
+                          sizes="96px"
+                          unoptimized={!!r.printPreview}
+                          className="object-cover"
+                        />
+                        {/* Siblings, never nested: the overlay is what makes the
+                            whole tile a replace target, and a remove button
+                            inside it would be a button inside a button. */}
+                        <button
+                          type="button"
+                          onClick={() => openPrintPicker(r.key)}
+                          aria-label={t("dash.printReplace")}
+                          title={t("dash.printReplace")}
+                          className="tap absolute inset-0"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePrint(r.key)}
+                          aria-label={t("dash.printRemove")}
+                          className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
+                        >
+                          <X size={12} />
+                        </button>
+                        <span
+                          aria-hidden
+                          className="absolute bottom-1 start-1 grid h-4 w-4 place-items-center rounded text-white"
+                          style={{ background: PRINT_FILE_COLOR }}
+                        >
+                          <Printer size={10} />
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openPrintPicker(r.key)}
+                        aria-label={t("dash.printAdd")}
+                        title={t("dash.printAdd")}
+                        className="tap grid aspect-square w-full place-items-center gap-0.5 rounded-xl border-2 border-dashed transition"
+                        style={{
+                          borderColor: `color-mix(in srgb, ${PRINT_FILE_COLOR} 45%, transparent)`,
+                          background: `color-mix(in srgb, ${PRINT_FILE_COLOR} 6%, transparent)`,
+                          color: PRINT_FILE_COLOR,
+                        }}
+                      >
+                        <Printer size={16} />
+                        <span className="text-[9px] font-bold leading-none">
+                          {t("dash.printShort")}
+                        </span>
+                      </button>
+                    )}
+                    {isPackage && (
+                      <>
                         <input
                           type="number"
                           min={0}
-                          value={r.stock}
-                          onChange={(e) => setRowStock(i, e.target.value)}
-                          placeholder="0"
-                          aria-label={t("dash.itemStock")}
-                          title={t("dash.itemStock")}
-                          className="h-7 w-full min-w-0 bg-transparent px-1 text-center text-xs font-bold text-ink outline-none"
+                          value={r.price}
+                          onChange={(e) => setRowPrice(i, e.target.value)}
+                          placeholder={price || t("dash.itemPrice")}
+                          aria-label={t("dash.itemPrice")}
+                          className="dash-input h-8 px-2 text-center text-xs"
                         />
-                      </label>
-                    </>
-                  )}
-                </div>
-              ))}
+                        {/* Stock sits directly under the price it belongs to, so a
+                            design's price and its remaining count read as one unit. */}
+                        <label className="flex items-center gap-1 rounded-lg border border-line-2 bg-surface-2/50 ps-2">
+                          <Package size={11} className="shrink-0 text-ink-3" />
+                          <input
+                            type="number"
+                            min={0}
+                            value={r.stock}
+                            onChange={(e) => setRowStock(i, e.target.value)}
+                            placeholder="0"
+                            aria-label={t("dash.itemStock")}
+                            title={t("dash.itemStock")}
+                            className="h-7 w-full min-w-0 bg-transparent px-1 text-center text-xs font-bold text-ink outline-none"
+                          />
+                        </label>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
               {rows.length < maxImages && (
                 <button
                   type="button"
@@ -894,6 +1359,55 @@ export function ProductEditorModal({
                 </button>
               )}
             </div>
+
+            {/* How many of the photos have a print master, and the whole set as
+                one ZIP — the admin's way from "this product" to "the files to
+                send to the cutter" without opening eighteen storage links. */}
+            {rows.length > 0 && (
+              <div
+                className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border p-2.5"
+                style={{
+                  borderColor: `color-mix(in srgb, ${PRINT_FILE_COLOR} 35%, transparent)`,
+                  background: `color-mix(in srgb, ${PRINT_FILE_COLOR} 5%, transparent)`,
+                }}
+              >
+                <Printer size={14} style={{ color: PRINT_FILE_COLOR }} />
+                <span className="text-[11px] font-bold" style={{ color: PRINT_FILE_COLOR }}>
+                  {t("dash.printFiles")}
+                </span>
+                <span className="text-[11px] font-semibold text-ink-3">
+                  {printCount}/{rows.length}
+                </span>
+                {storedPrintUrls.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={downloadPrintFiles}
+                    disabled={zipping}
+                    className="tap ms-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition disabled:opacity-60"
+                    style={{ borderColor: PRINT_FILE_COLOR, color: PRINT_FILE_COLOR }}
+                  >
+                    <Download size={12} />
+                    {zipping
+                      ? t("dash.downloading")
+                      : `${t("dash.printDownloadAll")} (${storedPrintUrls.length})`}
+                  </button>
+                )}
+                {/* A slot whose master was picked a moment ago isn't in the ZIP:
+                    it is still on this machine and not yet uploaded. Said here
+                    so the count and the archive can't look like they disagree. */}
+                {printCount > storedPrintUrls.length && (
+                  <span className="w-full text-[10px] font-semibold text-ink-3">
+                    {t("dash.printPendingUpload")}
+                  </span>
+                )}
+                {printZipError && (
+                  <span className="w-full text-[10px] font-semibold text-red-500">
+                    {t("dash.downloadError")}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Bulk price / stock: type once, apply to every item at once —
                 a restock is nearly always the same count across every design. */}
             {isPackage && rows.length > 0 && (
@@ -1444,6 +1958,14 @@ export function ProductEditorModal({
                 })}
               </div>
             </div>
+          )}
+
+          {/* The product saved; something optional in it did not. Amber, not
+              red, and left on screen rather than closing the modal. */}
+          {warning && (
+            <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-700">
+              {warning}
+            </p>
           )}
 
           {error && (

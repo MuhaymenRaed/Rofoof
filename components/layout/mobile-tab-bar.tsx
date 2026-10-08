@@ -6,16 +6,31 @@ import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/components/providers/store-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ProfileModal } from "@/components/layout/profile-modal";
-import { Home, Grid, Bag, Heart, User } from "@/components/icons";
+import { Home, Grid, Heart, User, Sparkles } from "@/components/icons";
 import type { DictKey } from "@/lib/i18n";
 
 /**
- * App-style bottom navigation for phones (hidden ≥ md). Fixed, blurred,
- * safe-area aware — gives the storefront a native-app feel: Home, Store,
- * Cart (drawer + badge), Favorites, and Account (profile modal / login).
+ * App-style bottom navigation for phones (hidden ≥ md): Home, Store, the
+ * custom-order button, Favorites, Account.
+ *
+ * The middle slot is raised out of the bar on purpose. Ordering a custom design
+ * is the thing this shop does that a catalogue cannot, and it was previously
+ * reachable only by scrolling to a card on the store page — the highest-value
+ * action with the least prominent route to it. A lifted button is the one
+ * position in a five-slot bar that reads as "this is not another tab".
+ *
+ * EVERYTHING HERE IS SIZED FOR A 320px SCREEN, which is five 64px columns.
+ * That is the constraint that shapes the rest: the labels are one short word
+ * and never wrap, the cells are a fixed height rather than growing to fit their
+ * contents, and the raised circle is positioned against that fixed height so it
+ * cannot push the label out of its own cell. An earlier version let the cell
+ * size itself and the middle label collided with its neighbours.
+ *
+ * The basket is deliberately NOT here. It floats on every shopping page instead
+ * (FloatingCart), which keeps it reachable while scrolling and frees this slot.
  */
 export function MobileTabBar() {
-  const { t, cartCount, wishlist, openCart } = useStore();
+  const { t, wishlist, openCustom } = useStore();
   const { user, ready } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -23,14 +38,18 @@ export function MobileTabBar() {
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
+  /** One tab cell. Fixed height, so every slot agrees on its baseline. */
   const tabClass = (active: boolean) =>
-    `tap relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-bold transition ${
+    `tap relative flex h-14 flex-col items-center justify-center gap-1 px-0.5 transition ${
       active ? "text-brand" : "text-ink-3 hover:text-ink-2"
     }`;
 
-  const links: { href: string; key: DictKey; icon: React.ReactNode; badge?: number }[] = [
-    { href: "/", key: "nav.home", icon: <Home size={21} /> },
-    { href: "/store", key: "nav.store", icon: <Grid size={21} /> },
+  /** Labels never wrap: at 320px a second line would eat the icon's row. */
+  const labelClass = "w-full truncate text-center text-[9px] font-bold leading-none";
+
+  const links: { href: string; key: DictKey; icon: React.ReactNode }[] = [
+    { href: "/", key: "nav.home", icon: <Home size={20} /> },
+    { href: "/store", key: "nav.store", icon: <Grid size={20} /> },
   ];
 
   return (
@@ -50,39 +69,32 @@ export function MobileTabBar() {
                 {active && (
                   <span
                     key={tab.href}
-                    className="animate-draw-in absolute top-0 h-0.5 w-8 rounded-full bg-brand"
+                    className="animate-draw-in absolute top-0 h-0.5 w-7 rounded-full bg-brand"
                   />
                 )}
                 {tab.icon}
-                {t(tab.key)}
+                <span className={labelClass}>{t(tab.key)}</span>
               </Link>
             );
           })}
 
-          {/* Cart — opens the drawer. `data-tour` marks it as the tour's cart
-              anchor on phones; the header button carries the same attribute for
-              desktop, and the engine spotlights whichever one is visible. */}
+          {/* Custom order — the raised middle slot.
+              The circle is absolutely positioned so it breaks out ABOVE the bar
+              without making the bar taller, and the ring in the surface colour
+              punches it out of the blurred strip instead of letting it sit on
+              top. 44px at -14px clears the label by a comfortable margin inside
+              the 56px cell; anything larger starts crowding its neighbours at
+              320px. */}
           <button
             type="button"
-            onClick={openCart}
-            data-tour="cart"
-            className={tabClass(false)}
+            onClick={openCustom}
+            aria-label={t("custom.title")}
+            className="tap relative flex h-14 flex-col items-center justify-end pb-1.5 text-brand"
           >
-            <span className="relative">
-              <Bag size={21} />
-              {cartCount > 0 && (
-                <span
-                  // Keyed on the number: a new key remounts the badge and
-                  // replays the bounce, so the basket visibly reacts even when
-                  // the drawer is closed.
-                  key={cartCount}
-                  className="count-pop absolute -end-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9px] font-bold text-white"
-                >
-                  {cartCount}
-                </span>
-              )}
+            <span className="absolute -top-3.5 grid h-11 w-11 place-items-center rounded-full bg-brand text-white shadow-md ring-4 ring-surface transition hover:brightness-110">
+              <Sparkles size={20} />
             </span>
-            {t("aria.cart")}
+            <span className={labelClass}>{t("nav.custom")}</span>
           </button>
 
           {/* Favorites */}
@@ -92,10 +104,10 @@ export function MobileTabBar() {
             className={tabClass(isActive("/favorites"))}
           >
             {isActive("/favorites") && (
-              <span className="animate-draw-in absolute top-0 h-0.5 w-8 rounded-full bg-brand" />
+              <span className="animate-draw-in absolute top-0 h-0.5 w-7 rounded-full bg-brand" />
             )}
             <span className="relative">
-              <Heart size={21} filled={isActive("/favorites")} />
+              <Heart size={20} filled={isActive("/favorites")} />
               {wishlist.length > 0 && (
                 <span
                   key={wishlist.length}
@@ -105,7 +117,7 @@ export function MobileTabBar() {
                 </span>
               )}
             </span>
-            {t("nav.favorites")}
+            <span className={labelClass}>{t("nav.favorites")}</span>
           </Link>
 
           {/* Account — profile modal when signed in, login otherwise */}
@@ -120,13 +132,13 @@ export function MobileTabBar() {
             className={tabClass(isActive("/login"))}
           >
             {user ? (
-              <span className="grid h-[21px] w-[21px] place-items-center rounded-full bg-brand text-[10px] font-black text-white">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-[10px] font-black text-white">
                 {(user.name?.[0] ?? "؟").toUpperCase()}
               </span>
             ) : (
-              <User size={21} />
+              <User size={20} />
             )}
-            {t("auth.account")}
+            <span className={labelClass}>{t("auth.account")}</span>
           </button>
         </div>
       </nav>

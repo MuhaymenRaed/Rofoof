@@ -28,6 +28,7 @@ import { Footer } from "@/components/layout/footer";
 import { CartDrawer } from "@/components/layout/cart-drawer";
 import { QuickViewModal } from "@/components/layout/quick-view-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { FloatingCart } from "@/components/layout/floating-cart";
 import { InstallPrompt } from "@/components/layout/install-prompt";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { DeviceIdKeeper } from "@/components/layout/device-id-keeper";
@@ -195,6 +196,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   <Footer />
                 </div>
                 <MobileTabBar />
+                {/* One basket for the whole site, on every page — see the
+                    note in FloatingCart. */}
+                <FloatingCart />
                 <OfflineBanner />
                 {/* Renders nothing — keeps the coupon device marker alive */}
                 <DeviceIdKeeper />

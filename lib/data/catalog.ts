@@ -41,7 +41,26 @@ const cachedProducts = unstable_cache(
     );
     if (error) throw error;
     // hand-written types don't model PostgREST embeds; the DB FK resolves it
-    return (data as unknown as ProductRowWithFandoms[]).map(mapProduct);
+    return (data as unknown as ProductRowWithFandoms[]).map((row) => ({
+      ...mapProduct(row),
+      /**
+       * Print masters are stripped from the PUBLIC catalogue, deliberately.
+       *
+       * This list is what every storefront page ships to every shopper, and
+       * `PRODUCT_SELECT` is `*`, so the column would ride along by itself. The
+       * shop's hundred products carry 238 photos between them; a master for
+       * each is ~31KB of URLs in every RSC payload, for files no customer can
+       * ever be shown. On the mobile data this shop is built for, that is the
+       * exact cost the custom image loader exists to avoid — and the shop's
+       * production artwork is nobody else's business either.
+       *
+       * The dashboard reads them on its own admin-only paths: the editor
+       * through getInventory(), and the orders board through
+       * getPrintMasters() (both in lib/data/dashboard.ts), which is where the
+       * bytes are actually wanted.
+       */
+      printImages: [],
+    }));
   },
   ["catalog:products:active"],
   { tags: [TAGS.products], revalidate: 300 },
@@ -255,6 +274,7 @@ export async function getVolumeTiers(): Promise<VolumeTier[]> {
 const SITE_SETTINGS_FALLBACK: SiteSettings = {
   deliveryFeeDefault: 5000,
   deliveryFeeKarbala: 3000,
+  deliveryFees: {},
   deliveryNoticeActive: true,
   waterproofProductsActive: true,
   waterproofCustomActive: true,
@@ -279,11 +299,48 @@ const SETTINGS_COLUMN_SETS = [
   SETTINGS_COLUMNS,
 ];
 
+/**
+ * The admin's per-province delivery fees, or {} when there are none to read.
+ *
+ * Swallows every failure on purpose, and the missing-table case especially: the
+ * table arrives with a migration that may not have been run, and an empty map
+ * is a complete, correct answer — `deliveryFeeFor()` then charges exactly what
+ * the shop charges today. Failing the settings read over it would blank the
+ * delivery fee, the landing stats and the waterproof switches all at once.
+ */
+async function readProvinceDeliveryFees(): Promise<Record<string, number>> {
+  try {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase
+      .from("province_delivery_fees")
+      .select("province_code, fee");
+    if (error || !data) return {};
+    const fees: Record<string, number> = {};
+    for (const row of data) {
+      // Nulls can't happen through the editor (the column is NOT NULL), but a
+      // row inserted by hand shouldn't be able to quote NaN at a customer.
+      if (typeof row.fee === "number" && Number.isFinite(row.fee)) {
+        fees[row.province_code] = Math.max(0, Math.round(row.fee));
+      }
+    }
+    return fees;
+  } catch (error) {
+    console.error("[catalog] readProvinceDeliveryFees failed:", error);
+    return {};
+  }
+}
+
 const cachedSiteSettings = unstable_cache(
   async (): Promise<SiteSettings> => {
     const supabase = createAnonClient();
     const read = (columns: string) =>
       supabase.from("settings").select(columns).limit(1).maybeSingle();
+
+    // Read alongside the settings row rather than in its own cache entry: both
+    // are invalidated by the same admin save and every consumer wants the pair,
+    // so one entry means they can never be a revalidation apart — which would
+    // show the cart one province's fee and charge it another's.
+    const deliveryFees = await readProvinceDeliveryFees();
 
     let data: unknown = null;
     let error: { message?: string } | null = null;
@@ -292,7 +349,7 @@ const cachedSiteSettings = unstable_cache(
       if (!error) break;
     }
     if (error) throw error;
-    if (!data) return SITE_SETTINGS_FALLBACK;
+    if (!data) return { ...SITE_SETTINGS_FALLBACK, deliveryFees };
     const row = data as Partial<{
       delivery_fee_default: number;
       delivery_fee_karbala: number;
@@ -306,6 +363,7 @@ const cachedSiteSettings = unstable_cache(
     return {
       deliveryFeeDefault: row.delivery_fee_default ?? SITE_SETTINGS_FALLBACK.deliveryFeeDefault,
       deliveryFeeKarbala: row.delivery_fee_karbala ?? SITE_SETTINGS_FALLBACK.deliveryFeeKarbala,
+      deliveryFees,
       // Absent column → keep showing it, which is what the shop does today.
       deliveryNoticeActive: row.delivery_notice_active ?? true,
       // Same rule: an un-migrated database keeps offering waterproof exactly as

@@ -476,3 +476,56 @@ export async function getCustomers(offset = 0, limit = 30): Promise<CustomersPag
     hasMore,
   };
 }
+
+/**
+ * Every catalogue photo that has a print master, as `photo URL → master URL`.
+ *
+ * Admin-only, and read here rather than taken off the shared product list
+ * because that list is the PUBLIC catalogue: it is stripped of print masters so
+ * the storefront doesn't ship ~31KB of URLs to shoppers who can never see the
+ * files (see getProducts()). The orders board resolves a line's master through
+ * this map instead.
+ *
+ * Keyed by photo URL because that is what the board already holds — the
+ * resolved per-line picture from orderItemImage(), which is the package design
+ * the customer actually picked, not the package cover. A storage URL carries a
+ * UUID or timestamp, so it is unique across the whole catalogue and needs no
+ * product id alongside it.
+ *
+ * Only pairs that EXIST are returned, so the payload is proportional to the
+ * print files the shop has really uploaded, not to the size of the catalogue.
+ * Inactive products are included: an order placed last week for something since
+ * withdrawn still has to be produced.
+ */
+export async function getPrintMasters(): Promise<Record<string, string>> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("images, print_images")
+    .eq("is_deleted", false);
+
+  if (error || !data) {
+    // Absent column → docs/product-print-images.sql hasn't been run, which is
+    // "no masters anywhere". An empty map is a complete answer, and the orders
+    // board renders exactly as it did before the feature. Both codes, because
+    // PostgREST answers an unknown column differently depending on whether it
+    // reached Postgres — see isMissingPrintImages() in lib/actions/products.ts.
+    if (error && error.code !== "42703" && error.code !== "PGRST204") {
+      console.error("[dashboard] printMasters:", error);
+    }
+    return {};
+  }
+
+  const masters: Record<string, string> = {};
+  for (const row of data as unknown as { images: string[] | null; print_images: string[] | null }[]) {
+    const images = row.images ?? [];
+    const prints = row.print_images ?? [];
+    // Index-aligned by construction — see Product.printImages. A short or gappy
+    // `print_images` simply has no master at that index.
+    images.forEach((photo, i) => {
+      const master = prints[i];
+      if (photo && master) masters[photo] = master;
+    });
+  }
+  return masters;
+}

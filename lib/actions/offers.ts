@@ -561,6 +561,128 @@ export async function updateDeliveryFeesAction(input: {
   return { ok: true };
 }
 
+/* ---------------------- Per-province delivery fees ----------------------- */
+
+const provinceFeesSchema = z.object({
+  fees: z
+    .array(
+      z.object({
+        /**
+         * Province codes are slugs. Constrained here rather than merely
+         * length-checked because the delete below interpolates them into a
+         * PostgREST `in.(…)` list, where a comma or a bracket would change
+         * which rows the filter names.
+         */
+        code: z
+          .string()
+          .trim()
+          .min(1)
+          .max(40)
+          .regex(/^[a-z0-9-]+$/),
+        fee: z.number().int().min(0).max(1_000_000),
+      }),
+    )
+    .max(64),
+});
+
+/**
+ * PostgREST's two ways of saying "that table isn't there": Postgres'
+ * undefined_table, and the schema-cache miss it answers with before the table
+ * has been reloaded into it.
+ *
+ * Matched on the CODES alone. A message test would also catch errors that
+ * merely name the table — a foreign-key violation on a province code that no
+ * longer exists, say — and report a real, fixable failure as a missing
+ * migration, sending the admin to run SQL that is already applied.
+ */
+function isMissingTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "42P01" || error.code === "PGRST205";
+}
+
+/**
+ * Replace the whole per-province fee map (admin).
+ *
+ * Replace-all, like the volume ladder and the category sets: the editor sends
+ * every province it has an explicit price for, and a province left out loses its
+ * row and falls back through `deliveryFeeFor()` to the Karbala-or-default rule.
+ * That is what makes "clear this province" expressible at all — there is no
+ * "unset" value for an integer column, and 0 means free delivery.
+ *
+ * The delete runs first and is scoped to the codes NOT being kept, so a save
+ * never leaves the table empty between two statements — a customer checking out
+ * in that window would be quoted the default instead of their province's rate.
+ *
+ * A database without the table is reported as `migration_missing` rather than
+ * swallowed: unlike the banner switch this form has nothing else that did save,
+ * and an admin who priced eighteen provinces into a void would go on believing
+ * those are the rates being charged.
+ */
+export async function updateProvinceDeliveryFeesAction(input: {
+  fees: { code: string; fee: number }[];
+}): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const parsed = provinceFeesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+
+  // Last one wins on a duplicated code, so a malformed payload can't make the
+  // upsert fail on its own conflicting rows.
+  const byCode = new Map(parsed.data.fees.map((f) => [f.code, f.fee]));
+  const keep = [...byCode.keys()];
+
+  const supabase = createAdminClient();
+
+  const del = supabase.from("province_delivery_fees").delete();
+  const { error: delErr } = await (keep.length > 0
+    ? del.not("province_code", "in", `(${keep.join(",")})`)
+    : // No explicit fees at all: every province goes back to the default rule.
+      // PostgREST refuses an unfiltered delete, so this is the "matches every
+      // row" filter — the column is the NOT NULL primary key. (volume_tiers
+      // does the same thing with `.gte("min_qty", 0)`.)
+      del.not("province_code", "is", null));
+  if (delErr) {
+    return { ok: false, error: isMissingTable(delErr) ? "migration_missing" : delErr.message };
+  }
+
+  if (keep.length > 0) {
+    const { error } = await supabase
+      .from("province_delivery_fees")
+      .upsert(
+        keep.map((code) => ({ province_code: code, fee: byCode.get(code)! })),
+        { onConflict: "province_code" },
+      );
+    if (error) {
+      return { ok: false, error: isMissingTable(error) ? "migration_missing" : error.message };
+    }
+  }
+
+  // Keep the legacy column tracking the Karbala row.
+  //
+  // `settings.delivery_fee_karbala` is the SECOND step of `deliveryFeeFor()`
+  // and of place_order's lookup — what Karbala costs when the fees table has no
+  // row for it, which is also what an un-migrated database charges. The editor
+  // has no field of its own for it any more (Karbala is an ordinary row in the
+  // grid), so writing it here is what stops the two paths drifting apart and
+  // quietly reverting the Karbala rate the day its row is cleared.
+  const karbala = byCode.get("karbala");
+  if (karbala !== undefined) {
+    const { error } = await supabase
+      .from("settings")
+      .update({ delivery_fee_karbala: karbala })
+      .eq("id", true);
+    // Not fatal: the per-province row is the number that will be charged, and
+    // it saved. Reporting a failure here would send the admin back to a form
+    // whose actual work is already done.
+    if (error) console.warn("[delivery] delivery_fee_karbala not synced:", error.message);
+  }
+
+  revalidateTag(TAGS.settings, "max");
+  revalidatePath("/");
+  revalidatePath("/store");
+  revalidatePath("/dashboard/offers");
+  return { ok: true };
+}
+
 /* ------------------------ Waterproof master switches --------------------- */
 
 const waterproofSchema = z.object({

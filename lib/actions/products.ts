@@ -9,6 +9,7 @@ import { TAGS } from "@/lib/data/tags";
 import { revalidateCatalog } from "@/lib/cache";
 import { getInventory, type InventoryPage } from "@/lib/data/dashboard";
 import { getStockIndex, type StockFilter, type StockCounts } from "@/lib/data/stock";
+import { coverImageOf } from "@/lib/products";
 import type { CategoryGroup, CategoryInfo, SubcategoryInfo } from "@/lib/products";
 
 const upsertProductSchema = z.object({
@@ -31,6 +32,34 @@ const upsertProductSchema = z.object({
   /** priced by the GLOBAL by-count ladder shared across the whole order */
   volumePriced: z.boolean().optional().default(false),
   images: z.array(z.string().url()).max(120).optional().default([]),
+  /**
+   * Which of `images` is the thumbnail. Ignored when it names a photo that
+   * isn't in the set — the client decides the cover from the same rows it sends
+   * as `images`, so a mismatch is a bug, not an instruction to store a
+   * thumbnail the product hasn't got.
+   */
+  coverUrl: z.string().url().optional(),
+  /**
+   * Print masters, index-aligned with `images`; "" where a photo has none.
+   * The empty string is a position-holder and the only reason this isn't a
+   * plain url array — dropping the gaps would shift every later pair onto the
+   * wrong photo. See Product.printImages.
+   *
+   * ABSENT means "leave the stored masters alone", and that is load-bearing,
+   * not a convenience. The editor opens from two different lists: the dashboard
+   * inventory, which carries the masters, and the store page, whose products
+   * come from the PUBLIC catalogue and are deliberately stripped of them
+   * (getProducts()). An editor opened from the store page therefore starts out
+   * knowing nothing about them — and if "knows nothing" were sent as the empty
+   * array, saving a price change from the store page would erase every print
+   * master the product had. So the editor sends this only once it has actually
+   * loaded them (getProductPrintImagesAction), and `undefined` is the honest
+   * way to say it has not.
+   */
+  printImages: z
+    .array(z.union([z.literal(""), z.string().url()]))
+    .max(120)
+    .optional(),
   color: z
     .string()
     .trim()
@@ -161,16 +190,74 @@ async function writeItemStock(
 }
 
 
+/**
+ * `print_images` trimmed to what it is worth storing: never longer than the
+ * photo list it is aligned with, and with trailing gaps dropped.
+ *
+ * Trailing "" entries carry no information — `printImageFor()` reads a short
+ * array as "no print file at that index" — so the common case (a product with
+ * no print masters at all) stores `{}` rather than a row of empty strings.
+ * Interior gaps are kept, because those DO hold a position.
+ */
+function tidyPrintImages(images: string[], printImages: string[]): string[] {
+  const aligned = printImages.slice(0, images.length);
+  let end = aligned.length;
+  while (end > 0 && !aligned[end - 1]) end -= 1;
+  return aligned.slice(0, end);
+}
+
+/**
+ * PostgREST's "products.print_images isn't there yet" — in BOTH of the two
+ * shapes it comes in, which are not the same error.
+ *
+ *   PGRST204  what a WRITE returns: "Could not find the 'print_images' column
+ *             of 'products' in the schema cache". PostgREST resolves the
+ *             columns of an insert/update against its cached schema before it
+ *             builds any SQL, so Postgres is never asked.
+ *   42703     what a READ returns: undefined_column, straight from Postgres,
+ *             because a select's column list goes through as written.
+ *
+ * This is the write path, so PGRST204 is the one that actually fires here —
+ * and getting it wrong is not a missing feature but a broken dashboard: every
+ * product save would fail on an un-migrated database, print files or not.
+ * 42703 is accepted too, so this keeps working if PostgREST ever stops
+ * consulting the cache first.
+ *
+ * The message is still checked, so an unrelated unknown column is reported as
+ * the error it is instead of being quietly retried away.
+ */
+function isMissingPrintImages(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const missing = error.code === "PGRST204" || error.code === "42703";
+  return missing && /print_images/.test(error.message ?? "");
+}
+
+export interface UpsertProductResult {
+  ok: boolean;
+  error?: string;
+  /**
+   * The product saved, but something optional in it could not be stored.
+   * `print_images_missing` means docs/product-print-images.sql hasn't been run,
+   * so the print masters the admin just uploaded are sitting in the bucket
+   * unreferenced. Reported rather than swallowed: the files are real work and
+   * the admin would otherwise believe they are attached.
+   */
+  warning?: "print_images_missing";
+}
+
 /** Create or fully update a product (admin). Categories replace the whole set. */
 export async function upsertProductAction(
   input: UpsertProductInput,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<UpsertProductResult> {
   await requireAdmin();
   const parsed = upsertProductSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_input" };
   const p = parsed.data;
 
   const supabase = await createSupabaseServerClient();
+  // undefined = the editor does not know the masters, so the column is not
+  // written at all. See the schema note on `printImages`.
+  const printImages = p.printImages ? tidyPrintImages(p.images, p.printImages) : undefined;
   const row = {
     id: p.id,
     name_ar: p.nameAr,
@@ -184,7 +271,10 @@ export async function upsertProductAction(
     discount_fixed: p.discountFixed,
     volume_priced: p.volumePriced,
     images: p.images,
-    image_url: p.images[0] ?? null,
+    // The admin's chosen thumbnail. coverImageOf() is the same resolver the
+    // mapper reads it back through, so what gets stored and what gets rendered
+    // can't disagree about which photo is the cover.
+    image_url: coverImageOf(p.images, p.coverUrl) ?? null,
     color: p.color,
     category_code: p.categories[0],
     waterproof: p.waterproof,
@@ -198,17 +288,30 @@ export async function upsertProductAction(
     ...(p.stock != null ? { stock: p.stock } : {}),
   };
 
-  if (p.isUpdate) {
-    const { error } = await supabase.from("products").update(row).eq("id", p.id);
-    if (error) return { ok: false, error: error.message };
-  } else {
-    // A new product has no stored count to leave alone: it starts at what was
-    // typed, or at zero.
-    const { error } = await supabase
-      .from("products")
-      .insert({ ...row, stock: p.stock ?? 0, emoji: "📦", is_active: true });
-    if (error) return { ok: false, error: error.message };
+  // A new product has no stored count to leave alone: it starts at what was
+  // typed, or at zero.
+  const save = (extra: Record<string, unknown>) =>
+    p.isUpdate
+      ? supabase
+          .from("products")
+          .update({ ...row, ...extra })
+          .eq("id", p.id)
+      : supabase
+          .from("products")
+          .insert({ ...row, ...extra, stock: p.stock ?? 0, emoji: "📦", is_active: true });
+
+  // Print masters go in the same statement as the rest, and the WHOLE statement
+  // is retried without them if the column isn't there. A second statement would
+  // be the pattern used for the delivery banner switch, but that works only for
+  // an update — an insert carrying an unknown column fails outright, so a new
+  // product would not save at all on an un-migrated database.
+  let warning: UpsertProductResult["warning"];
+  let { error } = await save(printImages ? { print_images: printImages } : {});
+  if (isMissingPrintImages(error)) {
+    if (printImages && printImages.length > 0) warning = "print_images_missing";
+    ({ error } = await save({}));
   }
+  if (error) return { ok: false, error: error.message };
 
   // Replace the category set atomically (also syncs the primary column).
   const { error: catErr } = await supabase.rpc("admin_set_product_categories", {
@@ -268,7 +371,34 @@ export async function upsertProductAction(
   }
 
   revalidateCatalog();
-  return { ok: true };
+  return { ok: true, warning };
+}
+
+/**
+ * One product's print masters, index-aligned with its photos (admin).
+ *
+ * The editor opens over products from two different lists, and only one of them
+ * carries these: the dashboard inventory does, the store page does not, because
+ * its products come from the PUBLIC catalogue which is stripped of them so the
+ * storefront never ships production artwork to shoppers (see getProducts()).
+ *
+ * Rather than make the editor behave differently depending on which button
+ * opened it — the kind of difference nobody remembers when adding a third entry
+ * point — it always asks for them here. One small admin-only read, on open.
+ *
+ * Returns [] both for "this product has none" and for a database without the
+ * column; neither is an error, and the editor shows empty slots either way.
+ */
+export async function getProductPrintImagesAction(id: string): Promise<string[]> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("print_images")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return [];
+  return (data.print_images ?? []).map((u) => u ?? "");
 }
 
 /** Soft-delete a product (hidden everywhere; restorable in SQL). */

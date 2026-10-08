@@ -212,6 +212,11 @@ export interface Database {
           emoji: string;
           image_url: string | null;
           images: string[];
+          /**
+           * Print masters, index-aligned with `images`; absent until
+           * docs/product-print-images.sql runs. See Product.printImages.
+           */
+          print_images?: string[] | null;
           color: string;
           category_code: string;
           badge: BadgeType | null;
@@ -250,6 +255,7 @@ export interface Database {
           emoji?: string;
           image_url?: string | null;
           images?: string[];
+          print_images?: string[] | null;
           color?: string;
           category_code: string;
           badge?: BadgeType | null;
@@ -571,6 +577,19 @@ export interface Database {
           is_deleted: boolean;
           deleted_at: string | null;
         }>;
+        Relationships: [];
+      };
+      /**
+       * Per-province delivery fees — the admin's exceptions to the two columns
+       * on `settings`. A province with no row here is charged by the old
+       * Karbala-vs-the-rest rule, so the table is allowed to be sparse and is
+       * allowed not to exist at all (until docs/province-delivery-fees.sql is
+       * run). See deliveryFeeFor().
+       */
+      province_delivery_fees: {
+        Row: { province_code: string; fee: number; updated_at: string };
+        Insert: { province_code: string; fee: number };
+        Update: Partial<{ province_code: string; fee: number }>;
         Relationships: [];
       };
       settings: {
