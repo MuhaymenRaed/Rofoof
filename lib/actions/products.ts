@@ -9,7 +9,7 @@ import { TAGS } from "@/lib/data/tags";
 import { revalidateCatalog } from "@/lib/cache";
 import { getInventory, type InventoryPage } from "@/lib/data/dashboard";
 import { getStockIndex, type StockFilter, type StockCounts } from "@/lib/data/stock";
-import { coverImageOf } from "@/lib/products";
+import { cardImageOf } from "@/lib/products";
 import type { CategoryGroup, CategoryInfo, SubcategoryInfo } from "@/lib/products";
 
 const upsertProductSchema = z.object({
@@ -39,6 +39,15 @@ const upsertProductSchema = z.object({
    * thumbnail the product hasn't got.
    */
   coverUrl: z.string().url().optional(),
+  /**
+   * An image uploaded for the product CARD alone — never shown in the gallery
+   * or the lightbox, and deliberately not a member of `images`.
+   *
+   * "" clears it, which is why this is a union rather than a plain url: there
+   * is no other way to say "drop the special image and go back to the starred
+   * photo", and omitting the field has to keep meaning "leave it as it is".
+   */
+  cardImage: z.union([z.literal(""), z.string().url()]).optional(),
   /**
    * Print masters, index-aligned with `images`; "" where a photo has none.
    * The empty string is a position-holder and the only reason this isn't a
@@ -258,6 +267,9 @@ export async function upsertProductAction(
   // undefined = the editor does not know the masters, so the column is not
   // written at all. See the schema note on `printImages`.
   const printImages = p.printImages ? tidyPrintImages(p.images, p.printImages) : undefined;
+  // The picture the CARD shows: the specially-uploaded one if there is one,
+  // else the starred photo, else the first. Resolved once and used twice.
+  const cardUrl = cardImageOf(p.images, p.cardImage, p.coverUrl) ?? null;
   const row = {
     id: p.id,
     name_ar: p.nameAr,
@@ -271,10 +283,9 @@ export async function upsertProductAction(
     discount_fixed: p.discountFixed,
     volume_priced: p.volumePriced,
     images: p.images,
-    // The admin's chosen thumbnail. coverImageOf() is the same resolver the
-    // mapper reads it back through, so what gets stored and what gets rendered
-    // can't disagree about which photo is the cover.
-    image_url: coverImageOf(p.images, p.coverUrl) ?? null,
+    // The card image. Written here so a brand-new product has one from the
+    // start, and written AGAIN after the RPCs below — see the note there.
+    image_url: cardUrl,
     color: p.color,
     category_code: p.categories[0],
     waterproof: p.waterproof,
@@ -369,6 +380,32 @@ export async function upsertProductAction(
     });
     if (tiersErr) return { ok: false, error: tiersErr.message };
   }
+
+  /**
+   * The card image, written LAST — after every RPC above.
+   *
+   * THE BUG THIS FIXES: picking a thumbnail with the star saved, and the card
+   * never changed. Across the whole catalogue `products.image_url` was still
+   * the first photo of every single product, however many times an admin had
+   * chosen a different one.
+   *
+   * `image_url` is set in the row update at the top of this function, but for a
+   * package that update is followed by `admin_set_product_items` — a
+   * SECURITY DEFINER function that predates the thumbnail picker, owns the
+   * product's item list, and is the only thing that runs between the write and
+   * the end. Whatever it does with the product's own image columns, it did it
+   * after us, so our value never survived.
+   *
+   * Rather than rewrite a live function nobody has read (the same call made for
+   * per-design stock — see writeItemStock), the admin's choice simply gets the
+   * last word. One small update, and it cannot be overwritten by anything in
+   * this function again.
+   */
+  const { error: coverErr } = await supabase
+    .from("products")
+    .update({ image_url: cardUrl })
+    .eq("id", p.id);
+  if (coverErr) return { ok: false, error: coverErr.message };
 
   revalidateCatalog();
   return { ok: true, warning };

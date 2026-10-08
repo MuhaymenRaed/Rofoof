@@ -19,6 +19,7 @@ import {
 } from "@/components/icons";
 import {
   canBeWaterproof,
+  isSpecialCardImage,
   printImageFor,
   splitCategoryGroups,
   PRINT_FILE_COLOR,
@@ -174,6 +175,7 @@ export function ProductEditorModal({
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const printFileRef = useRef<HTMLInputElement>(null);
+  const cardFileRef = useRef<HTMLInputElement>(null);
 
   const isEdit = !!product;
   /**
@@ -230,6 +232,19 @@ export function ProductEditorModal({
    * product whose photos are still being added.
    */
   const [coverKey, setCoverKey] = useState<string | null>(null);
+  /**
+   * An image uploaded for the product CARD alone, overriding the starred photo.
+   *
+   * null means "no special image" — the card then shows the starred photo, or
+   * the first one. It is never added to `images`, so it stays out of the
+   * gallery and the lightbox: its whole job is to be the one picture that sells
+   * the product in a list.
+   */
+  const [cardImage, setCardImage] = useState<{
+    url?: string;
+    file?: File;
+    preview?: string;
+  } | null>(null);
   /** the slot a print-file pick is destined for, by key */
   const [printTarget, setPrintTarget] = useState<string | null>(null);
   /**
@@ -335,6 +350,14 @@ export function ProductEditorModal({
     // naming a photo the product no longer has falls back to the first slot —
     // the same answer coverImageOf() gives on the way out.
     setCoverKey(seeded.find((r) => r.url === product?.image)?.key ?? null);
+    // A stored card image that is NOT one of the photos can only have come from
+    // the slot below — that is how the editor tells the admin's two choices
+    // apart without a column saying which it was.
+    setCardImage(
+      product && isSpecialCardImage(product.images, product.image)
+        ? { url: product.image }
+        : null,
+    );
     setPrintTarget(null);
     setPrintZipError(false);
     setWarning(null);
@@ -416,12 +439,18 @@ export function ProductEditorModal({
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+  const cardRef = useRef<{ preview?: string } | null>(null);
+  useEffect(() => {
+    cardRef.current = cardImage;
+  }, [cardImage]);
   useEffect(
-    () => () =>
+    () => () => {
       rowsRef.current.forEach((r) => {
         if (r.preview) URL.revokeObjectURL(r.preview);
         if (r.printPreview) URL.revokeObjectURL(r.printPreview);
-      }),
+      });
+      if (cardRef.current?.preview) URL.revokeObjectURL(cardRef.current.preview);
+    },
     [],
   );
 
@@ -473,6 +502,24 @@ export function ProductEditorModal({
       if (row?.preview) URL.revokeObjectURL(row.preview);
       if (row?.printPreview) URL.revokeObjectURL(row.printPreview);
       return prev.filter((_, idx) => idx !== i);
+    });
+  }
+
+  function pickCardImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCardImage((prev) => {
+      if (prev?.preview) URL.revokeObjectURL(prev.preview);
+      return { file, preview: URL.createObjectURL(file) };
+    });
+  }
+
+  /** Drop the special image; the card falls back to the starred photo. */
+  function removeCardImage() {
+    setCardImage((prev) => {
+      if (prev?.preview) URL.revokeObjectURL(prev.preview);
+      return null;
     });
   }
 
@@ -717,7 +764,7 @@ export function ProductEditorModal({
         initialStock?: string;
       }[] = [];
       const toUpload = rows.filter((r) => r.file || r.printFile);
-      if (toUpload.length > 0) setUploading(true);
+      if (toUpload.length > 0 || cardImage?.file) setUploading(true);
 
       /**
        * Upload one slot's print master, if it picked a new one.
@@ -800,6 +847,33 @@ export function ProductEditorModal({
           stock: r.stock,
         });
       }
+      // The card image, if a new one was picked. Capped at display size like
+      // every other catalogue photo — it is only ever shown, never printed —
+      // and kept under its own prefix so the bucket says what it is.
+      let cardImageUrl = cardImage?.url ?? "";
+      if (cardImage?.file) {
+        const encoded = await toWebpVariants(cardImage.file, DISPLAY_MAX_DIMENSION);
+        const uploaded = await uploadImagePair({
+          bucket: "product-images",
+          base: `${id}/card/${Date.now()}`,
+          image: encoded,
+          maxDimension: DISPLAY_MAX_DIMENSION,
+          upsert: true,
+        });
+        if (!uploaded.ok) {
+          setUploading(false);
+          setError(uploaded.error);
+          return;
+        }
+        cardImageUrl = uploaded.url;
+        // Swap the pending File for the stored URL, so a second Save in the
+        // same sitting re-uploads nothing.
+        setCardImage((prev) => {
+          if (prev?.preview) URL.revokeObjectURL(prev.preview);
+          return { url: uploaded.url };
+        });
+      }
+
       setUploading(false);
 
       // Fold the stored URLs back into the slots, in place of the Files they
@@ -888,6 +962,9 @@ export function ProductEditorModal({
         descEn: descEn.trim(),
         images: finalRows.map((r) => r.url),
         coverUrl,
+        // "" when there is no special image, which the server reads as "clear
+        // it" — that is how removing one puts the card back on the star.
+        cardImage: cardImageUrl,
         // Index-aligned with `images` by construction — both come off the same
         // rows in the same pass, which is the whole reason the pairing can be
         // stored as two arrays rather than a join table.
@@ -974,7 +1051,7 @@ export function ProductEditorModal({
         nameAr: nameAr.trim(),
         nameEn: nameEn.trim() || nameAr.trim(),
         price: priceNum,
-        image: coverUrl,
+        image: cardImageUrl || coverUrl,
         images: finalRows.map((r) => r.url),
         printImages: finalRows.map((r) => r.printUrl),
         color,
@@ -1180,6 +1257,77 @@ export function ProductEditorModal({
               </span>
             </span>
             {isPackage && <p className="mb-2 text-[11px] text-ink-3">{t("dash.packageHint")}</p>}
+
+            {/* The card image: one picture, uploaded for the product card and
+                nowhere else. It is NOT added to `images`, so it never turns up
+                in the gallery or the lightbox — which is the whole point. A
+                package of twenty designs has no single photo that sells it;
+                this is where the composite shot goes.
+
+                Sits above the gallery because it is the first thing a shopper
+                sees of this product, and because leaving it empty is a real
+                choice the admin should make knowingly: the line under the slot
+                says exactly what shows instead. */}
+            <div className="mb-3 rounded-xl border border-line-2 bg-surface-2/40 p-3">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-ink-2">
+                <Photo size={13} className="text-brand" />
+                {t("dash.cardImage")}
+              </p>
+              <input
+                ref={cardFileRef}
+                type="file"
+                accept="image/*"
+                onChange={pickCardImage}
+                className="hidden"
+              />
+              <div className="mt-2 flex items-center gap-3">
+                {cardImage ? (
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 border-brand">
+                    <RetryImage
+                      src={cardImage.url ?? cardImage.preview ?? ""}
+                      alt=""
+                      fill
+                      sizes="80px"
+                      unoptimized={!!cardImage.preview}
+                      className="object-cover"
+                    />
+                    {/* Siblings, not nested: the overlay makes the whole tile a
+                        replace target, and a remove button inside it would be a
+                        button inside a button. */}
+                    <button
+                      type="button"
+                      onClick={() => cardFileRef.current?.click()}
+                      aria-label={t("dash.cardImageReplace")}
+                      title={t("dash.cardImageReplace")}
+                      className="tap absolute inset-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeCardImage}
+                      aria-label={t("dash.cardImageRemove")}
+                      className="tap absolute end-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-500"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => cardFileRef.current?.click()}
+                    aria-label={t("dash.cardImageAdd")}
+                    className="tap grid h-20 w-20 shrink-0 place-items-center gap-1 rounded-xl border-2 border-dashed border-line bg-surface text-ink-3 transition hover:border-brand hover:text-brand"
+                  >
+                    <Plus size={18} />
+                    <span className="text-[9px] font-bold leading-none">
+                      {t("dash.cardImageAdd")}
+                    </span>
+                  </button>
+                )}
+                <p className="min-w-0 flex-1 text-[11px] leading-snug text-ink-3">
+                  {cardImage ? t("dash.cardImageSet") : t("dash.cardImageEmpty")}
+                </p>
+              </div>
+            </div>
             {/* The pairing, said once at the top. Every slot below is two
                 pictures of one design: the photo that sells it and the file it
                 is produced from. */}

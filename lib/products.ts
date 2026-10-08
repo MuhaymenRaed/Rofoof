@@ -437,8 +437,48 @@ export function coverImageOf(
   images: string[],
   storedCover: string | null | undefined,
 ): string | undefined {
-  if (storedCover && (images.length === 0 || images.includes(storedCover))) return storedCover;
+  return storedCover || images[0];
+}
+
+/**
+ * Which picture the CARD should show, from the two ways an admin can choose it.
+ *
+ *  - `special` — an image uploaded for the card alone, through the editor's own
+ *    slot. It is deliberately NOT one of `images`: it never appears in the
+ *    gallery or the lightbox, only on the card. A composite or branded shot
+ *    that sells the product better than any single design does.
+ *  - `starred` — one of the product's own photos, picked with the star. Checked
+ *    against `images` so a star left pointing at a deleted photo falls through
+ *    rather than naming a picture the product no longer has.
+ *  - neither — the first photo, which is what the shop did before either
+ *    control existed.
+ *
+ * The special image wins because it is the more specific statement: an admin
+ * who uploaded one meant it for exactly this.
+ */
+export function cardImageOf(
+  images: string[],
+  special: string | null | undefined,
+  starred: string | null | undefined,
+): string | undefined {
+  if (special) return special;
+  if (starred && (images.length === 0 || images.includes(starred))) return starred;
   return images[0];
+}
+
+/**
+ * Whether a stored card image is a SPECIAL one (uploaded for the card) rather
+ * than one of the product's own photos.
+ *
+ * There is no column saying which it was, and none is needed: a URL that is not
+ * in `images` can only have come from the card slot. That is what lets the
+ * editor reopen showing the admin's choice in the right control.
+ */
+export function isSpecialCardImage(
+  images: string[],
+  stored: string | null | undefined,
+): boolean {
+  return !!stored && !images.includes(stored);
 }
 
 /**
