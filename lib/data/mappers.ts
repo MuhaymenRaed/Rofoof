@@ -1,4 +1,5 @@
 import "server-only";
+import { coverImageOf } from "@/lib/products";
 import type {
   Product,
   ProductItem,
@@ -112,7 +113,13 @@ export function mapProduct(row: ProductRowWithFandoms): Product {
     price: row.price,
     emoji: row.emoji,
     images: row.images ?? [],
-    image: row.image_url ?? row.images?.[0] ?? undefined,
+    // The admin's chosen thumbnail, with images[0] as the fallback — see
+    // coverImageOf() for the two cases that reach it.
+    image: coverImageOf(row.images ?? [], row.image_url),
+    // `?? []` and never a guess: an absent column means
+    // docs/product-print-images.sql hasn't run, which is "no print files", and
+    // every print control in the dashboard simply has nothing to show yet.
+    printImages: row.print_images ?? [],
     color: row.color,
     category: (categories[0] ?? row.category_code) as Category,
     categories,

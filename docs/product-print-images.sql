@@ -1,0 +1,117 @@
+-- ============================================================================
+--  A PRINT MASTER FOR EVERY CATALOGUE PHOTO
+--  Run this by hand in the Supabase SQL editor (DDL cannot go through the app).
+-- ============================================================================
+--
+--  WHAT THIS IS FOR
+--  A catalogue photo and the file you print are not the same picture. The photo
+--  is styled to sell — the sticker on a laptop lid, the poster on a wall, capped
+--  at display resolution because that is all a shopper's phone will ever render.
+--  The print master is the artwork alone, at print resolution, with whatever
+--  bleed and margin the cutter needs.
+--
+--  The shop was keeping those masters in a phone gallery and pairing them up by
+--  eye at production time, against an order list in a browser tab. This column
+--  stores the pairing instead, so an order's detail panel can hand the admin the
+--  exact files to print.
+--
+--  THE SHAPE: ONE ARRAY, ALIGNED BY INDEX
+--  `print_images[i]` is the master for `images[i]`, and '' where that photo has
+--  none. Not a join table, for two reasons:
+--
+--    * The editor rebuilds BOTH arrays from the same rows in one pass, so they
+--      cannot drift out of alignment — a slot in the editor IS the pair.
+--    * A package's designs already live in product_items, and teaching
+--      admin_set_product_items about a second URL would mean DROP FUNCTION
+--      first (Postgres will not change a function's return type in place).
+--      Dropping and recreating a live function from a body nobody has read is a
+--      bad trade for one text column — the same call this repo already made for
+--      per-design stock. See writeItemStock() in lib/actions/products.ts.
+--
+--  The empty string is a position-holder, and the only reason this is not a
+--  plain list of URLs: dropping the gaps would shift every later master onto the
+--  wrong photo. Trailing gaps ARE dropped on save (a shorter array simply has no
+--  master at that index), so a product with no masters at all stores '{}' rather
+--  than a row of empty strings. Read it through printImageFor(), which matches
+--  by URL and so survives a reorder in the editor.
+--
+--  SAFE TO DEPLOY IN EITHER ORDER
+--  The app tolerates this column not existing (see AGENTS.md):
+--
+--    * Reads: PRODUCT_SELECT starts with `*`, so the column appears on its own
+--      the moment it exists; mapProduct() maps an absent one to [], which every
+--      print control reads as "no files yet".
+--    * Writes: upsertProductAction() sends print_images in the same statement
+--      as the rest of the product and retries the WHOLE statement without it on
+--      42703 — so the product still saves. When the admin had actually uploaded
+--      masters, that save comes back with a warning naming this file, because
+--      those uploads are real work and silently dropping them would leave the
+--      admin believing they are attached.
+--
+--  NOTHING IS BACKFILLED
+--  There is nothing to backfill from: no print master for an existing product
+--  exists anywhere in the database. Every product starts with none, and the
+--  editor shows an empty violet slot under each photo until one is added.
+--
+--  NOT CUSTOMER-FACING
+--  The customer's order tracking shows the catalogue photos and nothing else
+--  (components/orders/order-card.tsx is untouched by this feature). The masters
+--  appear only in the dashboard: paired in the product editor, and as their own
+--  labelled section under each artwork set in an order's detail panel.
+-- ============================================================================
+
+begin;
+
+-- `text[]`, not `jsonb`: it is a list of URLs, the same shape and the same type
+-- as `images` right beside it. `default '{}'` with `not null` so every existing
+-- row reads as "no masters" rather than null — one fewer case for every reader.
+alter table public.products
+  add column if not exists print_images text[] not null default '{}';
+
+comment on column public.products.print_images is
+  'Print masters, index-aligned with images: print_images[i] is the file to print for images[i], and '''' where that photo has none. Admin-only; never shown to customers. See Product.printImages in lib/products.ts.';
+
+commit;
+
+-- ============================================================================
+--  VERIFY
+-- ============================================================================
+--  1. The column is there and every product reads as "no masters yet":
+--
+--       select count(*) as products,
+--              count(*) filter (where print_images <> '{}') as with_masters
+--         from public.products
+--        where not is_deleted;
+--
+--  2. After adding a master to one product in the dashboard, the pairing should
+--     line up index for index. `ord` is the slot number the editor shows:
+--
+--       select p.id, t.ord, t.photo, nullif(p.print_images[t.ord], '') as master
+--         from public.products p
+--         cross join lateral unnest(p.images) with ordinality as t(photo, ord)
+--        where p.id = 'your-product-id'
+--        order by t.ord;
+--
+--  3. Products that still need masters — the work list. A product whose every
+--     photo has one is finished; `missing` counts the photos that do not:
+--
+--       select p.id, p.name_ar,
+--              cardinality(p.images) as photos,
+--              cardinality(p.images)
+--                - count(*) filter (where nullif(p.print_images[t.ord], '') is not null)
+--                as missing
+--         from public.products p
+--         cross join lateral unnest(p.images) with ordinality as t(photo, ord)
+--        where not p.is_deleted
+--        group by p.id, p.name_ar, p.images
+--       having cardinality(p.images)
+--                - count(*) filter (where nullif(p.print_images[t.ord], '') is not null) > 0
+--        order by missing desc;
+--
+--  4. The masters live in the same bucket as the photos, under a `print/`
+--     prefix, so a glance at storage tells the two apart:
+--
+--       select name, created_at from storage.objects
+--        where bucket_id = 'product-images' and name like '%/print/%'
+--        order by created_at desc limit 20;
+-- ============================================================================

@@ -8,11 +8,12 @@ import {
   updateDeliveryFeesAction,
   updateLandingStatsAction,
 } from "@/lib/actions/offers";
+import { ProvinceFeesEditor } from "@/components/dashboard/province-fees-editor";
 import type { SiteSettings } from "@/lib/products";
 
 /**
- * Store-wide config the admin owns: delivery fees (Karbala vs the rest, the
- * defaults place_order charges) and the landing-page stat numbers.
+ * Store-wide config the admin owns: the default delivery fee, the per-province
+ * map that overrides it, and the landing-page stat numbers.
  */
 export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
   const { t } = useStore();
@@ -21,9 +22,6 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
 
   const [feeDefault, setFeeDefault] = useState(
     String(initial.deliveryFeeDefault),
-  );
-  const [feeKarbala, setFeeKarbala] = useState(
-    String(initial.deliveryFeeKarbala),
   );
   const [noticeActive, setNoticeActive] = useState(initial.deliveryNoticeActive);
   const [followers, setFollowers] = useState(initial.statFollowers);
@@ -37,7 +35,10 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
     startTransition(async () => {
       const res = await updateDeliveryFeesAction({
         deliveryFeeDefault: Math.max(0, Number(feeDefault) || 0),
-        deliveryFeeKarbala: Math.max(0, Number(feeKarbala) || 0),
+        // Karbala has no field of its own here any more — it is an ordinary row
+        // in the province grid below, which writes this column itself. Sent
+        // unchanged so saving the default can't revert it.
+        deliveryFeeKarbala: initial.deliveryFeeKarbala,
         deliveryNoticeActive: noticeActive,
       });
       if (!res.ok) {
@@ -79,22 +80,13 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
         <p className="mt-1 text-[11px] text-ink-3">
           {t("dash.deliveryFeesHint")}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        {/* One number: what a province with no price of its own costs. The
+            per-province map below is a set of exceptions to it, so this is the
+            only fee that has to be filled in for the shop to charge correctly. */}
+        <div className="mt-3">
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-ink-2">
-              {t("dash.feeKarbala")}
-            </span>
-            <input
-              type="number"
-              min={0}
-              value={feeKarbala}
-              onChange={(e) => setFeeKarbala(e.target.value)}
-              className="dash-input"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-ink-2">
-              {t("dash.feeOther")}
+              {t("dash.feeDefault")}
             </span>
             <input
               type="number"
@@ -187,6 +179,12 @@ export function StoreConfigEditor({ initial }: { initial: SiteSettings }) {
           {savedKey === "stats" ? t("profile.saved") : t("profile.save")}
         </button>
       </div>
+
+      {/* The per-province map. Its own card and its own save button: it is a
+          bigger, separate decision from the single default above, and an admin
+          halfway through pricing eighteen provinces should not have to finish
+          before the landing stats will save. */}
+      <ProvinceFeesEditor initial={initial} />
 
       {error && (
         <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500 lg:col-span-2">

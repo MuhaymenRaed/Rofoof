@@ -18,6 +18,7 @@ import {
   Tag,
   Photo,
   Download,
+  Printer,
   Trash,
   Whatsapp,
 } from "@/components/icons";
@@ -31,6 +32,7 @@ import {
   CUSTOM_ORDER_COLOR,
   CUSTOM_TYPE_LABEL,
   MANUAL_ORDER_COLOR,
+  PRINT_FILE_COLOR,
   WATERPROOF_CUSTOM_KINDS,
   orderItemImage,
   orderItemFinish,
@@ -102,9 +104,19 @@ function FinishChip({ finish, long }: { finish: Finish | null; long?: boolean })
 export function OrdersBoard({
   initialOrders,
   initialHasMore,
+  printMasters = {},
 }: {
   initialOrders: Order[];
   initialHasMore: boolean;
+  /**
+   * Catalogue photo URL to its print master, for every product that has one.
+   *
+   * Passed in from the admin page rather than read off the shared product list,
+   * because that list is the public catalogue and is deliberately stripped of
+   * print masters (see getProducts()). Defaults to {}, which renders exactly as
+   * the board did before print files existed.
+   */
+  printMasters?: Record<string, string>;
 }) {
   const { t, lang, getProduct } = useStore();
   const router = useRouter();
@@ -421,6 +433,7 @@ export function OrdersBoard({
       {detail && (
         <OrderDetailsModal
           order={detail}
+          printMasters={printMasters}
           onClose={() => setDetailCode(null)}
           onSetStatus={(next) => setStatus(detail.code, detail.status, next)}
           onCancelled={() => {
@@ -448,6 +461,18 @@ interface ArtworkGroup {
   /** ASCII slug used as the folder name inside a multi-set ZIP */
   folder: string;
   urls: string[];
+  /**
+   * The print masters behind those designs — admin-only, and the files that
+   * actually go to the cutter. `urls` above is what the CUSTOMER sees in their
+   * order tracking: the styled catalogue photo. This is the artwork it is
+   * produced from, uploaded beside it in the product editor.
+   *
+   * Empty for custom requests, and that is not an omission: a customer's own
+   * upload IS the file to print, so there is no second version of it. Also
+   * empty for a catalogue design whose product has no print master yet, which
+   * the set says out loud rather than silently showing a shorter grid.
+   */
+  printUrls: string[];
   /** how many separate requests fed this set */
   requestCount: number;
   accent: string;
@@ -471,11 +496,14 @@ interface ArtworkGroup {
 
 function OrderDetailsModal({
   order,
+  printMasters,
   onClose,
   onSetStatus,
   onCancelled,
 }: {
   order: Order;
+  /** catalogue photo URL to its print master — see OrdersBoard */
+  printMasters: Record<string, string>;
   onClose: () => void;
   onSetStatus: (next: OrderStatus) => void;
   /** the order was deleted server-side — drop it from the board */
@@ -539,8 +567,10 @@ function OrderDetailsModal({
     // Kept as three parallel maps, and every array rebuilt rather than pushed
     // into: the URLs come straight off the order's items, and appending to one
     // of those in place would be mutating props.
-    const meta = new Map<string, Omit<ArtworkGroup, "urls" | "requestCount">>();
+    type GroupMeta = Omit<ArtworkGroup, "urls" | "printUrls" | "requestCount">;
+    const meta = new Map<string, GroupMeta>();
     const urlsByKey = new Map<string, string[]>();
+    const printByKey = new Map<string, string[]>();
     const countByKey = new Map<string, number>();
     // Insertion order, so the sets appear as they were added rather than in
     // whatever order a Map happens to iterate.
@@ -548,8 +578,14 @@ function OrderDetailsModal({
 
     const push = (
       key: string,
-      make: () => Omit<ArtworkGroup, "urls" | "requestCount">,
+      make: () => GroupMeta,
       urls: string[],
+      /**
+       * The print masters for those designs, where they exist. Defaulted, so
+       * the custom-request branches below say nothing about print files — a
+       * customer's upload has no second version to send to the cutter.
+       */
+      printUrls: string[] = [],
     ) => {
       if (urls.length === 0) return;
       if (!meta.has(key)) {
@@ -557,6 +593,7 @@ function OrderDetailsModal({
         keys.push(key);
       }
       urlsByKey.set(key, [...(urlsByKey.get(key) ?? []), ...urls]);
+      printByKey.set(key, [...(printByKey.get(key) ?? []), ...printUrls]);
       countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
     };
 
@@ -630,6 +667,23 @@ function OrderDetailsModal({
       const product = getProduct(it.productId);
       const code = product?.categories[0] ?? "";
       const finish = orderItemFinish(it, product);
+      /**
+       * The print master for the exact design this line bought.
+       *
+       * Looked up by `url`, which is already the resolved per-line picture —
+       * the package design the shopper picked, not the package cover — so a
+       * basket of three designs out of a twelve-design pack yields those three
+       * masters and not twelve.
+       *
+       * Skipped entirely for a buyer's own upload: `customImageUrl` is not one
+       * of the product's photos, and that upload IS the file to print.
+       *
+       * Read from the admin map rather than from `product`, which comes off the
+       * public catalogue and carries no masters. That also means a product the
+       * shop has since deactivated still resolves — an order placed for
+       * something withdrawn last week still has to be produced.
+       */
+      const master = it.customImageUrl ? undefined : printMasters[url];
       push(
         `product:${code}:${finish ?? ""}`,
         () => ({
@@ -644,6 +698,7 @@ function OrderDetailsModal({
           mixedFinish: false,
         }),
         [url],
+        master ? [master] : [],
       );
     }
 
@@ -669,11 +724,15 @@ function OrderDetailsModal({
     return ordered.map((key) => ({
       ...meta.get(key)!,
       urls: urlsByKey.get(key) ?? [],
+      // Deduped: two lines buying two designs of one product contribute the
+      // same master twice, and a set that listed it twice would read as two
+      // things to print.
+      printUrls: [...new Set(printByKey.get(key) ?? [])],
       requestCount: countByKey.get(key) ?? 1,
     }));
     // itemImage is a stable local helper over getProduct, which IS listed
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order, lang, t, getProduct, categoryLabel]);
+  }, [order, lang, t, getProduct, categoryLabel, printMasters]);
 
   /**
    * The order's lines as one list, with TRUE replicates folded together.
@@ -720,21 +779,62 @@ function OrderDetailsModal({
   }, [order]);
 
   const totalImages = groups.reduce((n, g) => n + g.urls.length, 0);
-  /** which set is downloading right now ("" = the whole order), or null */
+  const totalPrint = groups.reduce((n, g) => n + g.printUrls.length, 0);
+
+  /**
+   * Which half of a set a download is after.
+   *
+   *  - "designs" — the pictures, as the customer sees them. What this panel has
+   *    always offered.
+   *  - "print"   — the production masters behind them.
+   *  - "both"    — one archive with the pair kept apart, so the admin can hand
+   *    the print folder straight to whoever cuts it.
+   */
+  type DownloadWhat = "designs" | "print" | "both";
+
+  /**
+   * ZIP folder layout for a download.
+   *
+   * Folders only where they earn their keep: one set of one kind unpacks flat,
+   * as it always has. A download that spans several sets keeps the per-set
+   * folders, and one that carries both halves keeps them in separate folders so
+   * a catalogue photo can never be mistaken for the file to print — which,
+   * printed, is the one mistake here that costs materials.
+   */
+  function payloadFor(sets: ArtworkGroup[], what: DownloadWhat): ImageGroup[] {
+    const many = sets.length > 1;
+    const bothHalves = what === "both" && sets.some((g) => g.printUrls.length > 0);
+    const out: ImageGroup[] = [];
+    for (const g of sets) {
+      if (what !== "print") {
+        out.push({ folder: many ? g.folder : bothHalves ? "designs" : "", urls: g.urls });
+      }
+      if (what !== "designs" && g.printUrls.length > 0) {
+        out.push({
+          folder: many ? `${g.folder}-print` : what === "print" ? "" : "print",
+          urls: g.printUrls,
+        });
+      }
+    }
+    return out;
+  }
+
+  /** which download is running right now, or null — see `keyFor` */
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState(false);
 
-  async function download(key: string, sets: ArtworkGroup[], suffix: string) {
+  /**
+   * Identity of one download button. Folder slugs are `[a-z-]`, so ":" can't
+   * collide with one — and the whole-order buttons get a name rather than the
+   * empty string they used to share with "no folder".
+   */
+  const keyFor = (scope: string, what: DownloadWhat) => `${scope}:${what}`;
+
+  async function download(key: string, sets: ArtworkGroup[], what: DownloadWhat, suffix: string) {
     setDownloadError(false);
     setDownloadingKey(key);
     try {
-      const payload: ImageGroup[] = sets.map((g) => ({
-        // A single set unpacks straight into the archive root; the whole order
-        // unpacks into one folder per set.
-        folder: sets.length > 1 ? g.folder : "",
-        urls: g.urls,
-      }));
-      await downloadImageGroupsAsZip(payload, `${order.code}-${suffix}.zip`);
+      await downloadImageGroupsAsZip(payloadFor(sets, what), `${order.code}-${suffix}.zip`);
     } catch {
       setDownloadError(true);
     } finally {
@@ -829,15 +929,46 @@ function OrderDetailsModal({
 
               <button
                 type="button"
-                onClick={() => download("", groups, "images")}
+                onClick={() => download(keyFor("all", "both"), groups, "both", "images")}
                 disabled={downloadingKey !== null}
                 className="tap cta flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand-soft px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
               >
                 <Download size={16} />
-                {downloadingKey === ""
+                {downloadingKey === keyFor("all", "both")
                   ? t("dash.downloading")
-                  : `${t("dash.downloadEverything")} (${totalImages})`}
+                  : `${t("dash.downloadEverything")} (${totalImages + totalPrint})`}
               </button>
+
+              {/* The production masters for the whole order, on their own. The
+                  button above already includes them, but this is the one the
+                  admin actually reaches for: it is what goes to the cutter, and
+                  it arrives without catalogue photos mixed in. */}
+              {totalPrint > 0 && (
+                <button
+                  type="button"
+                  onClick={() => download(keyFor("all", "print"), groups, "print", "print")}
+                  disabled={downloadingKey !== null}
+                  className="tap flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition hover:text-white disabled:opacity-60"
+                  style={{
+                    borderColor: `color-mix(in srgb, ${PRINT_FILE_COLOR} 45%, transparent)`,
+                    background: `color-mix(in srgb, ${PRINT_FILE_COLOR} 8%, transparent)`,
+                    color: PRINT_FILE_COLOR,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = PRINT_FILE_COLOR;
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = `color-mix(in srgb, ${PRINT_FILE_COLOR} 8%, transparent)`;
+                    e.currentTarget.style.color = PRINT_FILE_COLOR;
+                  }}
+                >
+                  <Printer size={16} />
+                  {downloadingKey === keyFor("all", "print")
+                    ? t("dash.downloading")
+                    : `${t("dash.printDownloadAll")} (${totalPrint})`}
+                </button>
+              )}
 
               {groups.map((g) => (
                 <div
@@ -870,7 +1001,9 @@ function OrderDetailsModal({
                     </span>
                     <button
                       type="button"
-                      onClick={() => download(g.folder, [g], g.folder)}
+                      onClick={() =>
+                        download(keyFor(g.folder, "designs"), [g], "designs", g.folder)
+                      }
                       disabled={downloadingKey !== null}
                       className="tap ms-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition hover:text-white disabled:opacity-60"
                       style={{ borderColor: g.accent, color: g.accent }}
@@ -884,7 +1017,7 @@ function OrderDetailsModal({
                       }}
                     >
                       <Download size={12} />
-                      {downloadingKey === g.folder
+                      {downloadingKey === keyFor(g.folder, "designs")
                         ? t("dash.downloading")
                         : t("dash.downloadGroup")}
                     </button>
@@ -913,6 +1046,92 @@ function OrderDetailsModal({
                       </a>
                     ))}
                   </div>
+
+                  {/* The production masters for this set, under the pictures
+                      they belong to. The customer's own tracking page shows the
+                      row above and nothing else; this half is the admin's, and
+                      it is the half that gets printed. */}
+                  {g.printUrls.length > 0 && (
+                    <div
+                      className="mt-2.5 rounded-xl border p-2.5"
+                      style={{
+                        borderColor: `color-mix(in srgb, ${PRINT_FILE_COLOR} 40%, transparent)`,
+                        background: `color-mix(in srgb, ${PRINT_FILE_COLOR} 6%, transparent)`,
+                      }}
+                    >
+                      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold"
+                          style={{ color: PRINT_FILE_COLOR }}
+                        >
+                          <Printer size={12} />
+                          {t("dash.printFiles")}
+                        </span>
+                        <span className="text-[11px] font-semibold text-ink-3">
+                          {g.printUrls.length} {t("dash.itemsLabel")}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            download(
+                              keyFor(g.folder, "print"),
+                              [g],
+                              "print",
+                              `${g.folder}-print`,
+                            )
+                          }
+                          disabled={downloadingKey !== null}
+                          className="tap ms-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition hover:text-white disabled:opacity-60"
+                          style={{ borderColor: PRINT_FILE_COLOR, color: PRINT_FILE_COLOR }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = PRINT_FILE_COLOR;
+                            e.currentTarget.style.color = "#fff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "";
+                            e.currentTarget.style.color = PRINT_FILE_COLOR;
+                          }}
+                        >
+                          <Download size={12} />
+                          {downloadingKey === keyFor(g.folder, "print")
+                            ? t("dash.downloading")
+                            : t("dash.printDownloadGroup")}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-5 gap-2">
+                        {g.printUrls.map((url, i) => (
+                          <a
+                            key={`${url}-${i}`}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="tap relative aspect-square overflow-hidden rounded-lg border-2 transition hover:opacity-80"
+                            style={{ borderColor: PRINT_FILE_COLOR }}
+                          >
+                            <RetryImage
+                              src={url}
+                              alt=""
+                              fill
+                              sizes="72px"
+                              className="object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* A catalogue set with no masters at all. Said once, where
+                      the admin is already looking for them, and it names where
+                      they go — a silent absence reads as "this product needs no
+                      print file", which is never true of a sticker. Custom
+                      requests are exempt: the buyer's upload IS the file. */}
+                  {g.printUrls.length === 0 && g.base.startsWith("product:") && (
+                    <p className="mt-2 text-[11px] font-semibold leading-snug text-ink-3">
+                      {t("dash.printMissing")}
+                    </p>
+                  )}
                 </div>
               ))}
 

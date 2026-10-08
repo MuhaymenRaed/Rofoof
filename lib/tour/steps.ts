@@ -181,8 +181,9 @@ export const TOUR_STEPS: TourStep[] = [
     bodyKey: "tour.custom.body",
   },
   {
-    // Header button on desktop, tab-bar button on phones — no route, both are
-    // present on every page.
+    // The floating basket — one element now, on every page and every
+    // breakpoint, so this no longer has to resolve to whichever of a header
+    // button and a tab-bar button happened to be on screen.
     id: "cart",
     target: '[data-tour="cart"]',
     titleKey: "tour.cart.title",

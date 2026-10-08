@@ -7,6 +7,11 @@ export const dict = {
   "nav.store": { ar: "المتجر", en: "Store" },
   "nav.orders": { ar: "طلباتي", en: "My Orders" },
   "nav.favorites": { ar: "المفضلة", en: "Favorites" },
+  /* The phone tab bar's middle slot. One short word on purpose — at 320px a
+     tab is 64px wide, and "طلب مخصص" / "Custom request" wraps onto a second
+     line and collides with the slots either side. The full phrase still names
+     the button to a screen reader (custom.title) and heads the modal. */
+  "nav.custom": { ar: "مخصص", en: "Custom" },
   "brand.name": { ar: "رفوف", en: "rofoof" },
 
   // Toggles / aria
@@ -696,6 +701,35 @@ export const dict = {
   "dash.image": { ar: "صور المنتج (اختياري)", en: "Product images (optional)" },
   "dash.uploadImage": { ar: "اختر صورة", en: "Choose image" },
   "dash.cover": { ar: "الغلاف", en: "Cover" },
+  /* The thumbnail is the admin's choice, not images[0] — see coverImageOf(). */
+  "dash.makeCover": {
+    ar: "اجعلها صورة الغلاف",
+    en: "Make this the cover",
+  },
+
+  /* Print masters: the file a design is PRODUCED from, paired with the photo
+     that sells it. Two pictures of one design, uploaded and removed together. */
+  "dash.printPairHint": {
+    ar: "تحت كل صورة ضع ملف الطباعة المقابل لها — الصورة للزبون، والملف للتنفيذ على الستكر أو البروش أو البوستر.",
+    en: "Under each photo, add the print file it is produced from — the photo is for the customer, the file is what you print on the sticker, brooch or poster.",
+  },
+  "dash.printShort": { ar: "طباعة", en: "Print" },
+  "dash.printAdd": { ar: "أضف ملف الطباعة", en: "Add the print file" },
+  "dash.printReplace": { ar: "استبدل ملف الطباعة", en: "Replace the print file" },
+  "dash.printRemove": { ar: "حذف ملف الطباعة", en: "Remove the print file" },
+  "dash.printFiles": { ar: "ملفات الطباعة", en: "Print files" },
+  "dash.printDownloadAll": { ar: "تحميل ملفات الطباعة", en: "Download print files" },
+  /* The count includes files picked but not yet uploaded; the ZIP cannot. */
+  "dash.printPendingUpload": {
+    ar: "الملفات المضافة الآن تُرفع عند الحفظ، ولا تدخل في التحميل قبله.",
+    en: "Files added just now upload when you save, and aren't in the download until then.",
+  },
+  /* The column arrives with a migration that may not have been run. The product
+     still saved — only the print files had nowhere to go. */
+  "dash.printMigration": {
+    ar: "تم حفظ المنتج، لكن عمود ملفات الطباعة غير موجود في قاعدة البيانات بعد — لم تُربط ملفات الطباعة. شغّل docs/product-print-images.sql في Supabase ثم احفظ مرة أخرى.",
+    en: "The product saved, but the print-files column isn't in the database yet, so the print files were not attached. Run docs/product-print-images.sql in Supabase, then save again.",
+  },
   "dash.fieldDiscount": { ar: "الخصم %", en: "Discount %" },
   "dash.fieldStock": { ar: "المخزون", en: "Stock" },
   "dash.fieldDescAr": { ar: "الوصف (عربي)", en: "Description (Arabic)" },
@@ -779,8 +813,76 @@ export const dict = {
     ar: "تُحتسب تلقائياً على كل طلب حسب المحافظة",
     en: "Applied automatically to every order based on the province",
   },
-  "dash.feeKarbala": { ar: "كربلاء", en: "Karbala" },
-  "dash.feeOther": { ar: "باقي المحافظات", en: "Other provinces" },
+  "dash.feeDefault": {
+    ar: "الأجرة الافتراضية (لأي محافظة بلا سعر خاص)",
+    en: "Default fee (any province with no price of its own)",
+  },
+
+  /* Per-province delivery fees. The admin prices the handful of provinces that
+     differ; everything else falls back to the default fee above. */
+  "dash.provinceFees": {
+    ar: "أجور التوصيل حسب المحافظة",
+    en: "Delivery fee by province",
+  },
+  "dash.provinceFeesHint": {
+    ar: "حدّد المحافظات ثم اكتب السعر مرة واحدة، أو اكتب سعراً واحداً لإقليم كامل. المحافظة الفارغة تُحتسب بالأجرة الافتراضية.",
+    en: "Tick the provinces and type the price once, or price a whole region in one go. A province left blank is charged the default fee.",
+  },
+  "dash.feeSelectHint": {
+    ar: "حدّد محافظات لتسعيرها معاً",
+    en: "Tick provinces to price them together",
+  },
+  "dash.feeSelected": { ar: "محدّدة:", en: "Selected:" },
+  "dash.feeOnePrice": { ar: "سعر واحد", en: "One price" },
+  "dash.feeApplySelected": { ar: "طبّق على المحدّدة", en: "Apply to selected" },
+  "dash.feeSelectAll": { ar: "تحديد الكل", en: "Select all" },
+  "dash.feeSelectNone": { ar: "إلغاء التحديد", en: "Clear selection" },
+  "dash.feeProvincesLabel": { ar: "محافظة", en: "provinces" },
+  /* Worded per region: "الإقليم" is the Kurdistan Region specifically, so the
+     federal group has to name itself differently. See regionApplyKey(). */
+  "dash.feeApply.federal": {
+    ar: "طبّق على المحافظات",
+    en: "Apply to these provinces",
+  },
+  "dash.feeApply.kurdistan": { ar: "طبّق على الإقليم", en: "Apply to the Region" },
+  "dash.feeClear.federal": {
+    ar: "إرجاع المحافظات للأجرة الافتراضية",
+    en: "Reset these provinces to the default fee",
+  },
+  "dash.feeClear.kurdistan": {
+    ar: "إرجاع الإقليم للأجرة الافتراضية",
+    en: "Reset the Region to the default fee",
+  },
+  "dash.feeUseDefault": { ar: "إرجاع للافتراضي", en: "Reset to default" },
+  /* Said of a province with no price of its own. Deliberately avoids the word
+     "default": Karbala falls back to its own column, not to the default — see
+     fallbackFor() in the province editor. The number is appended by the
+     caller, so the tooltip always names the real price. */
+  "dash.feeUsesDefault": {
+    ar: "بلا سعر خاص — تُحتسب بـ",
+    en: "No price of its own — charged",
+  },
+  "dash.feeDefaultNote": {
+    ar: "الأجرة الافتراضية الحالية:",
+    en: "Current default fee:",
+  },
+  /* The table arrives with a migration that may not have been run yet, and
+     nothing else on this card saved — so it is named, not swallowed. */
+  "dash.provinceFeesMigration": {
+    ar: "جدول أجور المحافظات غير موجود في قاعدة البيانات بعد. شغّل docs/province-delivery-fees.sql في Supabase ثم أعد المحاولة — لم يتغيّر شيء، والتوصيل ما زال يُحتسب بالأجرة الافتراضية وأجرة كربلاء.",
+    en: "The per-province fee table isn't in the database yet. Run docs/province-delivery-fees.sql in Supabase, then try again — nothing was changed, and delivery is still charged at the default and Karbala rates.",
+  },
+
+  /* Delivery regions. A grouping for PRICING only — it changes what the fee
+     editor looks like, never what a province is called at checkout. */
+  "province.region.federal": {
+    ar: "المحافظات الاتحادية",
+    en: "Federal provinces",
+  },
+  "province.region.kurdistan": {
+    ar: "إقليم كردستان",
+    en: "Kurdistan Region",
+  },
   "dash.landingStats": {
     ar: "أرقام الصفحة الرئيسية",
     en: "Landing page stats",
@@ -1029,6 +1131,16 @@ export const dict = {
   "dash.finishRegularCount": { ar: "{n} عادي", en: "{n} regular" },
   "dash.downloadGroup": { ar: "تحميل هذه المجموعة", en: "Download this set" },
   "dash.downloadEverything": { ar: "تحميل الكل", en: "Download everything" },
+  /* Print masters inside an order — admin only. The customer's tracking page
+     shows the catalogue photos; this is the artwork they are produced from. */
+  "dash.printDownloadGroup": {
+    ar: "تحميل ملفات الطباعة",
+    en: "Download the print files",
+  },
+  "dash.printMissing": {
+    ar: "لا توجد ملفات طباعة لهذه التصاميم — أضفها من تعديل المنتج لتظهر هنا مع كل طلب.",
+    en: "No print files for these designs — add them in the product editor and they'll appear here on every order.",
+  },
   "dash.productDesigns": { ar: "تصاميم من المتجر", en: "Store designs" },
   /* Shown for orders placed before per-request grouping was recorded. Says the
      grouping is missing for THIS order, not that it is broken. */
