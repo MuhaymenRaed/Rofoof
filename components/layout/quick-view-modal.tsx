@@ -377,6 +377,13 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
         ) : (
           <span className="text-[120px] drop-shadow-sm">{product.emoji}</span>
         )}
+        {/* Same affordance as the phone: the photo says it opens. */}
+        {mainImage && (
+          <span className="pointer-events-none absolute bottom-3 end-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-ink/75 px-2.5 py-1.5 text-[11px] font-bold text-surface backdrop-blur-[2px]">
+            <Search size={12} />
+            {t("product.tapToExpandShort")}
+          </span>
+        )}
         {galleryThumbs && (
           <>
             <GalleryArrow side="start" onClick={() => stepGallery(-1)} label={t("aria.prev")} />
@@ -406,11 +413,21 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
       </div>
 
       {/* Details */}
-      <div className="flex max-h-[88vh] flex-col overflow-y-auto p-6">
+      {/* pb-0: the bottom padding belongs to the sticky action bar at the end
+          of this panel, so the bar can sit flush against the panel's edge. */}
+      <div className="flex max-h-[88vh] flex-col overflow-y-auto p-6 pb-0">
         {/* mobile media */}
         {mainImage ? (
           <div className="mb-4 md:hidden">
-            <div className="relative h-44 overflow-hidden rounded-2xl">
+            {/* Sized against the VIEWPORT, not a fixed step.
+                A flat h-44 (176px) was the same slab on a 667px iPhone SE and
+                on a 900px phone — too small to judge a sticker sheet by on
+                either. 38vh gives the photo a real share of the screen, and the
+                min/max keep it sane at both ends: never shorter than the old
+                height, never so tall it pushes everything else out of reach.
+                The price and the add button no longer depend on that anyway —
+                they are pinned to the bottom of this panel. */}
+            <div className="relative h-[38vh] max-h-72 min-h-44 overflow-hidden rounded-2xl">
               <button
                 type="button"
                 onClick={() => openViewer(mainImage)}
@@ -441,6 +458,15 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                   />
                 </>
               )}
+              {/* Says the photo opens, ON the photo.
+                  This used to be a line of grey text under the title, which is
+                  the one place nobody looks when they are looking AT a picture.
+                  `pointer-events-none` and placed after the button, so it sits
+                  on top visually while the tap still goes through to it. */}
+              <span className="pointer-events-none absolute bottom-2 end-2 inline-flex items-center gap-1.5 rounded-full bg-ink/75 px-2.5 py-1.5 text-[11px] font-bold text-surface backdrop-blur-[2px]">
+                <Search size={12} />
+                {t("product.tapToExpandShort")}
+              </span>
             </div>
           </div>
         ) : (
@@ -454,12 +480,9 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
 
         <h2 className="text-xl font-black leading-tight text-ink">{name}</h2>
         <p className="mt-0.5 text-sm text-ink-3">{sub}</p>
-        {mainImage && (
-          <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-ink-3">
-            <Search size={12} />
-            {t("product.tapToExpand")}
-          </p>
-        )}
+        {/* The "tap to expand" hint moved onto the photo itself — see the
+            badge in the media blocks above. A line of text under the title was
+            both easy to miss and a row of vertical space this panel needs. */}
 
         {/* Live offer notes */}
         {(flash || bundle || sale.active) && (
@@ -539,8 +562,11 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                       <RetryImage
                         src={it.imageUrl}
                         alt={itemName || ""}
-                        width={80}
-                        height={80}
+                        /* 160, not 80: the tile is ~80px CSS, so a 2× screen
+                           was upscaling the old file and softening the one
+                           thing these tiles exist to show. */
+                        width={160}
+                        height={160}
                         className="h-full w-full object-cover"
                         fallback={
                           <span
@@ -673,37 +699,9 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           </span>
         </div>
 
-        {/* Price */}
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-2xl font-black" style={{ color: "var(--c)" }}>
-            {formatPrice(displayTotal, lang)}
-          </span>
-          {showStruck && (
-            <>
-              <span className="text-sm font-bold text-ink-3 line-through">
-                {formatPrice(displayBase, lang)}
-              </span>
-              <span
-                dir="ltr"
-                className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-black text-white"
-              >
-                -{savedPercent}%
-              </span>
-            </>
-          )}
-          {displayFree > 0 && (
-            <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white">
-              {displayFree} {t("cart.free")}
-            </span>
-          )}
-        </div>
-        {savedAmount > 0 && (
-          <p className="mt-1.5 text-[12px] font-bold text-emerald-600">
-            {t("offer.youSave")} {formatPrice(savedAmount, lang)}
-          </p>
-        )}
-
-        {/* Notes */}
+        {/* Notes — above the price now, because everything below this point is
+            pinned to the bottom of the panel and a four-row textarea has no
+            business taking up that space. */}
         <label className="mt-5 block text-xs font-bold text-ink-2">{t("product.notes")}</label>
         <textarea
           value={note}
@@ -713,49 +711,97 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
           className="mt-2 min-h-28 w-full resize-y rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-3 focus:border-brand focus:bg-surface"
         />
 
-        {/* Actions */}
-        <div className="mt-5 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => toggleWish(product.id)}
-            aria-pressed={wished}
-            aria-label={t("aria.favorites")}
-            className={`tap grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition ${
-              wished ? "border-brand bg-brand text-white" : "border-line text-ink-2 hover:border-brand hover:text-brand"
-            }`}
-          >
-            <Heart size={20} filled={wished} />
-          </button>
+        {/* ---------------------------------------------------------------
+            What it costs and how to buy it — pinned to the bottom of the
+            panel, never scrolled away from.
 
-          {/* Standard/tiered keep a single quantity stepper; packages use the
-              per-item controls in the grid above. */}
-          {/* One-photo product: its own count is the ceiling. */}
-          {!isPackage && (
-            <QtyStepper
-              value={qty}
-              onChange={(q) => setQty(Math.max(1, q))}
-              max={stockCeilingFor(product) ?? undefined}
-            />
-          )}
+            This block used to sit at the end of a long column: on a phone, a
+            package with a dozen designs, an offer banner and a notes field put
+            the price and the add button below the fold, so the one question
+            the shopper came to answer ("how much, and how do I get it?")
+            needed a scroll to reach. `sticky bottom-0` keeps both in view the
+            whole time, and `-mx-6 px-6` lets the bar span the panel's padding
+            so it reads as a bar rather than a floating card.
 
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!canAdd || uploadingCustom}
-            className="tap cta flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:bg-ink-3"
-          >
-            {soldOut ? (
-              t("product.soldout")
-            ) : added ? (
+            The parent's bottom padding moved here (`pb-6`) — otherwise the bar
+            would stick 24px up from the bottom edge and leave a strip of
+            scrolling content showing underneath it.
+            --------------------------------------------------------------- */}
+        <div className="sticky bottom-0 z-10 -mx-6 mt-5 border-t border-line-2 bg-surface/95 px-6 pb-6 pt-4 backdrop-blur">
+          {/* Price */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-2xl font-black" style={{ color: "var(--c)" }}>
+              {formatPrice(displayTotal, lang)}
+            </span>
+            {showStruck && (
               <>
-                <Check size={18} /> {t("product.added")}
-              </>
-            ) : (
-              <>
-                <Cart size={18} /> {t("product.add")}
+                <span className="text-sm font-bold text-ink-3 line-through">
+                  {formatPrice(displayBase, lang)}
+                </span>
+                <span
+                  dir="ltr"
+                  className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-black text-white"
+                >
+                  -{savedPercent}%
+                </span>
               </>
             )}
-          </button>
+            {displayFree > 0 && (
+              <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white">
+                {displayFree} {t("cart.free")}
+              </span>
+            )}
+          </div>
+          {savedAmount > 0 && (
+            <p className="mt-1.5 text-[12px] font-bold text-emerald-600">
+              {t("offer.youSave")} {formatPrice(savedAmount, lang)}
+            </p>
+          )}
+
+          {/* Actions */}
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => toggleWish(product.id)}
+              aria-pressed={wished}
+              aria-label={t("aria.favorites")}
+              className={`tap grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition ${
+                wished ? "border-brand bg-brand text-white" : "border-line text-ink-2 hover:border-brand hover:text-brand"
+              }`}
+            >
+              <Heart size={20} filled={wished} />
+            </button>
+
+            {/* Standard/tiered keep a single quantity stepper; packages use the
+                per-item controls in the grid above. */}
+            {/* One-photo product: its own count is the ceiling. */}
+            {!isPackage && (
+              <QtyStepper
+                value={qty}
+                onChange={(q) => setQty(Math.max(1, q))}
+                max={stockCeilingFor(product) ?? undefined}
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={!canAdd || uploadingCustom}
+              className="tap cta flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:bg-ink-3"
+            >
+              {soldOut ? (
+                t("product.soldout")
+              ) : added ? (
+                <>
+                  <Check size={18} /> {t("product.added")}
+                </>
+              ) : (
+                <>
+                  <Cart size={18} /> {t("product.add")}
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

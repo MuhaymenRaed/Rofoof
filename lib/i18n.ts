@@ -701,10 +701,24 @@ export const dict = {
   "dash.image": { ar: "صور المنتج (اختياري)", en: "Product images (optional)" },
   "dash.uploadImage": { ar: "اختر صورة", en: "Choose image" },
   "dash.cover": { ar: "الغلاف", en: "Cover" },
-  /* The thumbnail is the admin's choice, not images[0] — see coverImageOf(). */
+  /* The thumbnail is the admin's choice, not images[0] — see cardImageOf(). */
   "dash.makeCover": {
     ar: "اجعلها صورة الغلاف",
     en: "Make this the cover",
+  },
+
+  /* A picture for the product CARD alone — never in the gallery or lightbox. */
+  "dash.cardImage": { ar: "صورة الكارت", en: "Card image" },
+  "dash.cardImageAdd": { ar: "أضف", en: "Add" },
+  "dash.cardImageReplace": { ar: "استبدل صورة الكارت", en: "Replace the card image" },
+  "dash.cardImageRemove": { ar: "حذف صورة الكارت", en: "Remove the card image" },
+  "dash.cardImageSet": {
+    ar: "تظهر في كارت المنتج فقط — لا تُعرض ضمن صور المنتج ولا عند التكبير، وتسبق الصورة المختارة بالنجمة.",
+    en: "Shown on the product card only — never in the gallery or the lightbox, and it beats the starred photo.",
+  },
+  "dash.cardImageEmpty": {
+    ar: "اختياري. بدونها يظهر في الكارت الصورة المختارة بالنجمة، أو أول صورة.",
+    en: "Optional. Without it the card shows the starred photo, or the first one.",
   },
 
   /* Print masters: the file a design is PRODUCED from, paired with the photo
@@ -1362,6 +1376,10 @@ export const dict = {
   "product.from": { ar: "يبدأ من", en: "From" },
   "product.feature": { ar: "إضافة إلى المختارات", en: "Add to featured" },
   "product.unfeature": { ar: "إزالة من المختارات", en: "Remove from featured" },
+  /* Short enough to ride on the photo as a badge — see the quick-view modal.
+     The long form below is kept for screen readers and anywhere a full
+     sentence still reads better. */
+  "product.tapToExpandShort": { ar: "اضغط للتكبير", en: "Tap to expand" },
   "product.tapToExpand": {
     ar: "اضغط على الصورة لتكبيرها ورؤيتها كاملة",
     en: "Tap the image to expand and see it fully",
