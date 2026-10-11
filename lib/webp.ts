@@ -9,7 +9,9 @@
 
 import { smallVariantsFor } from "@/lib/media";
 
-export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB per source image
+// Re-exported from a directive-free module so the server can import them too
+// without crossing the "use client" boundary — see lib/media-limits.ts.
+export { MAX_UPLOAD_BYTES, IMAGE_CACHE_CONTROL } from "@/lib/media-limits";
 /**
  * Longest edge for artwork a customer sends us to PRODUCE — kept at print
  * resolution because the admin prints from this exact file.
@@ -28,14 +30,6 @@ export const DISPLAY_MAX_DIMENSION = 1600;
  * bytes, not visible quality.
  */
 const WEBP_QUALITY = 0.78;
-
-/**
- * Uploaded files are immutable — every path carries a UUID or timestamp, so a
- * given URL always returns the same bytes. Caching them for a year means the
- * CDN answers repeat views instead of re-fetching from storage (the default is
- * only one hour, which quietly burns egress on files that never change).
- */
-export const IMAGE_CACHE_CONTROL = "31536000"; // seconds = 365 days
 
 export interface WebpResult {
   blob: Blob;

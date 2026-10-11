@@ -5,7 +5,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireAdmin } from "@/lib/auth/dal";
 import { isR2Prefix, r2Bucket, r2Client, r2PublicUrl, type R2Prefix } from "@/lib/r2";
-import { IMAGE_CACHE_CONTROL, MAX_UPLOAD_BYTES } from "@/lib/webp";
+import { IMAGE_CACHE_CONTROL, MAX_UPLOAD_BYTES } from "@/lib/media-limits";
 
 /**
  * Hand the browser short-lived permission to PUT a handful of objects into R2.
@@ -37,6 +37,19 @@ import { IMAGE_CACHE_CONTROL, MAX_UPLOAD_BYTES } from "@/lib/webp";
  * about keeping that door exactly as wide as it has to be.
  */
 
+/**
+ * The failing field(s), short enough to put in a toast.
+ *
+ * Deliberately paths and codes only, never the received value: this runs on
+ * input from an unauthenticated caller, and echoing it back into the admin's
+ * UI would be a way to get attacker-chosen text onto their screen.
+ */
+function describeIssues(error: z.ZodError): string {
+  return [...new Set(error.issues.map((i) => i.path.filter((p) => typeof p === "string").join(".") || "root"))]
+    .slice(0, 3)
+    .join(",");
+}
+
 const MAX_KEYS = 8;
 /** Long enough for a slow upload on bad mobile data, short enough to not linger. */
 const EXPIRES_SECONDS = 300;
@@ -50,17 +63,34 @@ const EXPIRES_SECONDS = 300;
  * links straight to artwork with `target="_blank"` — so a customer could have
  * had script running in the admin's browser just by "uploading a design".
  *
- * These three are everything the uploader can legitimately produce:
- * `lib/webp.ts` encodes to WebP, falls back to JPEG, and only passes an
- * original through when the canvas is unavailable entirely. A PNG original in
- * that rare path is fine; an SVG one is refused, which is the right trade.
+ * Raster formats only. The point is not "image/*" — that admits
+ * `image/svg+xml`, and an SVG is a script document — but it must still be
+ * wider than what the encoder normally emits.
  *
- * This allowlist is ENFORCED, not advisory: the content type is signed into
- * the URL (see `signableHeaders` below), so a caller cannot declare one type
- * here and upload another. Getting that wrong is what made the first version
- * of this file a stored-XSS hole.
+ * `lib/webp.ts` converts to WebP and falls back to JPEG, so almost everything
+ * arrives as one of the first two. But it deliberately passes the ORIGINAL
+ * through when the canvas cannot decode it at all, on the stated grounds that
+ * losing a customer's artwork is worse than storing it fat — and on the phones
+ * this shop runs on that original is routinely HEIC. A three-type list quietly
+ * broke that path and turned "we kept your file" into a failed upload.
+ *
+ * None of these can execute; SVG and anything XML stay out.
+ *
+ * ENFORCED, not advisory: the content type is signed into the URL (see
+ * `signableHeaders` below), so a caller cannot declare one type here and
+ * upload another.
  */
-const ALLOWED_CONTENT_TYPES = ["image/webp", "image/jpeg", "image/png"] as const;
+const ALLOWED_CONTENT_TYPES = [
+  "image/webp",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+  "image/bmp",
+  "image/tiff",
+] as const;
 
 /**
  * Object keys the browser may ask to sign.
@@ -86,7 +116,7 @@ const KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$/;
  * rule on media.rofoof.net. This check is the cheap second layer: it keeps the
  * key namespace honest, so nothing is ever addressable as `…/evil.svg`.
  */
-const ALLOWED_EXT_RE = /\.(webp|jpe?g|png)$/i;
+const ALLOWED_EXT_RE = /\.(webp|jpe?g|png|gif|avif|heic|heif|bmp|tiff?)$/i;
 
 const schema = z.object({
   prefix: z.string().refine(isR2Prefix, "unknown bucket"),
@@ -130,7 +160,14 @@ export async function signUploadUrlsAction(input: {
   contentType: string;
 }): Promise<SignUploadResult> {
   const parsed = schema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  if (!parsed.success) {
+    // Name the field. A bare "invalid_input" from a schema this wide is
+    // undebuggable from the browser — it was, and finding out which rule had
+    // tripped meant guessing. The issue list also goes to the server log,
+    // where the received value is safe to look at.
+    console.error("[upload] rejected:", JSON.stringify(parsed.error.issues));
+    return { ok: false, error: `invalid_input:${describeIssues(parsed.error)}` };
+  }
   const { prefix, parts, contentType } = parsed.data;
 
   // The product catalogue is admin-only; customer artwork is open, exactly as

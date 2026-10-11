@@ -260,7 +260,22 @@ export async function upsertProductAction(
 ): Promise<UpsertProductResult> {
   await requireAdmin();
   const parsed = upsertProductSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  if (!parsed.success) {
+    // Which field, not just "something". This schema has twenty-five of them
+    // and the editor only ever showed the bare code, so a rejected save gave
+    // the admin nothing to act on and nothing to report.
+    const where = [
+      ...new Set(
+        parsed.error.issues.map(
+          (i) => i.path.filter((p) => typeof p === "string").join(".") || "root",
+        ),
+      ),
+    ]
+      .slice(0, 3)
+      .join(",");
+    console.error("[products] rejected:", JSON.stringify(parsed.error.issues));
+    return { ok: false, error: `invalid_input:${where}` };
+  }
   const p = parsed.data;
 
   const supabase = await createSupabaseServerClient();
