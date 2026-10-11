@@ -465,7 +465,7 @@ export const dict = {
      The bare label read as "this month" and was out by a factor of five (101
      against 21 at the time of writing), so the window is on the label now.
      For a figure you can actually scope, use the period panel above it. */
-  "dash.newUsers": { ar: "عملاء جدد (آخر ٣٠ يوم)", en: "New clients (last 30 days)" },
+  "dash.totalClients": { ar: "إجمالي العملاء", en: "Total clients" },
   "dash.activeOrders": { ar: "طلبات نشطة", en: "Active orders" },
   "dash.revenue": { ar: "إجمالي الإيرادات", en: "Total revenue" },
   "dash.periodStats": { ar: "إحصائيات الفترة", en: "Period stats" },

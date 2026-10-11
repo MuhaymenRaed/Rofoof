@@ -19,8 +19,17 @@ export interface DashboardStats {
   lowStock: number;
   outOfStock: number;
   onDiscount: number;
-  newUsers: number;
-  totalCustomers: number;
+  /**
+   * Every account the shop has ever had.
+   *
+   * Counted straight from `profiles`, NOT from dashboard_stats(). The RPC's
+   * `total_customers` cannot be verified from here — it is `is_admin()`-gated
+   * and refuses the service role — and this tile sits beside a period panel
+   * reporting the same population from `profiles`. Two "total clients" that
+   * disagree on one screen is worse than one that is checkable, which is the
+   * same call already made above for the stock counts.
+   */
+  totalClients: number;
   activeOrders: number;
   deliveredOrders: number;
   totalOrders: number;
@@ -48,8 +57,7 @@ const EMPTY_STATS: DashboardStats = {
   lowStock: 0,
   outOfStock: 0,
   onDiscount: 0,
-  newUsers: 0,
-  totalCustomers: 0,
+  totalClients: 0,
   activeOrders: 0,
   deliveredOrders: 0,
   totalOrders: 0,
@@ -162,7 +170,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
    *
    * Everything else still comes from the RPC.
    */
-  const { counts } = await getStockIndex();
+  // Side by side: different tables, and the page needs both before it renders.
+  const [{ counts }, clientsRes] = await Promise.all([
+    getStockIndex(),
+    createAdminClient().from("profiles").select("id", { count: "exact", head: true }),
+  ]);
 
   return {
     inStock: counts.inStock,
@@ -170,8 +182,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     lowStock: counts.lowUnits,
     outOfStock: counts.outUnits,
     onDiscount: n("on_discount"),
-    newUsers: n("new_users"),
-    totalCustomers: n("total_customers"),
+    totalClients: clientsRes.error ? 0 : clientsRes.count ?? 0,
     activeOrders: n("active_orders"),
     deliveredOrders: n("delivered_orders"),
     totalOrders: n("total_orders"),
