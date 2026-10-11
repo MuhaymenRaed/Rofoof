@@ -63,11 +63,23 @@ export async function uploadImagePair({
   // already be struggling.
   const taggedFull = variantName(base, maxDimension, ext);
   const untaggedFull = `${base}.${ext}`;
-  const variantKeys = image.variants.map((v) => variantName(base, v.width, v.ext));
 
+
+  // Sizes travel with the keys because the server signs the exact byte length
+  // of each body — an open-ended presigned PUT into an anonymous-writable
+  // bucket is an invitation to fill it. Both full-size candidates carry the
+  // same blob, so they declare the same length.
+  const fullSize = image.full.blob.size;
   const signed = await signUploadUrlsAction({
     prefix: bucket,
-    keys: [...variantKeys, taggedFull, untaggedFull],
+    parts: [
+      ...image.variants.map((v) => ({
+        key: variantName(base, v.width, v.ext),
+        size: v.blob.size,
+      })),
+      { key: taggedFull, size: fullSize },
+      { key: untaggedFull, size: fullSize },
+    ],
     contentType: image.full.contentType,
   });
   if (!signed.ok) return { ok: false, error: signed.error };

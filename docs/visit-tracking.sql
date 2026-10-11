@@ -26,6 +26,14 @@
 --  cannot read anybody's. Granting select to `anon` to save a service-role call
 --  would publish the shop's traffic to every visitor.
 --
+--  WHAT THIS DOES *NOT* DEFEND AGAINST
+--  An open insert policy cannot rate-limit. A determined caller can still POST
+--  many rows and inflate the visit figures — the column check bounds what each
+--  row can COST (no unbounded text), not how many arrive. These numbers are
+--  shop analytics, not billing or stock, so that trade is deliberate. If the
+--  counts ever start looking wrong, the fix is a Cloudflare rate-limit rule on
+--  the REST path, not a policy change here.
+--
 --  WHAT IS RECORDED
 --  One row per page per browser tab — not per navigation. `visitor_id` is the
 --  anonymous device marker the coupon limiter already uses: a random uuid in a
@@ -52,6 +60,20 @@ create table if not exists public.page_views (
   visitor_id uuid not null,
   created_at timestamptz not null default now()
 );
+
+-- The insert policy below is open to anonymous callers, so the COLUMN has to
+-- do the validating — the client's `pathname.slice(0, 200)` is a courtesy, not
+-- a control, and anyone can POST here directly. Without this an unbounded text
+-- field is free blob storage in the shop's database.
+--
+-- Deliberately a shape check and not an allowlist of routes: the route table
+-- changes, and a visit to a page we forgot to list should be counted, not
+-- rejected.
+alter table public.page_views
+  drop constraint if exists page_views_path_shape;
+alter table public.page_views
+  add constraint page_views_path_shape
+  check (page_path like '/%' and length(page_path) between 1 and 200);
 
 alter table public.page_views enable row level security;
 
