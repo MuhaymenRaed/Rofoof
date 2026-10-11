@@ -54,6 +54,11 @@ const EXPIRES_SECONDS = 300;
  * `lib/webp.ts` encodes to WebP, falls back to JPEG, and only passes an
  * original through when the canvas is unavailable entirely. A PNG original in
  * that rare path is fine; an SVG one is refused, which is the right trade.
+ *
+ * This allowlist is ENFORCED, not advisory: the content type is signed into
+ * the URL (see `signableHeaders` below), so a caller cannot declare one type
+ * here and upload another. Getting that wrong is what made the first version
+ * of this file a stored-XSS hole.
  */
 const ALLOWED_CONTENT_TYPES = ["image/webp", "image/jpeg", "image/png"] as const;
 
@@ -182,7 +187,25 @@ export async function signUploadUrlsAction(input: {
             CacheControl: `public, max-age=${IMAGE_CACHE_CONTROL}, immutable`,
             ...(createOnly ? { IfNoneMatch: "*" } : {}),
           }),
-          { expiresIn: EXPIRES_SECONDS },
+          {
+            expiresIn: EXPIRES_SECONDS,
+            /**
+             * Put `content-type` INTO the signature.
+             *
+             * Without this the presigner signs only
+             * `content-length;host;if-none-match`, so the allowlist above is
+             * advisory: a caller declares `image/webp`, PUTs
+             * `Content-Type: image/svg+xml`, and R2 stores and serves an
+             * executable document. That was verified against the live bucket,
+             * and so is this fix — the same spoof now comes back 403.
+             *
+             * Every part of one upload shares a content type: `toWebpVariants`
+             * abandons the whole ladder unless each variant encodes to the same
+             * format as the full-size file, so signing one type for all of them
+             * cannot wedge a legitimate upload.
+             */
+            signableHeaders: new Set(["content-type"]),
+          },
         ),
         publicUrl: r2PublicUrl(key),
       })),
