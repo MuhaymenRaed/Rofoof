@@ -1,4 +1,11 @@
 /**
+ * SUPERSEDED — this writes to SUPABASE STORAGE, which no longer holds the
+ * shop's media. The files moved to Cloudflare R2 (see lib/r2.ts and
+ * scripts/migrate-storage-to-r2.mjs); running this now would upload variants
+ * into a bucket nothing reads and repoint live rows at them. Kept for the
+ * encoding logic, which is still the right ladder — port it to the R2 client
+ * before using it again.
+ *
  * One-off backfill: give every pre-existing storage image the width variants
  * that `lib/image-loader.ts` expects.
  *

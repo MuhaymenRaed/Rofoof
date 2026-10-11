@@ -460,7 +460,12 @@ export const dict = {
   "dash.featured": { ar: "المميّزة", en: "Featured" },
   "dash.customers": { ar: "العملاء", en: "Customers" },
   "dash.inStock": { ar: "متوفر", en: "In stock" },
-  "dash.newUsers": { ar: "مستخدمون جدد", en: "New users" },
+  /* This tile is a ROLLING 30 DAYS, not a calendar month — it comes from
+     dashboard_stats(), which counts profiles created since now() - 30 days.
+     The bare label read as "this month" and was out by a factor of five (101
+     against 21 at the time of writing), so the window is on the label now.
+     For a figure you can actually scope, use the period panel above it. */
+  "dash.totalClients": { ar: "إجمالي العملاء", en: "Total clients" },
   "dash.activeOrders": { ar: "طلبات نشطة", en: "Active orders" },
   "dash.revenue": { ar: "إجمالي الإيرادات", en: "Total revenue" },
   "dash.periodStats": { ar: "إحصائيات الفترة", en: "Period stats" },
@@ -827,6 +832,24 @@ export const dict = {
     ar: "تُحتسب تلقائياً على كل طلب حسب المحافظة",
     en: "Applied automatically to every order based on the province",
   },
+  /* The audience half of the period panel. Every one of these moves with the
+     day/month/year picker, exactly like the money figures above them — which is
+     what distinguishes them from the similarly-named all-time tiles on the
+     overview (dash.newUsers is a fixed 30-day window; dash.totalCustomers is
+     all-time). Each label states its own window so the two can't be confused. */
+  "dash.audience": { ar: "الزوار والعملاء", en: "Audience" },
+  /* The one line that separates this block from the all-time tiles below it. */
+  "dash.inPeriod": { ar: "خلال الفترة المحددة", en: "in the selected period" },
+  "dash.newClients": { ar: "عملاء جدد", en: "New clients" },
+  "dash.visits": { ar: "الزيارات", en: "Visits" },
+  "dash.visitors": { ar: "الزوار", en: "Visitors" },
+  /* Shown only while visits read zero — the table refuses the storefront's
+     writes until the migration is run, and that is the likeliest reason. */
+  "dash.visitsHint": {
+    ar: "لا توجد زيارات مسجّلة لهذه الفترة. إن كانت صفراً دائماً، شغّل docs/visit-tracking.sql في Supabase لتفعيل تسجيل الزيارات.",
+    en: "No visits recorded for this period. If it is always zero, run docs/visit-tracking.sql in Supabase to switch visit recording on.",
+  },
+
   "dash.feeDefault": {
     ar: "الأجرة الافتراضية (لأي محافظة بلا سعر خاص)",
     en: "Default fee (any province with no price of its own)",

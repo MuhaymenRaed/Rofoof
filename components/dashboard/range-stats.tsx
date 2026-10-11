@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { useStore } from "@/components/providers/store-provider";
-import { TrendIcon } from "@/components/dashboard/dash-icons";
+import { TrendIcon, UsersIcon } from "@/components/dashboard/dash-icons";
 import { formatPrice } from "@/lib/format";
 import { loadRangeStatsAction } from "@/lib/actions/dashboard";
 import type { RangeGrain, RangeStats } from "@/lib/data/dashboard";
@@ -103,6 +103,24 @@ export function RangeStats() {
     { key: "status.delivered", value: String(stats?.delivered ?? 0) },
   ];
 
+  /**
+   * Who was here, over the SAME period as the money above — every one of them,
+   * with no exceptions.
+   *
+   * An all-time "total clients" card used to sit in here too, and it was a
+   * mistake twice over: the overview below already carries that figure
+   * (MINI_META, dash.totalCustomers), and a card that ignored the picker inside
+   * a panel whose whole point is the picker left two near-identical labels
+   * showing different numbers with nothing to tell them apart. Everything in
+   * this block now answers exactly one question — "in the period you picked" —
+   * and the subtitle says so once instead of tagging each card.
+   */
+  const audienceCards: { key: DictKey; value: string }[] = [
+    { key: "dash.newClients", value: String(stats?.audience.newClients ?? 0) },
+    { key: "dash.visits", value: String(stats?.audience.visits ?? 0) },
+    { key: "dash.visitors", value: String(stats?.audience.visitors ?? 0) },
+  ];
+
   return (
     <section className="mb-5 rounded-2xl border border-line-2 bg-surface p-5 card-shadow">
       <div className="flex flex-wrap items-center gap-3">
@@ -159,6 +177,39 @@ export function RangeStats() {
             <p className="mt-1 text-lg font-black text-ink">{c.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Audience — the same period as the money above, in its own teal block
+          so the two kinds of number are not read as one row of eight. */}
+      <div
+        className={`mt-3 rounded-xl border border-teal-500/40 bg-teal-500/5 p-3 ${
+          pending ? "opacity-60" : ""
+        }`}
+      >
+        <p className="flex flex-wrap items-center gap-x-1.5 text-[11px] font-bold text-teal-600">
+          <UsersIcon size={13} />
+          {t("dash.audience")}
+          {/* Said once, here, rather than tagged onto three cards: every figure
+              below is scoped to the picker at the top of this panel. It is the
+              one thing that separates these from the all-time tiles further
+              down the page. */}
+          <span className="font-semibold text-ink-3">· {t("dash.inPeriod")}</span>
+        </p>
+        <div className="mt-2 grid grid-cols-3 gap-3">
+          {audienceCards.map((c) => (
+            <div key={c.key} className="rounded-xl border border-line-2 bg-surface p-3">
+              <p className="text-[11px] font-semibold text-ink-3">{t(c.key)}</p>
+              <p className="mt-1 text-lg font-black text-ink">{c.value}</p>
+            </div>
+          ))}
+        </div>
+        {/* Visits are only counted from the moment docs/visit-tracking.sql is
+            run — before that the storefront's writes are refused by RLS. Said
+            once, and only while the figure is actually zero, so it disappears
+            of its own accord rather than nagging forever. */}
+        {stats && stats.audience.visits === 0 && (
+          <p className="mt-2 text-[11px] leading-snug text-ink-3">{t("dash.visitsHint")}</p>
+        )}
       </div>
 
       {/* What the goods themselves earned this period — delivery stripped out,

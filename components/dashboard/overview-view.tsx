@@ -44,7 +44,11 @@ const STAT_META: {
   ratioOf?: keyof DashboardStats;
 }[] = [
   { key: "dash.inStock", color: "#22c55e", icon: "package", field: "inStock", ratioOf: "totalProducts" },
-  { key: "dash.newUsers", color: "#0ea5a4", icon: "users", field: "newUsers" },
+  // All-time, and the only place the shop's total customer count appears.
+  // It used to be a rolling 30-day "new users" figure here and an all-time
+  // one down in the mini stats, which read as two unrelated numbers; the
+  // period panel above now owns "new in a span", so this owns the total.
+  { key: "dash.totalClients", color: "#0ea5a4", icon: "users", field: "totalClients" },
   { key: "dash.activeOrders", color: "#8b5cf6", icon: "bag", field: "activeOrders" },
   { key: "dash.revenue", color: "#e8321a", icon: "trend", field: "revenue", money: true },
 ];
@@ -54,7 +58,7 @@ const MINI_META: { key: DictKey; field: keyof DashboardStats; money?: boolean; a
   { key: "dash.deliveredOrders", field: "deliveredOrders" },
   { key: "dash.avgOrder", field: "avgOrder", money: true },
   { key: "dash.revenue30d", field: "revenue30d", money: true },
-  { key: "dash.totalCustomers", field: "totalCustomers" },
+
   { key: "dash.onDiscount", field: "onDiscount" },
   // Per shelf unit (a package's designs, or the product) — see getDashboardStats.
   { key: "dash.unitsLow", field: "lowStock", alert: true },
