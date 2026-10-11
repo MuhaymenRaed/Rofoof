@@ -57,6 +57,28 @@ and PUTs to those URLs. The permission split RLS used to enforce —
 `product-images` admin-only, `custom-artwork` open to any visitor — now lives in
 `lib/actions/upload.ts`. Keep it there and keep it that shape.
 
+**A Cloudflare response-header rule on `media.rofoof.net` is load-bearing, not
+hardening.** It sets `Content-Security-Policy: default-src 'none';
+style-src 'unsafe-inline'; sandbox` and `X-Content-Type-Options: nosniff` on
+every response from that host. Do not remove it, and do not assume the
+server-side content-type allowlist replaces it:
+
+- The presigner does **not** sign `content-type` — the signature covers
+  `content-length;host;if-none-match`. A caller can therefore declare
+  `image/webp` to the action and then PUT `Content-Type: image/svg+xml`, and
+  R2 will store and serve it as SVG. This is verified behaviour, not theory.
+- An SVG is a script document, and these URLs are opened directly — the admin's
+  orders board links to artwork with `target="_blank"`. Without the CSP that is
+  stored XSS reachable by any anonymous visitor, because customer artwork
+  upload is deliberately unauthenticated.
+- R2 does not support presigned POST, so there is no way to make content-type a
+  signed policy condition instead. The edge rule is the control.
+
+The rule lives in the `http_response_headers_transform` phase of the
+`rofoof.net` zone. A static scan of this repo cannot see it, so it will keep
+flagging the allowlist in `lib/actions/upload.ts` as insufficient — on its own,
+it is.
+
 Nothing else sits in front of Storage: no proxy to absorb a dropped request,
 and `next/image` never retries one it lost. So, for any remote Storage URL:
 
