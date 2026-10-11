@@ -42,6 +42,21 @@ quota out:
   blob: previews) pass through untouched, so a deploy can safely land before
   `scripts/backfill-image-variants.mjs` has run.
 
+**Media is on Cloudflare R2, not Supabase Storage.** Supabase's 1 GB free tier
+ran out at 1.5 GB across 23k objects, so the files moved to R2 (10 GB free) and
+are served from `https://media.rofoof.net`. The database did NOT move. Keys kept
+their Supabase paths byte-for-byte, with the old bucket name as the first
+segment (`product-images/…`, `custom-artwork/…`), precisely so the `-w<n>`
+ladder above kept working — see `lib/r2.ts`.
+
+One consequence worth knowing before touching uploads: **the browser can no
+longer write to storage directly.** Supabase had RLS deciding who could write
+what; R2 has no per-user auth and its secret must never reach the client. So
+`uploadImagePair()` asks the server to sign the exact keys it is about to write
+and PUTs to those URLs. The permission split RLS used to enforce —
+`product-images` admin-only, `custom-artwork` open to any visitor — now lives in
+`lib/actions/upload.ts`. Keep it there and keep it that shape.
+
 Nothing else sits in front of Storage: no proxy to absorb a dropped request,
 and `next/image` never retries one it lost. So, for any remote Storage URL:
 
@@ -58,7 +73,7 @@ and `next/image` never retries one it lost. So, for any remote Storage URL:
   in-browser blob previews — no network, nothing to retry.
 - Uploads are re-encoded to WebP and capped client-side before they reach
   Storage (`lib/webp.ts`). Keep new upload paths going through it.
-- The service worker (`public/sw.js`) caches storage images and **nothing
+- The service worker (`public/sw.js`) caches media images and **nothing
   else** — HTML, RSC payloads and every Supabase REST call still go to the
   network, so prices and stock can't go stale. Image objects are immutable
   (every path carries a UUID or timestamp), which is the only reason that

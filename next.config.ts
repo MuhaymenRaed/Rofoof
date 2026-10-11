@@ -56,6 +56,10 @@ const nextConfig: NextConfig = {
     // Inert while `loader` is custom (nothing reaches the built-in optimizer to
     // be validated), kept so the allowed hosts stay documented in one place.
     remotePatterns: [
+      // Media lives on Cloudflare R2 now; Supabase stays listed because rows
+      // written before the migration keep their old URLs until
+      // docs/media-urls-to-r2.sql has run, and both have to render meanwhile.
+      { protocol: "https", hostname: "media.rofoof.net" },
       { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
       { protocol: "https", hostname: "images.unsplash.com" },
     ],

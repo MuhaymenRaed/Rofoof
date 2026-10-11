@@ -24,10 +24,31 @@
  * connection at all.
  */
 
-const IMAGE_CACHE = "rofoof-storage-images-v1";
+// Bumped to v2 with the move to R2: the old cache is keyed by Supabase URLs
+// that nothing requests any more, so the activate handler below deletes it
+// rather than leaving a few hundred dead entries on every phone.
+const IMAGE_CACHE = "rofoof-storage-images-v2";
 
-/** Public Storage objects only — never the REST, auth or realtime endpoints. */
-const STORAGE_PATH = "/storage/v1/object/public/";
+/**
+ * Which requests are cacheable media.
+ *
+ * Media lives on Cloudflare R2 now, served from its own hostname, so matching
+ * is by HOST rather than by the `/storage/v1/object/public/` path this used to
+ * look for. That path check silently stopped matching anything the moment the
+ * URLs changed — the cache would have quietly done nothing, which on this
+ * shop's connections is the difference between a repeat visit costing zero
+ * bytes and costing a full catalogue of thumbnails.
+ *
+ * Supabase is still matched: rows written before the migration keep their old
+ * URLs until the database rewrite lands, and nothing says both cannot be in
+ * flight at once.
+ */
+const MEDIA_HOSTS = ["media.rofoof.net"];
+const SUPABASE_STORAGE_PATH = "/storage/v1/object/public/";
+
+function isMedia(url) {
+  return MEDIA_HOSTS.includes(url.hostname) || url.pathname.includes(SUPABASE_STORAGE_PATH);
+}
 
 /**
  * Roughly a full catalogue of thumbnails plus the photos of anything actually
@@ -72,9 +93,9 @@ self.addEventListener("fetch", (event) => {
   } catch {
     return;
   }
-  // Everything that isn't a public storage object keeps its old behaviour:
-  // untouched, straight to the network.
-  if (!url.pathname.includes(STORAGE_PATH)) return;
+  // Everything that isn't a media object keeps its old behaviour: untouched,
+  // straight to the network.
+  if (!isMedia(url)) return;
 
   // Key without the query string. The retry hook appends `?retry=N` to defeat
   // negative caching, and keying on the full URL would make every one of those
