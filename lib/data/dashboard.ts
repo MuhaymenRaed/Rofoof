@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { mapProduct, selectProducts, type ProductRowWithFandoms } from "./mappers";
 import { type Product, type OrderStatus } from "@/lib/products";
 import { getStockIndex, type StockFilter } from "./stock";
@@ -238,6 +239,93 @@ export async function getWeeklyRevenue(): Promise<WeeklyRevenuePoint[]> {
     }));
 }
 
+/* --------------------------- Audience metrics --------------------------- */
+
+/** Who was on the site in a period, and how many customers the shop has. */
+export interface AudienceStats {
+  /** accounts created inside the picked period */
+  newClients: number;
+  /** pages opened in the period */
+  visits: number;
+  /** distinct browsers behind those visits */
+  visitors: number;
+}
+
+const EMPTY_AUDIENCE: AudienceStats = {
+  newClients: 0,
+  visits: 0,
+  visitors: 0,
+};
+
+/**
+ * How many visitor ids are pulled back to count the distinct ones.
+ *
+ * PostgREST has no COUNT(DISTINCT), so the ids come back and a Set does the
+ * counting. One row is written per page per session, so a busy month for this
+ * shop is a few thousand — well inside this. Past the cap the visitor figure
+ * becomes a floor rather than a total; `visits` stays exact either way, because
+ * that one is a count header and never fetches rows.
+ */
+const VISITOR_SCAN_CAP = 10000;
+
+/**
+ * Audience figures for a period: new accounts, total accounts, visits and
+ * visitors.
+ *
+ * Read with the SERVICE-ROLE client on purpose. This is an admin-only screen,
+ * and `page_views` is written by anonymous shoppers — giving it a read policy
+ * as well as an insert policy would mean every visitor could read the shop's
+ * traffic. Going around RLS here keeps the table write-only to the public.
+ *
+ * Every figure degrades to 0 on its own rather than failing the panel: until
+ * docs/visit-tracking.sql has been run the table rejects writes, so the visit
+ * numbers are legitimately zero and the client numbers still work.
+ */
+export async function getAudienceStats(
+  fromIso: string,
+  toIso: string,
+): Promise<AudienceStats> {
+  try {
+    const supabase = createAdminClient();
+
+    const [newClientsRes, visitsRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso),
+      supabase
+        .from("page_views")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso),
+    ]);
+
+    const visits = visitsRes.error ? 0 : visitsRes.count ?? 0;
+
+    // Only worth a second round trip when something was actually recorded.
+    let visitors = 0;
+    if (visits > 0) {
+      const { data } = await supabase
+        .from("page_views")
+        .select("visitor_id")
+        .gte("created_at", fromIso)
+        .lte("created_at", toIso)
+        .limit(VISITOR_SCAN_CAP);
+      visitors = new Set((data ?? []).map((r) => r.visitor_id)).size;
+    }
+
+    return {
+      newClients: newClientsRes.error ? 0 : newClientsRes.count ?? 0,
+      visits,
+      visitors,
+    };
+  } catch (error) {
+    console.error("[dashboard] audienceStats:", error);
+    return EMPTY_AUDIENCE;
+  }
+}
+
 /* ------------------------- Ranged (date) metrics ------------------------ */
 
 /** How the picked period is sliced for the chart. */
@@ -259,6 +347,13 @@ export interface RangeStats {
   delivered: number;
   customOrders: number;
   customRevenue: number;
+  /**
+   * Who was here, on the same clock as everything else in this object — so the
+   * day/month/year filter moves the audience figures too, not just the money.
+   * Every field is period-scoped without exception; all-time totals live on the
+   * overview below, not in here.
+   */
+  audience: AudienceStats;
   series: RangePoint[];
 }
 
@@ -271,6 +366,7 @@ const EMPTY_RANGE: RangeStats = {
   delivered: 0,
   customOrders: 0,
   customRevenue: 0,
+  audience: EMPTY_AUDIENCE,
   series: [],
 };
 
@@ -310,16 +406,23 @@ export async function getRangeStats(
   grain: RangeGrain,
 ): Promise<RangeStats> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("total, subtotal, discount_total, delivery_fee, status, is_custom, created_at")
-    .gte("created_at", fromIso)
-    .lte("created_at", toIso)
-    .limit(5000);
+  // Side by side with the orders read: the two touch different tables and the
+  // panel cannot render until it has both.
+  const [{ data, error }, audience] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("total, subtotal, discount_total, delivery_fee, status, is_custom, created_at")
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso)
+      .limit(5000),
+    getAudienceStats(fromIso, toIso),
+  ]);
 
   if (error || !data) {
     console.error("[dashboard] rangeStats:", error);
-    return EMPTY_RANGE;
+    // The audience half may still have worked, so it is kept rather than
+    // thrown away with the orders half.
+    return { ...EMPTY_RANGE, audience };
   }
 
   const buckets = emptyBuckets(new Date(fromIso), grain);
@@ -354,6 +457,7 @@ export async function getRangeStats(
     delivered,
     customOrders,
     customRevenue,
+    audience,
     series: [...buckets].map(([label, value]) => ({ label, value })),
   };
 }

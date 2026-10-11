@@ -29,6 +29,7 @@ import { CartDrawer } from "@/components/layout/cart-drawer";
 import { QuickViewModal } from "@/components/layout/quick-view-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { FloatingCart } from "@/components/layout/floating-cart";
+import { VisitTracker } from "@/components/layout/visit-tracker";
 import { InstallPrompt } from "@/components/layout/install-prompt";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { DeviceIdKeeper } from "@/components/layout/device-id-keeper";
@@ -202,6 +203,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <OfflineBanner />
                 {/* Renders nothing — keeps the coupon device marker alive */}
                 <DeviceIdKeeper />
+                {/* Renders nothing — records one page view per page per tab, so
+                    the dashboard can report visits. Mounted after the keeper,
+                    which is what guarantees there is a marker to record. */}
+                <VisitTracker />
                 <CartDrawer />
                 <QuickViewModal />
                 <CustomRequestModal />

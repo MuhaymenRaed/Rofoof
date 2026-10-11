@@ -586,6 +586,23 @@ export interface Database {
        * allowed not to exist at all (until docs/province-delivery-fees.sql is
        * run). See deliveryFeeFor().
        */
+      /**
+       * One row per page a visitor opened. The table already existed, unused
+       * and empty; docs/visit-tracking.sql is what lets the storefront write to
+       * it. `visitor_id` is the anonymous device marker (lib/device-id.ts), so
+       * counting distinct ones counts browsers, never people.
+       */
+      page_views: {
+        Row: {
+          id: string;
+          page_path: string;
+          visitor_id: string;
+          created_at: string;
+        };
+        Insert: { page_path: string; visitor_id: string };
+        Update: Partial<{ page_path: string; visitor_id: string }>;
+        Relationships: [];
+      };
       province_delivery_fees: {
         Row: { province_code: string; fee: number; updated_at: string };
         Insert: { province_code: string; fee: number };
