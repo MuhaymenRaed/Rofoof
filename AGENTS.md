@@ -57,6 +57,17 @@ and PUTs to those URLs. The permission split RLS used to enforce —
 `product-images` admin-only, `custom-artwork` open to any visitor — now lives in
 `lib/actions/upload.ts`. Keep it there and keep it that shape.
 
+**The database has an opinion about where artwork lives too.** `place_order()`
+and `place_custom_request()` refuse any custom-design URL that is not ours —
+`invalid_image_url` — which is right, because those URLs are rendered and
+clicked on the admin's orders board. The host list is `is_artwork_url()`
+(`docs/artwork-urls-r2.sql`), and it is the ONE place that knows it; the move to
+R2 broke checkout for every custom order for a day because that test was
+hand-inlined in both functions and only the app side was updated. A shopper's
+cart also holds storage URLs, in their own localStorage where no migration can
+reach it, so anything arriving from the client goes through `toCurrentMediaUrl()`
+(`lib/media.ts`) before it is stored.
+
 **An uploaded SVG would be stored XSS, and two things stop it.** Customer
 artwork upload is deliberately unauthenticated, these URLs are opened directly
 (the orders board links to artwork with `target="_blank"`), and an SVG is a

@@ -97,6 +97,37 @@ function parse(url: string): ParsedVariant | null {
 }
 
 /**
+ * Where media used to be served from, before the move to R2 on 2026-10-11.
+ *
+ * Any Supabase project ref, because the host is not what identifies these —
+ * the `/storage/v1/object/public/` path is, and the bucket name that follows it
+ * became the first segment of the R2 key, byte for byte.
+ */
+const LEGACY_STORAGE_RE =
+  /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\//i;
+
+/** Where it is served from now. Also in next.config.ts and public/sw.js. */
+const MEDIA_BASE = "https://media.rofoof.net";
+
+/**
+ * Drag a storage URL onto the host that still has the bytes.
+ *
+ * `docs/media-urls-to-r2.sql` repointed every row in the database, but it could
+ * not reach the one place that also holds storage URLs: **the shopper's cart**,
+ * which lives in their browser's localStorage. A basket filled before the move
+ * — with custom artwork uploaded to Supabase — is still sitting open on some
+ * phone right now, and the files it names were deleted when the old bucket was
+ * emptied. Submitted as-is it would be refused by place_order(), or worse,
+ * recorded as an order whose artwork 404s for the admin who has to print it.
+ *
+ * Call this on anything arriving from the client that will be stored. Anything
+ * already on the current host, relative, or `blob:` passes through untouched.
+ */
+export function toCurrentMediaUrl(url: string): string {
+  return url.replace(LEGACY_STORAGE_RE, `${MEDIA_BASE}/`);
+}
+
+/**
  * The stored file best matching a requested render width.
  *
  * Returns `url` unchanged for anything untagged — that is the safe default and

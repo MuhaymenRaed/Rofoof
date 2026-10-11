@@ -12,6 +12,7 @@ import {
   recordCouponRedemption,
   releaseCouponRedemption,
 } from "@/lib/coupon-guard";
+import { toCurrentMediaUrl } from "@/lib/media";
 import { getAllOrders, type OrdersPage } from "@/lib/data/orders";
 import { mapOrder, type OrderRowWithItems } from "@/lib/data/mappers";
 import { TAGS } from "@/lib/data/tags";
@@ -154,7 +155,16 @@ const placeOrderSchema = z
             .catch(1)
             .transform((n) => Math.min(Math.max(n, 1), MAX_LINE_QTY)),
           waterproof: z.boolean().optional().default(false),
-          customImageUrl: z.string().url().max(500).nullable().optional(),
+          // Rehosted, not rejected — see toCurrentMediaUrl. A cart filled
+          // before the move to R2 still names files on a bucket that is now
+          // empty, and the shopper has no way to know that.
+          customImageUrl: z
+            .string()
+            .url()
+            .max(500)
+            .nullable()
+            .optional()
+            .transform((v) => (v ? toCurrentMediaUrl(v) : v)),
           note: z.string().max(200).nullable().optional(),
         }),
       )
@@ -170,7 +180,10 @@ const placeOrderSchema = z
             type: z.enum(["brooch", "sticker", "poster"]),
             waterproof: z.boolean().optional().default(false),
             description: z.string().trim().max(1000).optional().default(""),
-            images: z.array(z.string().url().max(500)).min(1).max(100),
+            images: z
+              .array(z.string().url().max(500).transform(toCurrentMediaUrl))
+              .min(1)
+              .max(100),
             // An exact price for the whole request, set by an admin. Accepted
             // here but NOT trusted here: place_order re-checks is_admin() and
             // raises `forbidden_manual_price` for anyone else, so this schema
@@ -664,8 +677,12 @@ const customRequestSchema = z.object({
   waterproof: z.boolean().optional().default(false),
   description: z.string().trim().max(1000).optional().default(""),
   // WebP artwork already uploaded to the public custom-artwork bucket; the
-  // RPC re-validates the prefix and recomputes the price server-side.
-  images: z.array(z.string().url().max(500)).min(1).max(100),
+  // RPC re-validates the prefix and recomputes the price server-side. Pulled
+  // onto the current media host first — see toCurrentMediaUrl.
+  images: z
+    .array(z.string().url().max(500).transform(toCurrentMediaUrl))
+    .min(1)
+    .max(100),
 });
 
 export type CustomRequestInput = z.input<typeof customRequestSchema>;
