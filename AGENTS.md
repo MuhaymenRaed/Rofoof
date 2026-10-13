@@ -57,6 +57,18 @@ and PUTs to those URLs. The permission split RLS used to enforce —
 `product-images` admin-only, `custom-artwork` open to any visitor — now lives in
 `lib/actions/upload.ts`. Keep it there and keep it that shape.
 
+That PUT goes from the browser straight to
+`<account>.r2.cloudflarestorage.com`, so **the bucket's CORS rules are part of
+the upload path** and nothing in this repo will tell you they are wrong. Every
+header `uploadImagePair()` sends has to be in `AllowedHeaders`:
+`content-type`, `cache-control` and — for anonymous artwork —
+**`if-none-match`**. That last one was missed and customer artwork upload was
+dead for two days: an anonymous write is signed create-only, the browser must
+send `If-None-Match: *`, and R2 answered the preflight with 403 before the PUT
+was ever sent. Admin uploads kept working throughout, because they are the one
+path that does NOT send it. `AllowedOrigins` must carry both `rofoof.net` and
+`www.rofoof.net`; shoppers arrive on either from Instagram.
+
 **The database has an opinion about where artwork lives too.** `place_order()`
 and `place_custom_request()` refuse any custom-design URL that is not ours —
 `invalid_image_url` — which is right, because those URLs are rendered and
