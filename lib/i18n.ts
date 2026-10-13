@@ -1294,6 +1294,16 @@ export const dict = {
     ar: "صورة أكبر من 20MB تم تجاهلها",
     en: "An image over 20MB was skipped",
   },
+  /**
+   * Artwork never reached storage. Names the images as the thing that failed —
+   * nothing else has been lost, the description and the type are still filled
+   * in, and pressing again is the whole remedy. It replaces the raw
+   * `upload_failed` that used to be shown to the shopper verbatim.
+   */
+  "custom.uploadFailed": {
+    ar: "تعذّر رفع صورك، تأكد من الاتصال وحاول مجدداً",
+    en: "Couldn't upload your images — check your connection and try again",
+  },
   "custom.description": {
     ar: "وصف طلبك (اختياري)",
     en: "Describe your request (optional)",

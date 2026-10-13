@@ -222,7 +222,13 @@ function RequestForm({ onClose }: { onClose: () => void }) {
       onClose();
       openCart();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("checkout.error"));
+      // The shopper gets a sentence in their own language; the machine code
+      // (upload_failed, invalid_key, presign_failed…) goes to the console,
+      // where it is worth something. This used to be the other way round —
+      // a customer in an Arabic checkout was shown the bare word
+      // "upload_failed", which told them nothing and looked like a crash.
+      console.error("[customRequest] upload failed:", err);
+      setError(t("custom.uploadFailed"));
     } finally {
       setPending(false);
     }

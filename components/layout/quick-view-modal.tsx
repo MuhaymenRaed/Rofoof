@@ -42,6 +42,7 @@ import {
 } from "@/lib/pricing";
 import { toWebpVariants, MAX_UPLOAD_BYTES, MAX_DIMENSION } from "@/lib/webp";
 import { uploadImagePair } from "@/lib/upload-image";
+import type { DictKey } from "@/lib/i18n";
 
 type CSSVars = React.CSSProperties & Record<string, string>;
 
@@ -108,6 +109,7 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
   const [waterproof, setWaterproof] = useState(false);
   const [customUrl, setCustomUrl] = useState<string | null>(null);
   const [uploadingCustom, setUploadingCustom] = useState(false);
+  const [customError, setCustomError] = useState<DictKey | null>(null);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -260,7 +262,11 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    if (f.size > MAX_UPLOAD_BYTES) return; // 20MB cap per image
+    setCustomError(null);
+    if (f.size > MAX_UPLOAD_BYTES) {
+      setCustomError("custom.tooBig");
+      return;
+    }
     setUploadingCustom(true);
     // Re-encode to WebP in the browser so the bucket only stores compact files,
     // and write a thumb beside it — this artwork is echoed back at 48px here,
@@ -274,7 +280,15 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
       maxDimension: MAX_DIMENSION,
     });
     setUploadingCustom(false);
-    if (uploaded.ok) setCustomUrl(uploaded.url);
+    if (uploaded.ok) {
+      setCustomUrl(uploaded.url);
+      return;
+    }
+    // A failure used to do NOTHING here — the spinner stopped, the panel looked
+    // untouched, and the shopper was left tapping a button that silently
+    // refused. Say so, and keep the machine code for the console.
+    console.error("[quickView] artwork upload failed:", uploaded.error);
+    setCustomError("custom.uploadFailed");
   }
 
   function handleAdd() {
@@ -687,6 +701,11 @@ function Content({ product, onClose }: { product: Product; onClose: () => void }
                 <Plus size={16} />
                 {uploadingCustom ? "…" : t("product.uploadCustom")}
               </button>
+            )}
+            {customError && (
+              <p className="mt-2 rounded-xl bg-red-500/10 px-3 py-2 text-[11px] font-semibold leading-relaxed text-red-500">
+                {t(customError)}
+              </p>
             )}
           </div>
         )}
